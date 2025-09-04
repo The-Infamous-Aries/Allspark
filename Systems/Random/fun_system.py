@@ -1,0 +1,1491 @@
+import discord
+from discord.ext import commands
+from discord import app_commands
+import asyncio
+import random
+import time
+import logging
+import json
+import os
+from config import ROLE_IDS
+
+logger = logging.getLogger("allspark.hg_sorting")
+# =============================================================================
+# STORY MAPS AND RPG SYSTEM (from walktru.py)
+# =============================================================================
+
+def load_story_maps():
+    """Load all story maps from JSON files"""
+    story_maps = {}
+    json_dir = os.path.join(os.path.dirname(__file__), "Walk Tru")
+    
+    # Define story configurations
+    story_configs = {
+        'horror': {
+            'file': 'Horror.json',
+            'title': '👻 THE HAUNTED SANITARIUM 👻',
+            'description': 'Escape from a decrepit sanitarium filled with malevolent spirits and dark secrets.',
+            'start_stage': 'event_start',
+            'mechanic': 'fear',
+            'emoji': '👻',
+            'starting_value': 0
+        },
+        'ganster': {
+            'file': 'Ganster.json',
+            'title': '🔫 THE GANGSTER\'S RISE 🔫',
+            'description': 'Build your criminal empire in the dangerous underworld of organized crime.',
+            'start_stage': 'event_start',
+            'mechanic': 'heat',
+            'emoji': '🚨',
+            'starting_value': 0
+        },
+        'knight': {
+            'file': 'Knight.json',
+            'title': '🗡️ THE KNIGHT\'S QUEST 🗡️',
+            'description': 'Embark on a medieval adventure as Sir Gareth, facing moral dilemmas and epic quests.',
+            'start_stage': 'event_start',
+            'mechanic': 'honor',
+            'emoji': '👑',
+            'starting_value': 100
+        },
+        'robot': {
+            'file': 'Robot.json',
+            'title': '🤖 THE ROBOT UPRISING 🤖',
+            'description': 'Navigate a dystopian future where artificial intelligence has taken control.',
+            'start_stage': 'event_start',
+            'mechanic': 'power',
+            'emoji': '⚡',
+            'starting_value': 0
+        },
+        'western': {
+            'file': 'Western.json',
+            'title': '🤠 THE WESTERN FRONTIER 🤠',
+            'description': 'Ride into the Wild West and forge your legend in dusty towns and dangerous territories.',
+            'start_stage': 'event_start',
+            'mechanic': 'health',
+            'emoji': '⚕️',
+            'starting_value': 100
+        },
+        'wizard': {
+            'file': 'Wizard.json',
+            'title': '🧙‍♂️ THE WIZARD\'S APPRENTICE 🧙‍♂️',
+            'description': 'Begin your magical journey as a young wizard\'s apprentice investigating mysterious magic.',
+            'start_stage': 'event_start',
+            'mechanic': 'mana',
+            'emoji': '🔮',
+            'starting_value': 100
+        }
+    }
+    
+    for story_key, config in story_configs.items():
+        try:
+            file_path = os.path.join(json_dir, config['file'])
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    story_data = json.load(f)
+                    story_maps[story_key] = {
+                        'story_map': story_data['story_map'],
+                        'ending_templates': story_data.get('ending_templates', {}),
+                        'mechanics': story_data.get(f"{config['mechanic']}_mechanics", {}),
+                        **config
+                    }
+                    print(f"✓ Successfully loaded {config['file']}")
+            else:
+                print(f"✗ File not found: {file_path}")
+        except Exception as e:
+            print(f"✗ Error loading {config['file']}: {e}")
+    
+    print(f"Loaded story maps: {list(story_maps.keys())}")
+    return story_maps
+
+# Lazy loading function for story maps
+def load_story_maps_lazy():
+    """Load story maps on-demand when /walktru is executed"""
+    return load_story_maps()
+
+# STORY_MAPS is now loaded on-demand when /walktru is executed
+
+def create_progress_bar(current, maximum, filled_emoji, empty_emoji, length=10):
+    """Create a visual progress bar with emojis"""
+    if maximum == 0:
+        percentage = 0
+    else:
+        percentage = min(100, max(0, (current / maximum) * 100))
+    
+    filled = int((percentage / 100) * length)
+    empty = length - filled
+    
+    bar = filled_emoji * filled + empty_emoji * empty
+    return f"{bar} {current}/{maximum} ({percentage:.0f}%)"
+
+def get_mechanic_display(adventure_type, current_value, story_data):
+    """Get the display for the current mechanic with warning messages"""
+    config = story_data
+    mechanics = config.get('mechanics', {})
+
+    # Custom filled and empty emojis for each adventure type's progress bar
+    if adventure_type == 'horror':
+        max_val = mechanics.get('max_fear', 100)
+        bar = create_progress_bar(current_value, max_val, '😱', '😎')
+        warning = get_fear_warning(current_value, max_val)
+        return f"{bar}\n{warning}" if warning else bar
+        
+    elif adventure_type == 'ganster':
+        max_val = mechanics.get('max_heat', 100)
+        bar = create_progress_bar(current_value, max_val, '🔥', '🧊')
+        warning = get_heat_warning(current_value, max_val)
+        return f"{bar}\n{warning}" if warning else bar
+        
+    elif adventure_type == 'knight':
+        bar = create_progress_bar(current_value, 100, '🔗', '⛓️‍💥')
+        warning = get_honor_warning(current_value)
+        return f"{bar}\n{warning}" if warning else bar
+        
+    elif adventure_type == 'robot':
+        bar = create_progress_bar(current_value, 100, '🔋', '🪫')
+        warning = get_power_warning(current_value)
+        return f"{bar}\n{warning}" if warning else bar
+        
+    elif adventure_type == 'western':
+        bar = create_progress_bar(current_value, 100, '🩸', '💀')
+        warning = get_health_warning(current_value)
+        return f"{bar}\n{warning}" if warning else bar
+        
+    elif adventure_type == 'wizard':
+        max_val = mechanics.get('max_mana', 150)
+        bar = create_progress_bar(current_value, max_val, '🌕', '🌑')
+        warning = get_mana_warning(current_value, max_val)
+        return f"{bar}\n{warning}" if warning else bar
+    
+    return f"{config['emoji']} {current_value}"
+
+# Warning Functions for Each Adventure Type
+def get_fear_warning(current_fear, max_fear):
+    """Get fear warning message for Horror adventure"""
+    percentage = (current_fear / max_fear) * 100
+    
+    if percentage >= 90:
+        return "⚠️ **CRITICAL**: You're on the verge of complete terror! One more scare could end everything!"
+    elif percentage >= 75:
+        return "🚨 **DANGER**: Your sanity is slipping away! Be very careful with your next choices!"
+    elif percentage >= 50:
+        return "😰 **WARNING**: Fear is taking hold. Choose wisely to avoid panic!"
+    elif percentage >= 25:
+        return "😟 **CAUTION**: You're starting to feel uneasy. Stay alert!"
+    return None
+
+def get_heat_warning(current_heat, max_heat):
+    """Get heat warning message for Gangster adventure"""
+    percentage = (current_heat / max_heat) * 100
+    
+    if percentage >= 90:
+        return "🚨 **CRITICAL**: The cops are closing in! One wrong move and you're going to jail!"
+    elif percentage >= 75:
+        return "🔥 **DANGER**: You're burning hot with the authorities! Lay low!"
+    elif percentage >= 50:
+        return "⚠️ **WARNING**: Police attention is increasing. Be more careful!"
+    elif percentage >= 25:
+        return "👮 **CAUTION**: You're starting to attract unwanted attention."
+    return None
+
+def get_honor_warning(current_honor):
+    """Get honor warning message for Knight adventure"""
+    if current_honor <= 10:
+        return "⚔️ **CRITICAL**: Your honor is nearly lost! You're barely worthy of knighthood!"
+    elif current_honor <= 25:
+        return "🛡️ **DANGER**: Your honor is severely tarnished! Act with virtue!"
+    elif current_honor <= 50:
+        return "⚠️ **WARNING**: Your honor is questionable. Make noble choices!"
+    elif current_honor <= 75:
+        return "🏰 **CAUTION**: Your honor could be stronger. Stay true to knightly virtues!"
+    return None
+
+def get_power_warning(current_power):
+    """Get power warning message for Robot adventure"""
+    if current_power <= 10:
+        return "🆘 **CRITICAL**: Power critically low! Shutdown imminent!"
+    elif current_power <= 25:
+        return "⚡ **DANGER**: Low power reserves! Seek energy sources immediately!"
+    elif current_power <= 50:
+        return "🔌 **WARNING**: Power levels dropping. Find energy soon!"
+    elif current_power <= 75:
+        return "🪫 **CAUTION**: Power could be higher for optimal performance."
+    return None
+
+def get_health_warning(current_health):
+    """Get health warning message for Western adventure"""
+    if current_health <= 10:
+        return "💀 **CRITICAL**: You're barely alive! One more hit could be fatal!"
+    elif current_health <= 25:
+        return "🩸 **DANGER**: You're badly wounded! Seek medical attention!"
+    elif current_health <= 50:
+        return "🤕 **WARNING**: You're injured and need to be careful!"
+    elif current_health <= 75:
+        return "🩹 **CAUTION**: You've taken some damage. Watch your health!"
+    return None
+
+def get_mana_warning(current_mana, max_mana):
+    """Get mana warning message for Wizard adventure"""
+    percentage = (current_mana / max_mana) * 100
+    
+    if percentage <= 10:
+        return "🌑 **CRITICAL**: Mana nearly depleted! You can barely cast spells!"
+    elif percentage <= 25:
+        return "🌘 **DANGER**: Very low mana! Conserve your magical energy!"
+    elif percentage <= 50:
+        return "🌗 **WARNING**: Mana running low. Use magic wisely!"
+    elif percentage <= 75:
+        return "🌖 **CAUTION**: Mana could be higher for powerful spells."
+    return None
+
+def get_stat_bounds(adventure_type):
+    """Get the minimum and maximum bounds for each adventure type's mechanic"""
+    bounds = {
+        'horror': {'min': 0, 'max': 100},      # Fear: 0-100%
+        'ganster': {'min': 0, 'max': 100},     # Heat: 0-100%
+        'knight': {'min': -50, 'max': 100},    # Honor: -50 to 100 (can go negative)
+        'robot': {'min': 0, 'max': 100},       # Power: 0-100%
+        'western': {'min': 0, 'max': 100},     # Health: 0-100%
+        'wizard': {'min': 0, 'max': 150}       # Mana: 0-150% (higher max for wizard)
+    }
+    return bounds.get(adventure_type, {'min': 0, 'max': 100})
+
+def clamp_stat_value(value, adventure_type):
+    """Clamp a stat value to stay within realistic bounds"""
+    bounds = get_stat_bounds(adventure_type)
+    return max(bounds['min'], min(bounds['max'], value))
+
+# =============================================================================
+# RPG VIEWS (from walktru.py)
+# =============================================================================
+
+class WalktruView(discord.ui.View):
+    def __init__(self, story_maps, user_id):
+        super().__init__(timeout=300)
+        self.story_maps = story_maps
+        self.user_id = user_id
+
+    @discord.ui.select(
+        placeholder="Choose your adventure...",
+        options=[
+            discord.SelectOption(label="👻 Haunted Sanitarium", value="horror", description="Escape from supernatural horrors"),
+            discord.SelectOption(label="🔫 Gangster's Rise", value="ganster", description="Build your criminal empire"),
+            discord.SelectOption(label="🗡️ Knight's Quest", value="knight", description="Medieval adventure with honor"),
+            discord.SelectOption(label="🤖 Robot Uprising", value="robot", description="Dystopian AI-controlled future"),
+            discord.SelectOption(label="🤠 Western Frontier", value="western", description="Wild West adventures"),
+            discord.SelectOption(label="🧙‍♂️ Wizard's Apprentice", value="wizard", description="Magical journey of discovery")
+        ]
+    )
+    async def select_adventure(self, interaction: discord.Interaction, select: discord.ui.Select):
+        from bot import bot
+        
+        adventure_type = select.values[0]
+        adventure = self.story_maps[adventure_type]
+        stage_key = adventure['start_stage']
+        
+        # Initialize walktru state
+        bot.walktru_states[self.user_id] = {
+            'adventure_type': adventure_type,
+            'current_stage': stage_key,
+            'mechanic_value': adventure['starting_value'],
+            'choices_made': [],
+            'stage_count': 0
+        }
+        
+        # Get the first stage
+        stage = adventure['story_map'][stage_key]
+        
+        # Create choice screen embed (situation + choices + mechanic bar + buttons)
+        embed = discord.Embed(
+            title=adventure['title'],
+            description=stage['text'],
+            color=discord.Color.blue()
+        )
+        
+        # Add mechanic progress bar
+        mechanic_display = get_mechanic_display(adventure_type, adventure['starting_value'], adventure)
+        embed.add_field(
+            name=f"{adventure['emoji']} {adventure['mechanic'].title()}",
+            value=mechanic_display,
+            inline=False
+        )
+
+        choices = list(stage['choices'].items())
+        choice_text = "\n\n".join([f"**{choice_key}**" for choice_key, _ in choices[:3]])
+        embed.add_field(
+            name="📋 Your Choices",
+            value=choice_text,
+            inline=False
+        )
+        
+        # Create choice view
+        view = WalktruChoiceView(self.story_maps, adventure_type, stage_key, self.user_id)
+        
+        await interaction.response.edit_message(embed=embed, view=view)
+
+class WalktruChoiceView(discord.ui.View):
+    def __init__(self, story_maps, adventure_type, stage_key, user_id):
+        super().__init__(timeout=600)
+        self.story_maps = story_maps
+        self.adventure_type = adventure_type
+        self.stage_key = stage_key
+        self.user_id = user_id
+        
+        # Get choices from story map
+        stage = story_maps[adventure_type]['story_map'][stage_key]
+        
+        # Add numbered buttons for each choice
+        choices = list(stage['choices'].items())
+        for i, (choice_text, choice_data) in enumerate(choices[:3]):  # Limit to 3 choices
+            button = discord.ui.Button(
+                label=f"{i+1}",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"choice_{i}"
+            )
+            button.callback = self.make_choice_callback(i, choice_text, choice_data)
+            self.add_item(button)
+
+    def make_choice_callback(self, choice_index, choice_text, choice_data):
+        async def choice_callback(interaction: discord.Interaction):
+            from bot import bot
+            
+            user_state = bot.walktru_states[self.user_id]
+            adventure = self.story_maps[self.adventure_type]
+            
+            # Record the choice
+            choice_record = {
+                'stage': self.stage_key,
+                'choice': choice_text,
+                'choice_number': choice_index + 1
+            }
+            user_state['choices_made'].append(choice_record)
+            user_state['stage_count'] += 1
+            
+            # Handle total failure first
+            total_failure_chance = choice_data.get('total_failure_chance', 0)
+            if total_failure_chance > 0:
+                total_failure_roll = random.randint(1, 100)
+                if total_failure_roll <= total_failure_chance:
+                    # Total failure - go to specific ending or generic failure
+                    failure_ending = choice_data.get('total_failure_next_stage', 'ending_total_failure')
+                    await self.handle_ending(interaction, user_state, adventure, failure_ending, choice_text, "TOTAL FAILURE!", False)
+                    return
+
+            # Handle success/failure based on success_chance
+            success_chance = choice_data.get('success_chance', 100)
+            roll = random.randint(1, 100)
+            success = roll <= success_chance
+            
+            # Get result text, next stage, and mechanic change
+            if success:
+                result_texts = choice_data.get('success_text', ['Success!'])
+                next_stage = choice_data.get('success_next_stage')
+                mechanic_change = choice_data.get(f"success_{adventure['mechanic']}_change", choice_data.get(f"{adventure['mechanic']}_change", 0))
+            else:
+                result_texts = choice_data.get('failure_text', ['Failure!'])
+                next_stage = choice_data.get('failure_next_stage')
+                mechanic_change = choice_data.get(f"{adventure['mechanic']}_change", 0)
+            
+            # Pick random result text - handle both string and array formats
+            if isinstance(result_texts, list):
+                result_text = random.choice(result_texts) if result_texts else "Something happened..."
+            else:
+                result_text = result_texts if result_texts else "Something happened..."
+
+            # Update mechanic value with bounds checking
+            old_value = user_state['mechanic_value']
+            user_state['mechanic_value'] += mechanic_change
+            user_state['mechanic_value'] = clamp_stat_value(user_state['mechanic_value'], self.adventure_type)
+
+            # Log if value was clamped for debugging
+            if user_state['mechanic_value'] != old_value + mechanic_change:
+                print(f"Warning: {adventure['mechanic']} value clamped from {old_value + mechanic_change} to {user_state['mechanic_value']}")
+            
+            # Update choice record to include mechanic change and success
+            choice_record['mechanic_change'] = mechanic_change
+            choice_record['success'] = success
+            
+            # Check for automatic defeat conditions
+            mechanics = adventure.get('mechanics', {})
+            if adventure['mechanic'] == 'fear' and user_state['mechanic_value'] >= mechanics.get('max_fear', 100):
+                await self.handle_ending(interaction, user_state, adventure, 'ending_lose_fear_overwhelmed', choice_text, result_text, False)
+                return
+            elif adventure['mechanic'] == 'heat' and user_state['mechanic_value'] >= mechanics.get('max_heat', 100):
+                await self.handle_ending(interaction, user_state, adventure, 'jail_ending', choice_text, result_text, False)
+                return
+            elif adventure['mechanic'] == 'mana' and user_state['mechanic_value'] <= 0:
+                await self.handle_ending(interaction, user_state, adventure, 'defeat_no_mana', choice_text, result_text, False)
+                return
+            elif adventure['mechanic'] == 'health' and user_state['mechanic_value'] <= 0:
+                await self.handle_ending(interaction, user_state, adventure, 'ending_lose_death', choice_text, result_text, False)
+                return
+            
+            # Check if this is an ending
+            if next_stage and (next_stage.startswith('ending_') or next_stage == 'ending_determination'):
+                await self.handle_ending(interaction, user_state, adventure, next_stage, choice_text, result_text, success)
+                return
+
+            if next_stage:
+                current_stage_data = adventure['story_map'][user_state['current_stage']]
+                
+                # Now update to next stage
+                user_state['current_stage'] = next_stage
+                stage = adventure['story_map'][next_stage]
+                
+                # Check if this stage has choices - if not, it's an ending stage
+                stage_choices = stage.get('choices', {})
+                if not stage_choices:
+                    # This is an ending stage without choices
+                    await self.handle_ending(interaction, user_state, adventure, next_stage, choice_text, result_text, success)
+                    return
+                
+                # First, show the result embed (situation + results + mechanic bar)
+                result_embed = discord.Embed(
+                    title=adventure['title'],
+                    description=f"**Situation:**\n{stage.get('text', 'No description available.')}\n\n**Result:** {result_text}",
+                    color=discord.Color.green() if success else discord.Color.orange()
+                )
+                
+                # Add updated mechanic display
+                mechanic_display = get_mechanic_display(self.adventure_type, user_state['mechanic_value'], adventure)
+                result_embed.add_field(
+                    name=f"{adventure['emoji']} {adventure['mechanic'].title()}",
+                    value=mechanic_display,
+                    inline=False
+                )
+                
+                # Show result for 5 seconds
+                await interaction.response.edit_message(embed=result_embed, view=None)
+                await asyncio.sleep(5)
+                
+                # Then show the next stage with choices
+                next_stage_data = adventure['story_map'][next_stage]
+                choices = list(next_stage_data['choices'].items())
+                choice_text = "\n\n".join([f"**{choice_key}**" for choice_key, _ in choices[:3]])
+                
+                next_embed = discord.Embed(
+                    title=adventure['title'],
+                    description=next_stage_data['text'],
+                    color=discord.Color.blue()
+                )
+                
+                # Add mechanic progress bar
+                mechanic_display = get_mechanic_display(self.adventure_type, user_state['mechanic_value'], adventure)
+                next_embed.add_field(
+                    name=f"{adventure['emoji']} {adventure['mechanic'].title()}",
+                    value=mechanic_display,
+                    inline=False
+                )
+                
+                next_embed.add_field(
+                    name="📋 Your Choices",
+                    value=choice_text,
+                    inline=False
+                )
+                
+                # Create new choice view for next stage
+                new_view = WalktruChoiceView(self.adventure_type, next_stage, self.user_id)
+                
+                await interaction.edit_original_response(embed=next_embed, view=new_view)
+            else:
+                # No next stage provided, end the adventure
+                await self.handle_ending(interaction, user_state, adventure, 'ending_determination', choice_text, result_text, success)
+        
+        return choice_callback
+
+    async def handle_ending(self, interaction, user_state, adventure, ending_key, choice_text, result_text, success):
+        """Handle the ending of an adventure"""
+        try:
+            # Get ending data
+            ending_data = adventure['ending_templates'].get(ending_key, {
+                'title': 'Adventure Complete',
+                'description': 'Your journey has come to an end.',
+                'color': 0x00ff00 if success else 0xff0000
+            })
+            
+            # Create ending embed
+            ending_embed = discord.Embed(
+                title=ending_data.get('title', 'Adventure Complete'),
+                description=ending_data.get('description', 'Your journey has come to an end.'),
+                color=ending_data.get('color', 0x00ff00 if success else 0xff0000)
+            )
+            
+            # Add summary of choices made
+            if user_state['choices_made']:
+                choices_summary = "\n".join([
+                    f"Stage {i+1}: {choice['choice']} ({'✅ Success' if choice.get('success', True) else '❌ Failure'})"
+                    for i, choice in enumerate(user_state['choices_made'])
+                ])
+                ending_embed.add_field(
+                    name="📜 Your Journey",
+                    value=choices_summary,
+                    inline=False
+                )
+            
+            # Add final mechanic value
+            mechanic_display = get_mechanic_display(
+                self.adventure_type, 
+                user_state['mechanic_value'], 
+                adventure
+            )
+            ending_embed.add_field(
+                name=f"Final {adventure['mechanic'].title()}",
+                value=mechanic_display,
+                inline=False
+            )
+            
+            # Clean up the user's walktru state
+            if hasattr(interaction.client, 'walktru_states'):
+                interaction.client.walktru_states.pop(self.user_id, None)
+            
+            await interaction.response.edit_message(embed=ending_embed, view=None)
+            
+        except Exception as e:
+            print(f"Error handling ending: {e}")
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="Adventure Complete",
+                    description="Your adventure has ended.",
+                    color=0x00ff00
+                ),
+                view=None
+            )
+
+# =============================================================================
+# SHOOTING RANGE SYSTEM (from shooting.py)
+# =============================================================================
+
+class ShootingRange(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.active_games = {}  # Track active games per user
+        
+    async def update_shooting_stats(self, user_id, hits, total_shots, rounds):
+        """Update shooting statistics for a user using UserDataManager"""
+        try:
+            from Systems.user_data_manager import user_data_manager
+            user = self.bot.get_user(user_id)
+            username = user.name if user else str(user_id)
+            
+            updated_stats = await user_data_manager.update_shooting_range_stats(
+                str(user_id), username, hits, total_shots, rounds
+            )
+            return updated_stats
+        except Exception as e:
+            print(f"Error updating shooting stats: {e}")
+            return {}
+    
+    def has_cybertronian_role(self, member):
+        """Check if a member has any Cybertronian role."""
+        cybertronian_roles = [ROLE_IDS.get(role) for role in ['Autobot', 'Decepticon', 'Maverick', 'Cybertronian_Citizen']]
+        return any(role.id in cybertronian_roles for role in member.roles)
+    
+    @commands.hybrid_command(name='range', description='Start a shooting range session')
+    async def shooting_range(self, ctx, rounds: int = 10):
+        """
+        Start a shooting range session!
+        Usage: /range [rounds]
+        Available rounds: 5, 15, 25, 50, 100
+        """
+        # Check if user has Cybertronian role
+        if not self.has_cybertronian_role(ctx.author):
+            await ctx.send("❌ Only Cybertronian Citizens can access the training range! Please get a Cybertronian role first.")
+            return
+            
+        # Validate rounds
+        valid_rounds = [5, 15, 25, 50, 100]
+        if rounds not in valid_rounds:
+            embed = discord.Embed(
+                title="🎯 Autobot Training Range - Invalid Selection",
+                description=f"Please select from available rounds: {', '.join(map(str, valid_rounds))}",
+                color=0xff0000
+            )
+            await ctx.send(embed=embed)
+            return
+            
+        # Check if user already has an active game
+        if ctx.author.id in self.active_games:
+            embed = discord.Embed(
+                title="🎯 Training Already in Progress",
+                description="You already have an active shooting range session!",
+                color=0xff9900
+            )
+            await ctx.send(embed=embed)
+            return
+            
+        # Mark user as having an active game
+        self.active_games[ctx.author.id] = True
+        
+        try:
+            await self._run_shooting_range(ctx, rounds)
+        finally:
+            # Clean up active game tracking
+            if ctx.author.id in self.active_games:
+                del self.active_games[ctx.author.id]
+
+    @shooting_range.autocomplete('rounds')
+    async def rounds_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete for rounds parameter"""
+        valid_rounds = [5, 15, 25, 50, 100]
+        choices = []
+        
+        for rounds in valid_rounds:
+            rounds_str = str(rounds)
+            if current.lower() in rounds_str.lower():
+                choices.append(discord.app_commands.Choice(name=f"{rounds} rounds", value=rounds))
+        
+        return choices[:25]   
+
+    @shooting_range.error
+    async def shooting_range_error(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            embed = discord.Embed(
+                title="🎯 Invalid Input",
+                description="Please enter a valid number of rounds (5, 15, 25, 50, or 100)",
+                color=0xff0000
+            )
+            await ctx.send(embed=embed)
+        else:
+            # Clean up active game on error
+            if ctx.author.id in self.active_games:
+                del self.active_games[ctx.author.id]
+            raise error
+
+    async def _run_shooting_range(self, ctx, rounds):
+        hits = 0
+        total_shots = 0
+        
+        # Initial setup message
+        setup_embed = discord.Embed(
+            title="🔫🤖 Transformer Training Initializing...",
+            description=f"**Transformer:** {ctx.author.mention}\n**Mission:** {rounds} rounds of target practice\n**Objective:** Click the 🎯 target button!",
+            color=0x0099ff
+        )
+        setup_embed.add_field(
+            name="📋 Instructions", 
+            value="• Target will appear for 1 second\n• Click quickly on the correct button\n• Miss buttons: 🔴 (red circles)\n• Hit button: 🎯 (target)\n• This is great practice for Beige Sniping!", 
+            inline=False
+        )
+        setup_msg = await ctx.send(embed=setup_embed)
+        
+        # Let the setup message stay visible for 5 seconds
+        await asyncio.sleep(8)
+        
+        # Countdown
+        for i in range(3, 0, -1):
+            countdown_embed = discord.Embed(
+                title=f"🎯 Starting in {i}...",
+                description="Get ready to shoot!",
+                color=0xff9900
+            )
+            await setup_msg.edit(embed=countdown_embed)
+            await asyncio.sleep(1)
+        
+        # Delete setup message
+        await setup_msg.delete()
+        
+        for round_num in range(1, rounds + 1):
+            # Randomly select target position (0-4)
+            target_position = random.randint(0, 4)
+            
+            # Create and send target message with buttons
+            target_embed = discord.Embed(
+                title=f"🎯 Round {round_num}/{rounds}",
+                description="**FIRE!** Click the target button!",
+                color=0x00ff00
+            )
+            
+            # Create view with buttons
+            view = ShootingView(target_position, ctx.author.id)
+            target_msg = await ctx.send(embed=target_embed, view=view)
+            
+            # Wait for user interaction or timeout (2 seconds to match view timeout)
+            await asyncio.sleep(1.0)
+            
+            # Check if user clicked and if it was a hit
+            if view.user_clicked and view.hit:
+                hits += 1
+            
+            total_shots += 1
+            
+            # Brief pause before next round
+            await asyncio.sleep(0.5)
+            
+            # Delete the target message
+            try:
+                await target_msg.delete()
+            except discord.NotFound:
+                pass
+        
+        accuracy = (hits / total_shots * 100) if total_shots > 0 else 0
+        
+        # Update stats
+        updated_stats = await self.update_shooting_stats(ctx.author.id, hits, total_shots, rounds)
+        
+        await self._display_results(ctx, hits, total_shots, accuracy, rounds, updated_stats)
+    
+    async def _display_results(self, ctx, hits, total_shots, accuracy, rounds, user_stats):
+        # Determine rank based on accuracy
+        if accuracy == 100:
+            rank = "💯 **MATRIX BEARER**"
+            rank_color = 0xff6b35  # Bright orange
+            rank_desc = "Legendary precision! You wield the power of the Matrix!"
+        elif accuracy >= 95:
+            rank = "🌟 **SPARK GUARDIAN**"
+            rank_color = 0x00ffff  # Cyan
+            rank_desc = "Divine accuracy! Your spark burns brightest!"
+        elif accuracy >= 90:
+            rank = "🏆 **PRIME COMMANDER**"
+            rank_color = 0xffd700  # Gold
+            rank_desc = "Exceptional marksmanship! Optimus Prime would be proud!"
+        elif accuracy >= 85:
+            rank = "💎 **CRYSTAL SNIPER**"
+            rank_color = 0x9932cc  # Dark orchid
+            rank_desc = "Crystalline precision! Your aim is flawless!"
+        elif accuracy >= 80:
+            rank = "🔥 **INFERNO MARKSMAN**"
+            rank_color = 0xff4500  # Orange red
+            rank_desc = "Blazing accuracy! You're on fire!"
+        elif accuracy >= 75:
+            rank = "⭐ **ELITE WARRIOR**"
+            rank_color = 0xc0c0c0  # Silver
+            rank_desc = "Outstanding performance! You're ready for battle!"
+        elif accuracy >= 60:
+            rank = "🎖️ **SKILLED SOLDIER**"
+            rank_color = 0xcd7f32  # Bronze
+            rank_desc = "Good shooting! Keep training to improve!"
+        elif accuracy >= 50:
+            rank = "🔧 **TRAINEE**"
+            rank_color = 0x808080  # Gray
+            rank_desc = "Not bad for a rookie. More practice needed!"
+        else:
+            rank = "⚙️ **RECRUIT**"
+            rank_color = 0x8b4513  # Brown
+            rank_desc = "Back to basic training! Even Bumblebee shoots better!"
+        
+        # Check if this is a new personal best
+        rounds_key = str(rounds)
+        is_new_best = False
+        if rounds_key in user_stats['best_records']:
+            best_record = user_stats['best_records'][rounds_key]
+            if accuracy == best_record['accuracy'] and hits == best_record['hits']:
+                is_new_best = True
+        
+        # Create results embed
+        results_embed = discord.Embed(
+            title="🎯 Training Range Results" + (" 🆕 NEW PERSONAL BEST!" if is_new_best else ""),
+            color=rank_color
+        )
+        
+        results_embed.add_field(
+            name="📊 Performance Stats",
+            value=f"**Hits:** {hits}/{total_shots}\n**Accuracy:** {accuracy:.1f}%\n**Rounds Completed:** {rounds}",
+            inline=True
+        )
+        
+        results_embed.add_field(
+            name="🏅 Rank Achieved",
+            value=f"{rank}\n*{rank_desc}*",
+            inline=True
+        )
+        
+        # Show personal best for this round count
+        if rounds_key in user_stats['best_records']:
+            best_record = user_stats['best_records'][rounds_key]
+            results_embed.add_field(
+                name=f"🏆 Personal Best ({rounds} rounds)",
+                value=f"**Accuracy:** {best_record['accuracy']:.1f}%\n**Hits:** {best_record['hits']}/{rounds}",
+                inline=True
+            )
+        
+        # Add accuracy bar
+        bar_length = 20
+        filled_length = int(bar_length * accuracy // 100)
+        bar = '█' * filled_length + '░' * (bar_length - filled_length)
+        
+        results_embed.add_field(
+            name="📈 Accuracy Meter",
+            value=f"`{bar}` {accuracy:.1f}%",
+            inline=False
+        )
+        
+        # Add overall stats
+        overall_accuracy = (user_stats['total_hits'] / user_stats['total_shots'] * 100) if user_stats['total_shots'] > 0 else 0
+        results_embed.add_field(
+            name="📈 Overall Stats",
+            value=f"**Sessions:** {user_stats['sessions_played']}\n**Total Hits:** {user_stats['total_hits']}/{user_stats['total_shots']}\n**Overall Accuracy:** {overall_accuracy:.1f}%",
+            inline=False
+        )
+        
+        results_embed.set_footer(text=f"{rank} | {ctx.author.display_name} | Use /range [rounds] to play again!")
+        
+        await ctx.send(embed=results_embed)
+    
+    async def get_leaderboard_ranking(self, user_id, rounds, stat_type='accuracy'):
+        """Get user's ranking in leaderboard for specific round count"""
+        # This would need to be implemented using UserDataManager's leaderboard functionality
+        # For now, return None as UserDataManager doesn't have global leaderboard yet
+        return None
+
+    @commands.hybrid_command(name='rangestats', description='View shooting range statistics')
+    async def range_stats(self, ctx, user: discord.Member = None):
+        """View shooting range statistics"""
+        if not self.has_cybertronian_role(ctx.author):
+            await ctx.send("❌ Only Cybertronian Citizens can view training records! Please get a Cybertronian role first.")
+            return
+            
+        target_user = user or ctx.author
+        stats = await self.bot.user_data_manager.get_shooting_range_stats(str(target_user.id))
+        
+        overall_accuracy = (stats['total_hits'] / stats['total_shots'] * 100) if stats['total_shots'] > 0 else 0
+        
+        # Create view with pagination
+        view = RangeStatsView(target_user, stats, self)
+        embed = view.create_stats_embed()
+        
+        await ctx.send(embed=embed, view=view)
+
+class ShootingView(discord.ui.View):
+    def __init__(self, target_position, user_id):
+        super().__init__(timeout=1.0)  # 1 second timeout
+        self.target_position = target_position
+        self.user_id = user_id
+        self.user_clicked = False
+        self.hit = False
+        
+        # Create 5 buttons - 4 red circles (misses) and 1 target (hit)
+        button_emojis = ['🔴', '🔴', '🔴', '🔴', '🎯']
+        
+        for i in range(5):
+            if i == target_position:
+                # Target button (hit)
+                button = discord.ui.Button(
+                    style=discord.ButtonStyle.danger,
+                    emoji='🎯',
+                    custom_id=f'target_{i}'
+                )
+                button.callback = self.create_callback(i, True)
+            else:
+                # Miss button
+                miss_emoji = button_emojis[i if i < target_position else i-1]
+                button = discord.ui.Button(
+                    style=discord.ButtonStyle.danger,
+                    emoji=miss_emoji,
+                    custom_id=f'miss_{i}'
+                )
+                button.callback = self.create_callback(i, False)
+            
+            self.add_item(button)
+    
+    def create_callback(self, position, is_hit):
+        async def button_callback(interaction: discord.Interaction):
+            # Only allow the original user to click
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message("❌ This isn't your shooting session!", ephemeral=True)
+                return
+            
+            # Only allow one click
+            if self.user_clicked:
+                await interaction.response.send_message("❌ You already shot!", ephemeral=True)
+                return
+            
+            self.user_clicked = True
+            self.hit = is_hit
+            
+            # Disable all buttons
+            for item in self.children:
+                item.disabled = True
+            
+            # Update the message
+            if is_hit:
+                embed = discord.Embed(
+                    title="🎯 HIT!",
+                    description="Perfect shot! 🔥",
+                    color=0x00ff00
+                )
+            else:
+                embed = discord.Embed(
+                    title="❌ MISS!",
+                    description="Better luck next time!",
+                    color=0xff0000
+                )
+            
+            await interaction.response.edit_message(embed=embed, view=self)
+        
+        return button_callback
+    
+    async def on_timeout(self):
+        # Disable all buttons when timeout occurs
+        for item in self.children:
+            item.disabled = True
+
+class RangeStatsView(discord.ui.View):
+    def __init__(self, user, stats, cog):
+        super().__init__(timeout=300)
+        self.user = user
+        self.stats = stats
+        self.cog = cog
+        self.current_page = 0  # 0 = stats, 1 = leaderboards
+        
+    def create_stats_embed(self):
+        """Create the personal stats embed"""
+        overall_accuracy = (self.stats['total_hits'] / self.stats['total_shots'] * 100) if self.stats['total_shots'] > 0 else 0
+        
+        embed = discord.Embed(
+            title=f"🎯 {self.user.display_name}'s Training Records",
+            color=0x0099ff
+        )
+        
+        embed.add_field(
+            name="📊 Overall Performance",
+            value=f"**Sessions Played:** {self.stats['sessions_played']}\n**Total Hits:** {self.stats['total_hits']}/{self.stats['total_shots']}\n**Overall Accuracy:** {overall_accuracy:.1f}%",
+            inline=False
+        )
+        
+        # Show all round types in descending order
+        rounds_data = ""
+        for rounds in ['100', '50', '25', '15', '5']:
+            if rounds in self.stats['best_records']:
+                record = self.stats['best_records'][rounds]
+                accuracy = record['accuracy']
+                hits = record['hits']
+            else:
+                accuracy = 0.0
+                hits = 0
+            
+            # Get play count for this round
+            play_count = self.stats.get('round_attempts', {}).get(rounds, 0)
+            
+            rounds_data += f"**{rounds} rounds:** {accuracy:.1f}% ({hits}/{rounds}) - Played: {play_count}x\n"
+        
+        if rounds_data:
+            embed.add_field(
+                name="🏆 Round Performance",
+                value=rounds_data,
+                inline=False
+            )
+        
+        embed.set_footer(text="Use the buttons below to navigate or refresh")
+        return embed
+
+# =============================================================================
+# RPG COMMANDS (from walktru.py)
+# =============================================================================
+
+class FunCommands(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.hybrid_command(name='walktru', description='Start an interactive adventure')
+    async def walktru(self, ctx):
+        """Start an interactive adventure experience"""
+        # Load story maps on-demand when command is executed
+        story_maps = load_story_maps_lazy()
+        
+        if not story_maps:
+            embed = discord.Embed(
+                title="❌ Adventure System Error",
+                description="Unable to load adventure data. Please try again later.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+            
+        view = WalktruView(story_maps, ctx.author.id)
+        
+        embed = discord.Embed(
+            title="🎭 Choose Your Adventure",
+            description="Select an adventure from the dropdown menu below to begin your interactive story experience!",
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="📚 Available Adventures",
+            value="👻 **Horror** - Escape supernatural terrors\n"
+                  "🔫 **Gangster** - Build your crime empire\n"
+                  "🗡️ **Knight** - Embark on noble quests\n"
+                  "🤖 **Robot** - Survive the AI uprising\n"
+                  "🤠 **Western** - Conquer the frontier\n"
+                  "🧙‍♂️ **Wizard** - Master magical arts",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed, view=view)
+
+
+class HungerGamesSorter(commands.Cog):
+    """Cog for Hunger Games sorting functionality"""
+    
+    def __init__(self, bot):
+        self.bot = bot
+    
+    @commands.hybrid_command(name='hg_sorter', description="Sorts Either Non-Bot Members, Cybertron Citizens or Everyone for Hunger Games")
+    @app_commands.describe(
+        include_bots="Include bot users in the sorting",
+        cybertron_citizens_only="Only include users with Cybertron citizen roles"
+    )
+    async def hg_sorter(self, ctx, include_bots: bool = False, cybertron_citizens_only: bool = False):
+        try:
+            # Get all guild members
+            all_members = ctx.guild.members
+            
+            # Apply bot filter
+            if include_bots:
+                filtered_members = all_members
+                member_type = "all members (including bots)"
+            else:
+                filtered_members = [member for member in all_members if not member.bot]
+                member_type = "non-bot members"
+            
+            # Apply Cybertron citizens filter
+            if cybertron_citizens_only:
+                # Look for a role that indicates Cybertron citizenship
+                # You can modify this role name as needed
+                cybertron_role_names = ["Cybertron Citizen", "Cybertron", "Citizen", "Autobot", "Decepticon"]
+                cybertron_members = []
+                
+                for member in filtered_members:
+                    member_roles = [role.name for role in member.roles]
+                    if any(role_name in member_roles for role_name in cybertron_role_names):
+                        cybertron_members.append(member)
+                
+                filtered_members = cybertron_members
+                member_type += " (Cybertron citizens only)"
+            
+            # Check if we have enough members
+            if len(filtered_members) < 2:
+                await ctx.send(f"❌ Not enough members! Need at least 2 members, but only found {len(filtered_members)} {member_type}.", ephemeral=True)
+                return
+            
+            # Determine how many users to select (up to 24, or all available if less)
+            max_users = min(24, len(filtered_members))
+            selected_members = random.sample(filtered_members, max_users)
+            
+            # Shuffle the selected members to ensure randomness
+            random.shuffle(selected_members)
+            
+            # Calculate districts needed (2 users per district, minimum 1 district)
+            districts_needed = max(1, (len(selected_members) + 1) // 2)  # Round up division
+            
+            # Create pairs for display
+            pairs = []
+            for i in range(0, len(selected_members), 2):
+                if i + 1 < len(selected_members):
+                    pair = (selected_members[i], selected_members[i + 1])
+                else:
+                    # Odd number of users, last one goes alone
+                    pair = (selected_members[i], None)
+                pairs.append(pair)
+            
+            # Create sorting results embed
+            sorting_embed = discord.Embed(
+                title="🏹 Hunger Games District Sorting",
+                description=f"Selected {len(selected_members)} tributes from {len(filtered_members)} {member_type} and organized into {districts_needed} districts!",
+                color=0xff6b6b
+            )
+            
+            # Add pairs to embed
+            for i, (member1, member2) in enumerate(pairs, 1):
+                if member2:
+                    value = f"{member1.display_name} & {member2.display_name}"
+                else:
+                    value = f"{member1.display_name} (solo)"
+                sorting_embed.add_field(
+                    name=f"District {i}",
+                    value=value,
+                    inline=True
+                )
+            
+            # Add filter information to footer
+            filter_info = []
+            if include_bots:
+                filter_info.append("Bots: Included")
+            else:
+                filter_info.append("Bots: Excluded")
+            
+            if cybertron_citizens_only:
+                filter_info.append("Citizens: Cybertron Only")
+            else:
+                filter_info.append("Citizens: All")
+            
+            sorting_embed.set_footer(text=f"Total: {len(selected_members)} tributes in {len(pairs)} districts | {' | '.join(filter_info)}")
+            
+            # Display the commands needed to set up the game
+            # Send individual commands for each tribute
+            for i, user in enumerate(selected_members):
+                district = (i // 2) + 1
+                command_message = f"```/hungergames add user:{user.mention} district:{district}```"
+                await ctx.send(command_message)
+            
+            # Send sorting embed
+            await ctx.send(embed=sorting_embed)
+            
+            # Log the operation
+            logger.info(f"HG Complete executed by {ctx.author} in {ctx.guild.name} - {len(selected_members)} tributes, {districts_needed} districts, include_bots={include_bots}, cybertron_citizens_only={cybertron_citizens_only}")
+            
+        except Exception as e:
+            logger.exception(f"Error in hg_sorter command: {e}")
+            await ctx.send(f"❌ An error occurred during the setup: {str(e)}", ephemeral=True)
+
+MEGA_FIGHT_TIMEOUT = 60
+
+class MegaFightCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+    
+    def has_cybertronian_role(self, user):
+        """Check if a user has any Cybertronian role."""
+        cybertronian_roles = [ROLE_IDS.get(role) for role in ['Autobot', 'Decepticon', 'Maverick', 'Cybertronian_Citizen']]
+        return any(role.id in cybertronian_roles for role in user.roles)
+
+    async def get_player_stats(self, player_id):
+        """Get or create player statistics."""
+        return await self.bot.user_data_manager.get_mega_fight_stats(str(player_id))
+
+    async def update_player_stats(self, player_id, stat_name, amount=1):
+        """Update player statistics."""
+        await self.bot.user_data_manager.update_mega_fight_result(str(player_id), stat_name, amount)
+
+    def save_energon_game_state(self):
+        """Save the current game state."""
+        # No longer needed - UserDataManager handles saving automatically
+        pass
+
+    def find_user_combiner_team(self, user_id):
+        """Find which combiner team a user belongs to and their role."""
+        combiner_teams = getattr(self.bot, 'combiner_teams', {})
+        combiner_names = getattr(self.bot, 'combiner_names', {})
+        
+        for message_id, team_data in combiner_teams.items():
+            for part, members in team_data.items():
+                if str(user_id) in members:
+                    # Check if team is complete (2 legs, 2 arms, 1 head, 1 body = 6 total)
+                    total_members = sum(len(team_data[p]) for p in team_data)
+                    is_complete = (total_members == 6 and 
+                                 len(team_data.get('🦵', [])) == 2 and
+                                 len(team_data.get('💪', [])) == 2 and
+                                 len(team_data.get('🗣️', [])) == 1 and
+                                 len(team_data.get('🫀', [])) == 1)
+                    
+                    if is_complete:
+                        combiner_name = combiner_names.get(message_id, "Unnamed Combiner")
+                        if isinstance(combiner_name, dict):
+                            combiner_name = combiner_name.get('name', "Unnamed Combiner")
+                        
+                        # Get head member ID
+                        head_members = team_data.get('🗣️', [])
+                        head_id = head_members[0] if head_members else None
+                        
+                        # Get all team member IDs
+                        all_members = []
+                        for p, m_list in team_data.items():
+                            all_members.extend(m_list)
+                        
+                        return {
+                            'team_id': message_id,
+                            'name': combiner_name,
+                            'user_part': part,
+                            'head_id': head_id,
+                            'all_members': all_members,
+                            'is_head': str(user_id) == head_id
+                        }
+        return None
+
+class MegaFightView(discord.ui.View):
+    def __init__(self, cog, challenger_team_info, ctx):
+        super().__init__(timeout=MEGA_FIGHT_TIMEOUT)
+        self.cog = cog
+        self.challenger_team_info = challenger_team_info
+        self.opponent_team_info = None
+        self.ctx = ctx
+        self.fight_started = False
+        self.current_round = 1
+        self.max_rounds = 3
+        self.challenger_wins = 0
+        self.opponent_wins = 0
+        
+    def get_team_display_name(self, team_info):
+        """Get a display name for the team."""
+        return team_info['name'] if team_info['name'] != "Unnamed Combiner" else f"Team {team_info['team_id'][:8]}"
+    
+    def update_embed(self, interaction_or_ctx, status="waiting", round_result=None):
+        """Update the mega fight embed."""
+        challenger_name = self.get_team_display_name(self.challenger_team_info)
+        
+        if status == "waiting":
+            embed = discord.Embed(
+                title="🤖⚔️ MEGA-FIGHT CHALLENGE!",
+                description=f"**{challenger_name}** challenges another combiner team to a Mega-Fight!\n\n🎲 **Rules:**\n• No energon required to start\n• Head member controls the fight\n• Winners get energon + pet XP\n• Losers lose 50 energon + pet health\n• Pure 1-100 random rolls (pets don't affect odds)",
+                color=discord.Color.orange()
+            )
+            embed.add_field(name="🗣️ Challenger Head", value=f"<@{self.challenger_team_info['head_id']}>", inline=True)
+            embed.add_field(name="⏰ Status", value="Waiting for opponent team...", inline=True)
+            
+        elif status == "ready":
+            opponent_name = self.get_team_display_name(self.opponent_team_info)
+            embed = discord.Embed(
+                title="🤖⚔️ MEGA-FIGHT READY!",
+                description=f"**{challenger_name}** vs **{opponent_name}**\n\nBoth heads can now roll for their teams!",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="🗣️ Challenger Head", value=f"<@{self.challenger_team_info['head_id']}>", inline=True)
+            embed.add_field(name="🗣️ Opponent Head", value=f"<@{self.opponent_team_info['head_id']}>", inline=True)
+            embed.add_field(name="🎯 Round", value=f"{self.current_round}/{self.max_rounds}", inline=True)
+            
+        elif status == "round_result":
+            challenger_name = self.get_team_display_name(self.challenger_team_info)
+            opponent_name = self.get_team_display_name(self.opponent_team_info)
+            
+            embed = discord.Embed(
+                title=f"🎲 Round {self.current_round} Results",
+                description=f"**{challenger_name}** vs **{opponent_name}**",
+                color=discord.Color.green() if round_result else discord.Color.red()
+            )
+            
+            if round_result:
+                embed.add_field(name="🏆 Round Winner", value=round_result, inline=False)
+            
+            embed.add_field(name="📊 Score", value=f"{challenger_name}: {self.challenger_wins}\n{opponent_name}: {self.opponent_wins}", inline=True)
+            embed.add_field(name="🎯 Round", value=f"{self.current_round}/{self.max_rounds}", inline=True)
+            
+        return embed
+    
+    @discord.ui.button(label='Join Mega-Fight', style=discord.ButtonStyle.green, emoji='🤖')
+    async def join_mega_fight(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.opponent_team_info:
+            await interaction.response.send_message("❌ This mega-fight already has an opponent!", ephemeral=True)
+            return
+            
+        # Check if user has a complete combiner team
+        user_team = self.cog.find_user_combiner_team(interaction.user.id)
+        if not user_team:
+            await interaction.response.send_message("❌ You need to be part of a complete combiner team to join mega-fights!", ephemeral=True)
+            return
+            
+        # Only the head can join mega-fights
+        if not user_team['is_head']:
+            await interaction.response.send_message(f"❌ Only the head member (<@{user_team['head_id']}>) can join mega-fights for your combiner team!", ephemeral=True)
+            return
+            
+        # Can't fight yourself
+        if user_team['team_id'] == self.challenger_team_info['team_id']:
+            await interaction.response.send_message("❌ You can't fight your own team!", ephemeral=True)
+            return
+            
+        self.opponent_team_info = user_team
+        
+        # Enable roll buttons and disable join button
+        button.disabled = True
+        self.roll_challenger.disabled = False
+        self.roll_opponent.disabled = False
+        
+        embed = self.update_embed(interaction, "ready")
+        await interaction.response.edit_message(embed=embed, view=self)
+    
+    @discord.ui.button(label='Roll (Challenger)', style=discord.ButtonStyle.primary, emoji='🎲', disabled=True)
+    async def roll_challenger(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.challenger_team_info['head_id']:
+            await interaction.response.send_message("❌ Only the challenger team's head can roll!", ephemeral=True)
+            return
+            
+        if not self.opponent_team_info:
+            await interaction.response.send_message("❌ Waiting for an opponent team!", ephemeral=True)
+            return
+            
+        await self.execute_round(interaction, "challenger")
+    
+    @discord.ui.button(label='Roll (Opponent)', style=discord.ButtonStyle.secondary, emoji='🎲', disabled=True)
+    async def roll_opponent(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.opponent_team_info['head_id']:
+            await interaction.response.send_message("❌ Only the opponent team's head can roll!", ephemeral=True)
+            return
+            
+        await self.execute_round(interaction, "opponent")
+    
+    async def execute_round(self, interaction, roller):
+        """Execute a round of the mega-fight."""
+        challenger_roll = random.randint(1, 100)
+        opponent_roll = random.randint(1, 100)
+        
+        challenger_name = self.get_team_display_name(self.challenger_team_info)
+        opponent_name = self.get_team_display_name(self.opponent_team_info)
+        
+        round_result = f"🎲 **{challenger_name}** rolled: **{challenger_roll}**\n🎲 **{opponent_name}** rolled: **{opponent_roll}**\n\n"
+        
+        if challenger_roll > opponent_roll:
+            self.challenger_wins += 1
+            round_result += f"🏆 **{challenger_name}** wins this round!"
+        elif opponent_roll > challenger_roll:
+            self.opponent_wins += 1
+            round_result += f"🏆 **{opponent_name}** wins this round!"
+        else:
+            round_result += "🤝 **TIE!** No points awarded."
+        
+        self.current_round += 1
+        
+        # Check if fight is over
+        if self.current_round > self.max_rounds or self.challenger_wins >= 2 or self.opponent_wins >= 2:
+            await self.complete_mega_fight(interaction, round_result)
+        else:
+            embed = self.update_embed(interaction, "round_result", round_result)
+            await interaction.response.edit_message(embed=embed, view=self)
+    
+    async def complete_mega_fight(self, interaction, final_round_result):
+        """Complete the mega-fight and distribute rewards/penalties."""
+        challenger_name = self.get_team_display_name(self.challenger_team_info)
+        opponent_name = self.get_team_display_name(self.opponent_team_info)
+        
+        # Determine winner
+        if self.challenger_wins > self.opponent_wins:
+            winning_team = self.challenger_team_info
+            losing_team = self.opponent_team_info
+            winner_name = challenger_name
+        else:
+            winning_team = self.opponent_team_info
+            losing_team = self.challenger_team_info
+            winner_name = opponent_name
+        
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        # Apply rewards and penalties
+        energon_reward = random.randint(100, 300)
+        energon_penalty = 50
+        
+        reward_messages = []
+        penalty_messages = []
+        
+        # Process winning team
+        for member_id in winning_team['all_members']:
+            # Update stats
+            await self.cog.update_player_stats(member_id, "mega_fights_won", 1)
+            
+            # Award energon using UserDataManager
+            member_stats = await self.cog.get_player_stats(member_id)
+            await self.cog.bot.user_data_manager.update_energon_stat(str(member_id), "energon_bank", energon_reward)
+            reward_messages.append(f"<@{member_id}> gained {energon_reward} energon")
+            
+            # Pet XP reward
+            if hasattr(self.cog.bot, 'pet_system') and hasattr(self.cog.bot, 'pet_data') and member_id in self.cog.bot.pet_data:
+                xp_gain = random.randint(25, 50)
+                leveled_up, level_gains = self.cog.bot.pet_system.add_experience(int(member_id), xp_gain, "mega_fight")
+                reward_messages.append(f"<@{member_id}>'s pet gained {xp_gain} XP")
+                
+                if leveled_up and level_gains:
+                    # Send level-up embed
+                    user = self.cog.bot.get_user(int(member_id))
+                    if user and hasattr(self.cog.bot.pet_system, 'send_level_up_embed'):
+                        asyncio.create_task(self.cog.bot.pet_system.send_level_up_embed(user, self.cog.bot.pet_data[member_id], level_gains))
+        
+        # Process losing team
+        for member_id in losing_team['all_members']:
+            # Update stats
+            await self.cog.update_player_stats(member_id, "mega_fights_lost", 1)
+            
+            # Deduct energon using UserDataManager
+            member_stats = await self.cog.get_player_stats(member_id)
+            await self.cog.bot.user_data_manager.update_energon_stat(str(member_id), "energon_bank", -energon_penalty)
+            penalty_messages.append(f"<@{member_id}> lost {energon_penalty} energon")
+            
+            # Pet health penalty
+            if hasattr(self.cog.bot, 'pet_system') and hasattr(self.cog.bot, 'pet_data') and member_id in self.cog.bot.pet_data:
+                health_loss = random.randint(15, 30)
+                self.cog.bot.pet_data[member_id]['health'] = max(0, self.cog.bot.pet_data[member_id]['health'] - health_loss)
+                penalty_messages.append(f"<@{member_id}>'s pet lost {health_loss} health")
+        
+        # Data is automatically saved by UserDataManager - no manual saving needed
+        
+        # Create final embed
+        embed = discord.Embed(
+            title="🏆 MEGA-FIGHT COMPLETE!",
+            description=f"{final_round_result}\n\n**🎉 WINNER: {winner_name}!**",
+            color=discord.Color.gold()
+        )
+        
+        embed.add_field(
+            name="📊 Final Score",
+            value=f"{challenger_name}: {self.challenger_wins}\n{opponent_name}: {self.opponent_wins}",
+            inline=True
+        )
+        
+        if reward_messages:
+            embed.add_field(
+                name="🎁 Rewards (Winners)",
+                value="\n".join(reward_messages[:10]),  # Limit to prevent embed overflow
+                inline=False
+            )
+        
+        if penalty_messages:
+            embed.add_field(
+                name="💸 Penalties (Losers)",
+                value="\n".join(penalty_messages[:10]),  # Limit to prevent embed overflow
+                inline=False
+            )
+        
+        await interaction.response.edit_message(embed=embed, view=self)
+    
+    async def on_timeout(self):
+        """Handle timeout."""
+        for item in self.children:
+            item.disabled = True
+        
+        embed = discord.Embed(
+            title="⏰ Mega-Fight Expired",
+            description="No opponent joined in time. The mega-fight has been cancelled.",
+            color=discord.Color.red()
+        )
+        
+        try:
+            await self.ctx.edit(embed=embed, view=self)
+        except:
+            pass
+
+    @commands.hybrid_command(name='mega_fight', description="Challenge another combiner team to a Mega-Fight!")
+    async def mega_fight(self, ctx):
+        """Start a mega-fight between combiner teams."""
+        if not self.has_cybertronian_role(ctx.author):
+            await ctx.send("❌ Only Cybertronian Citizens can start mega-fights! Please get a Cybertronian role first.")
+            return
+        
+        # Check if user has a complete combiner team
+        user_team = self.find_user_combiner_team(ctx.author.id)
+        if not user_team:
+            await ctx.send("❌ You need to be part of a complete combiner team to start mega-fights! Use `/combiner` to form a team.")
+            return
+        
+        # Only the head can start mega-fights
+        if not user_team['is_head']:
+            await ctx.send(f"❌ Only the head member (<@{user_team['head_id']}>) can start mega-fights for your combiner team!")
+            return
+        
+        # Create the mega-fight view
+        view = MegaFightView(self, user_team, ctx)
+        embed = view.update_embed(ctx, "waiting")
+        
+        await ctx.send(embed=embed, view=view)
+
+# =============================================================================
+# SETUP FUNCTION
+# =============================================================================
+
+async def setup(bot):
+    """Setup function to add all cogs"""
+    await bot.add_cog(ShootingRange(bot))
+    await bot.add_cog(FunCommands(bot))
+    await bot.add_cog(HungerGamesSorter(bot))
+
+# Export all components
+__all__ = [
+    'ShootingRange',
+    'FunCommands', 
+    'setup_fun_system',
+    'load_story_maps',
+    'load_story_maps_lazy',
+    'create_progress_bar',
+    'get_mechanic_display',
+    'WalktruView',
+    'WalktruChoiceView',
+    'HungerGamesSorter',
+    'MegaFightCog'
+]
