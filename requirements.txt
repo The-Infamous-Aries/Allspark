@@ -1,9 +1,0 @@
-discord.py>=2.0.0
-requests>=2.25.0
-aiohttp>=3.8.0
-psutil>=5.9.0
-python-dotenv>=1.0.0
-google-generativeai>=0.3.0
-pnwkit>=1.1.0
-beautifulsoup4>=4.11.0
-lxml>=4.9.0
