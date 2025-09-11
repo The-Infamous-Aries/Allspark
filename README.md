@@ -1,10 +1,16 @@
+<div align="center">
 🌟 AllSpark Discord Bot
 > The ultimate Transformers-themed Discord bot featuring advanced pet systems, RPG mechanics, interactive storytelling, and comprehensive entertainment features.
 > 
+</div>
 📋 Table of Contents
  * 🚀 Overview
  * ✨ Features
  * 🎯 System Components
+   * 🐾 EnergonPets System
+   * 🤖 Random System
+   * ⚔️ RPG System
+   * 🏛️ PnW Recruitment
  * 🎮 Getting Started
  * 📊 Commands Reference
  * 🏗️ System Architecture
@@ -13,54 +19,108 @@
  * 🛠️ Development
  * 🤝 Contributing
  * 📄 License
- * 🙏 Acknowledgments
- * 📞 Support
 🚀 Overview
 AllSpark is a feature-rich Discord bot that brings the Transformers universe to life through interactive systems, pet management, storytelling, and community engagement. Built with Discord.py and designed for scalability, it offers multiple interconnected systems that create a comprehensive user experience.
 Key Highlights
- * 🐾 EnergonPets: An advanced pet management system with 100 levels of progression.
+ * 🐾 EnergonPets: Advanced pet management with 100-level progression.
  * 🤖 Random System: Interactive storytelling, AI conversations, and theme customization.
- * ⚔️ RPG System: Mechanics for character creation and progression.
- * 🏛️ PnW Integration: Automated alliance recruitment for Politics & War.
- * 🎭 Theme System: Create a unique Transformer identity and form combiner teams.
+ * ⚔️ RPG System: Character creation and progression mechanics.
+ * 🏛️ PnW Integration: Politics & War alliance recruitment automation.
+ * 🎭 Theme System: Transformer identity creation and combiner teams.
 ✨ Features
 🐾 EnergonPets System
-This is a comprehensive robotic pet management platform with deep progression mechanics and extensive customization.
- * 100-Level Progression: Pets evolve through 100 unique stages, from "Nano Core" to "Nano Supreme", with massive XP scaling from 50 to 6.32 billion XP.
- * Faction-Based: Choose between Autobot and Decepticon factions, each with unique bonuses and themed progression indicators (e.g., 🔩⚙️🔧🤖⚡💎🔱🌌✨👑).
- * Activities & Resources: Manage your pet's Energy, Maintenance, and Happiness through over 150 robotic missions (50 easy, 50 average, 50 hard). Use the cooldown system for duration-based activities like charging and repairing.
- * Loot System: Earn Energon, transformation items, and class-based equipment from missions and battles.
+ * 100-Level Progression: Evolve your pet from "Nano Core" to "Nano Supreme" with XP scaling from 50 to 6.32 billion.
+ * Faction-Based: Choose Autobot or Decepticon for unique bonuses and themed UI.
+ * Multi-Battle System: Engage in Solo, Group (4v1), PvP, and 4-way FFA battles.
+ * Resource Management: Manage your pet's Energy, Maintenance, and Happiness through missions and activities.
+ * Equipment & Loot: Earn and equip items in 3 slots (Chassis, Core, Utility) across 6 rarity tiers.
 🤖 Random System
-A comprehensive entertainment suite featuring interactive games, competitive systems, and immersive storytelling.
- * Interactive Stories: Choose from 6 genres (Horror, Gangster, Knight, Robot, Western, Wizard), each with unique mechanics and branching narratives.
- * Conversational AI: An NLP-powered talk system provides personalized, Transformers-themed dialogue, jokes, and lore.
- * Personal Profiles: A comprehensive user dashboard that displays Transformer identity, game statistics, pet info, and combiner teams.
+ * Interactive Stories: Play through 6 genres (Horror, Western, etc.) with unique mechanics and branching narratives.
+ * Conversational AI: An advanced dialogue system with user analysis and a Transformers-themed joke API.
+ * Mini-Games: Compete in a reaction-based Shooting Range, a Hunger Games sorter, and 6v6 Mega-Fights.
+ * Personal Profiles: Track comprehensive user statistics and achievements.
 ⚔️ RPG System
  * Character Classes: Choose from 8 specialized classes per faction.
- * Stat System: Track attributes like ATT, DEF, DEX, INT, CHA, and HP.
- * Battle Mechanics: Engage in turn-based combat that integrates with both the EnergonPets and Theme Systems.
+ * Stat System: Track ATT, DEF, DEX, INT, CHA, and HP attributes.
+ * Cross-System Integration: Links directly with the EnergonPets and Theme systems for unified progression.
 🏛️ PnW Recruitment
-An automated, 887-line recruitment system for the Cybertr0n alliance in Politics & War.
- * Real-Time Discovery: Automatically finds unallied nations via the P&W API, with built-in safeguards against API abuse.
- * Intelligent Filtering: Excludes inactive nations (7+ days), admin nations, and those in vacation mode.
- * Personalized Messaging: Sends customized recruitment messages using JSON-based templates and dynamic placeholders.
+ * Real-Time Discovery: Automatically finds and targets unallied nations using the P&W API.
+ * Intelligent Filtering: Excludes inactive, admin, and vacation-mode nations.
+ * Personalized Messaging: Uses dynamic templates for customized recruitment messages.
+ * API Safeguards: Built-in rate limit protection to prevent API abuse.
 🎯 System Components
 🐾 EnergonPets System (Systems/EnergonPets/)
-The core pet management platform.
- * Energon Game System: A sophisticated 1286-line Energon mining and economy game with a global Transformers: Energon Rush competition. It features a persistent banking system, a 5-tier probability system for searches, and cross-server leaderboards.
- * Energon Game Engine: A central EnergonGameManager class that handles all operations, including a dynamic Market System with over 15 Transformers-themed holidays, catastrophic events, and a 3-difficulty-level slot machine with progressive rewards.
- * Advanced Battle System: A 1624-line, turn-based combat engine with d20 roll mechanics. It supports multiple battle types (solo, group, PvP, energon challenges) and features a Monster Database with 6 rarity tiers and 3 enemy types.
- * Equipment & Inventory: Pets have 3 equipment slots (Chassis Plating, Energy Cores, Utility Modules) with 6 rarity tiers, providing stat bonuses.
+A comprehensive robotic pet management platform with deep progression and customization.
+Core Pet Features
+ * Faction Selection: Choose between Autobot and Decepticon factions with distinct visual themes.
+ * 100-Level Progression: Exponential XP requirements (50 → 6.32B XP) with automatic level-up notifications.
+ * Progression Indicators: Stage emojis (🔩⚙️🔧🤖⚡💎🔱🌌✨👑) and faction-specific colors show progress.
+ * Interactive UI: Button-based navigation with real-time updates, breakdown views, and faction-colored embeds.
+ * Role-Based Access: Requires a "Cybertronian" role (Autobot, Decepticon, etc.) to participate.
+ * Data Persistence: Automatic saving and migration system with JSON-based configuration.
+Pet Activities & Training
+ * 150+ Missions: 50 easy, 50 average, and 50 hard robotic missions with unique descriptions.
+ * Resource Management: Manage Energy, Maintenance, and Happiness, which affect performance.
+ * Training Programs: Three difficulty levels (average, intense, godmode) for progressive stat improvements.
+ * Cooldown System: Duration-based activities (15min/30min/1hour options) for charging, playing, and repairing.
+<details>
+<summary><strong>Click to see a deep dive into the Energon Game Engine & Economy</strong></summary>
+🚀 Energon Game System & Engine (energon_system.py, energon_commands.py)
+A sophisticated 1286-line Energon mining and economy game featuring cross-channel multiplayer gameplay, real-time updates, comprehensive statistics tracking, and advanced market mechanics.
+Core Game Features:
+ * Transformers: Energon Rush: A global, cross-channel mining competition where the first to 10,000 Energon wins.
+ * Persistent Banking: An Energon banking system for long-term progression outside of active games.
+ * Pet Integration: Pets provide a 2% bonus per level during searches and gain XP from successful operations.
+ * Probability System: A 5-tier outcome system for searches (disaster, loss, nothing, small find, major find).
+Market & Economy Features:
+ * Dynamic Events: Weighted random market events like surges, crashes, and chaos.
+ * Holiday Events: Over 15 Transformers-themed holidays (e.g., Cybertron Day) with market multipliers (0.1x to 6.0x).
+ * Slot Machine: A 3-difficulty slot machine with progressive rewards and emoji-based themes.
+ * Banking System: A dual-account system for current game Energon and persistent banked Energon.
+Technical Features:
+ * Async Processing: Non-blocking game operations with robust error handling and fallback systems.
+ * State Management: Channel-based game instances with lazy loading to ensure memory efficiency.
+ * Cross-Server Support: Games and leaderboards function across multiple Discord servers.
+</details>
+⚔️ Advanced Battle System (battle_system.py)
+A 1624-line turn-based battle engine with d20 roll mechanics, supporting multiple combat scenarios.
+ * Multi-Battle Architecture: A unified system handling various combat types:
+   * Solo Battles: Individual pet vs. monster encounters.
+   * Group Battles: Cooperative 4v1 boss battles.
+   * PvP Challenges: Direct pet vs. pet battles with other users.
+   * Open FFA: Create 4-way Free-for-All battles that others can join.
+ * Interactive UI: Advanced Discord Views for real-time battle management, enemy selection, and status updates.
+ * Monster Database: 6 rarity tiers (Common to Mythic) across 3 enemy types (Monsters, Bosses, Titans).
+ * Group Defense: Coordinated protection mechanics for team-based battles.
+ * Energon Betting: Wager Energon in challenge-based battles with an automated prize pool.
+ * Equipment Integration: Pet equipment stats directly impact attack, defense, and other battle attributes.
+ * Loot System: Victories reward Energon, XP, and equipment drops based on rarity.
+⚙️ Equipment & Inventory System
+ * 3 Equipment Slots: Chassis Plating (defense), Energy Cores (energy), Utility Modules (happiness/maintenance).
+ * 6 Rarity Tiers: Common, Uncommon, Rare, Epic, Legendary, and Mythic.
+ * Stat Bonuses: Equipment provides direct improvements to pet stats.
+ * Inventory Management: View and equip items via commands like /pet_equipment and /pet_equip.
 🤖 Random System (Systems/Random/)
-A 900-line comprehensive entertainment suite.
- * Shooting Range System: An interactive, reaction-based mini-game with configurable rounds, real-time scoring, and an 8-tier achievement system.
- * Hunger Games District Sorter: An intelligent member selection system that sorts up to 24 qualifying members into districts for a custom game.
- * Mega-Fight System: Team-based combat for 6-member combiner teams with pure RNG mechanics and automatic rewards/penalties.
- * Talk System: A 1965-line conversational AI suite with an extensive Transformers Lore knowledge base, a blessing system, and joke integration.
- * Theme System: A tool for creating a Transformer identity with a faction and one of 8 specialized classes, linking to the RPG and combat systems.
-🏛️ PnW Recruitment System (Systems/PnW/)
- * Core Architecture: Handles 15,000 nation processing with sequential pagination and includes a dynamic messaging system with multi-tier options (individual, page-based, mass recruitment).
- * Interactive UI: The RecruitPaginatorView provides real-time navigation and action buttons for a smooth user experience.
+A 900-line entertainment suite featuring interactive games and immersive storytelling.
+🎯 Shooting Range System
+ * Reaction-Based Gameplay: A timed, button-clicking mini-game to test accuracy.
+ * Multi-Round Sessions: Choose from 5, 15, 25, 50, or 100 round sessions.
+ * Advanced Statistics: Tracks personal bests, overall accuracy, and session history.
+ * 8-Tier Ranking System: Progress from a Recruit to a Matrix Bearer based on performance.
+🏹 Hunger Games District Sorter
+ * Intelligent Member Selection: Randomly sorts up to 24 server members into districts for a custom game.
+ * Advanced Filtering: Can exclude bots, filter by role, or select from citizens only.
+ * Automated Setup: Generates the necessary /hungergames add commands for easy game setup.
+🤖 Mega-Fight System
+ * 6v6 Team Combat: Form 6-member "Combiner" teams to battle other teams.
+ * RNG-Based Combat: A best-of-3 battle system based on pure 1-100 dice rolls.
+ * Reward & Penalty System: Winners gain Energon and Pet XP; losers face penalties.
+🎭 WalkThru Interactive Stories
+ * 6 Story Genres: Horror, Gangster, Knight, Robot, Western, and Wizard.
+ * Unique Mechanics: Each genre has a unique stat system (e.g., Fear, Honor, Mana).
+ * Branching Narratives: Your choices drive the story toward multiple possible endings.
+💬 Talk System (talk_system.py)
+ * Conversational AI: Features NLP-powered keyword extraction and analysis from user messages.
 🎮 Getting Started
 Prerequisites
  * Python 3.8+
@@ -76,146 +136,71 @@ cd AllSpark
 
  * Configure environment variables:
    cp .env.example .env
-# Edit .env with your tokens and keys
+# Edit the .env file with your tokens and keys
 
  * Run the bot:
    python allspark.py
 
 📊 Commands Reference
-🐾 EnergonPets & Energon Game
-| Command | Description | Example |
+A full command reference can be found in COMMANDS.md. Here are some key commands:
+| Category | Command | Description |
 |---|---|---|
-| /get_pet | Create a new pet. | /get_pet autobot |
-| /pet | View your interactive pet dashboard. | /pet |
-| /rename_pet | Change your pet's name. | /rename_pet Optimus |
-| /kill | Permanently delete your pet. | /kill |
-| /charge_pet, /repair_pet, /play | Restore your pet's resources. | /charge_pet 30min |
-| /train | Improve your pet's stats. | /train intense |
-| /mission | Send your pet on a mission. | /mission hard |
-| /pet_equipment | View your pet's inventory. | /pet_equipment |
-| /pet_equip | Equip items to your pet. | /pet_equip chassis_plating armor |
-| /rush_info | Display rules for the Energon Rush game. | /rush_info |
-| /scout, /search | Perform an Energon search. | /search |
-| /slots | Play the slot machine mini-game. | /slots 100 |
-| /cybercoin_market | View current market events. | /cybercoin_market |
-| /energon_stats | View Energon stats and leaderboards. | /energon_stats |
-| /challenge | Challenge a player to an Energon PvP battle. | /challenge 500 |
-⚔️ Battle Commands
-| Command | Description | Example |
-|---|---|---|
-| /battle | Start a solo battle. | /battle |
-| /group_battle | Start a group battle (up to 4 players). | /group_battle |
-| /pvp | Challenge a player to a PvP battle. | /pvp @OptimusPrime |
-| /group_pvp | Start a group PvP battle. | /group_pvp |
-| /energon_challenge | Start a battle with an Energon wager. | /energon_challenge 1000 |
-| /battle_info | Show battle rules. | /battle_info |
-| /battle_stats | View battle statistics. | /battle_stats @Megatron |
-🤖 Random System Commands
-| Command | Description | Example |
-|---|---|---|
-| /hello, /ping | AI conversation commands. | /ping |
-| /whatis | Query the Transformers lore database. | /whatis Optimus Prime |
-| /blessing | Get a blessing from the Allspark. | /blessing wisdom |
-| /joke, /roast, /compliment | Get jokes, roasts, or compliments. | /roast @user |
-| /user_says | Analyze a user's message patterns. | /user_says @user1 |
-| /walktru | Start an interactive story. | /walktru |
-| /me | View your profile. | /me |
-| /spark | Create a Transformer identity. | /spark autobot |
-| /combiner | Form a combiner team. | /combiner |
-| /analysis | Take a personality test. | /analysis |
-| /range | Practice at the shooting range. | /range |
-| /rangestats | View your shooting stats. | /rangestats |
-| /hg_sorter | Sort members into Hunger Games districts. | /hg_sorter |
-| /mega_fight | Start a team-based mega-fight. | /mega_fight |
-🏛️ PnW Commands
-| Command | Description | Access | Example |
-|---|---|---|---|
-| /recruit | Display unallied nations with an interactive UI. | Aries only | /recruit |
+| EnergonPets | /get_pet | Create a new robotic pet. |
+|  | /pet | View your interactive pet dashboard. |
+|  | /mission | Send your pet on a mission for rewards. |
+| Battle | /battle | Start a solo battle against a monster. |
+|  | /pvp | Challenge another player to a pet battle. |
+|  | /group_battle | Start a cooperative boss battle. |
+| Economy | /search | Search for Energon in an active game. |
+|  | /slots | Play the Energon slot machine. |
+| Fun | /range | Start a session at the shooting range. |
+|  | /walktru | Begin an interactive story. |
 🏗️ System Architecture
-AllSpark is built with a modular architecture to ensure scalability and maintainability.
-Core Components
-AllSpark/
-├── allspark.py              # Main bot entry point
-├── Systems/                 # Root directory for all bot systems
-│   ├── EnergonPets/         # Pet management system
-│   ├── Random/              # Entertainment suite
-│   ├── PnW/                 # Politics & War integration
-│   ├── RPG/                 # Role-playing system
-│   └── Global Saves/        # User data storage
-└── requirements.txt         # Python dependencies
-
-Data Management
- * Storage Structure: Uses a combination of JSON files for configuration, individual user files for personalized data, and global statistics files for system-wide tracking.
- * Cross-System Integration: A central user_data_manager provides unified user profiles, allowing XP and achievements to be shared between systems.
- * Performance: Asynchronous operations, lazy loading, and caching strategies ensure efficient data handling and prevent memory bloat.
+AllSpark uses a modular architecture where each major feature (EnergonPets, Random, PnW) is a self-contained system.
+ * Data Management: User data is stored in individual JSON files managed by a central user_data_manager, allowing for cross-system integration of stats like XP and achievements.
+ * Performance: The bot uses asynchronous operations, lazy loading of data, and caching strategies to ensure efficiency and prevent memory bloat.
 🔧 Configuration
-Environment Variables (.env)
-# Discord Configuration
+All critical configurations are managed via environment variables in a .env file.
+# .env.example
 DISCORD_TOKEN=your_bot_token_here
 GUILD_ID=your_server_id_here
-
-# Politics & War API
 PNW_API_KEY=your_pnw_api_key_here
-PNW_API_URL=https://api.politicsandwar.com/
-
-# Bot Settings
 OWNER_ID=your_discord_user_id
-PREFIX=!
-DEBUG=False
 
-# System Paths
-DATA_PATH=./Systems/Global Saves/
-CONFIG_PATH=./Systems/Config/
-
-System Configuration Files
- * Systems/Random/Talk/: Includes talk_templates.json, blessings.json, jokes.json, and user_lore.json.
- * Systems/Random/Walk Tru/: Contains story maps for each genre.
- * Systems/EnergonPets/: Stores pets_level.json, monsters.json, transformation_items.json, and other data files.
+System-specific configurations (like story maps, monster data, and market events) are stored in JSON files within their respective system directories.
 📁 File Structure
 AllSpark/
-├── 📄 allspark.py                 # Main bot entry point
-├── 📄 README.md                   # This documentation
-├── 📄 requirements.txt             # Python dependencies
-├── 📄 .env.example                # Environment template
-├── 📁 Systems/
-│   ├── EnergonPets/            # Pet management system
-│   │   ├── 📄 pets_system.py     # Core pet logic (1313 lines)
-│   │   ├── 📄 battle_system.py   # Combat mechanics (1624 lines)
-│   │   ├── 📄 energon_system.py  # Energon Game Engine (1286 lines)
-│   │   ├── 📄 energon_commands.py  # Energon mining game (723 lines)
-│   │   └── ... (other EnergonPets files)
-│   ├── Random/                # Entertainment suite
-│   │   ├── 📄 fun_system.py      # Interactive games (900 lines)
-│   │   ├── 📄 talk_system.py     # Conversational AI (1965 lines)
-│   │   └── ... (other Random files)
-│   ├── PnW/                   # Politics & War system
-│   │   └── 📄 recruit.py         # P&W recruitment (887 lines)
-│   └── ... (other systems and data directories)
-└── 📄 cyberchronicles.py         # Legacy features
+├── 📄 allspark.py             # Main bot entry point
+├── 📄 README.md
+├── 📄 requirements.txt
+├── 📄 .env.example
+└── 📁 Systems/
+    ├── 📁 EnergonPets/         # Pet management system
+    │   ├── 📄 pets_system.py
+    │   ├── 📄 battle_system.py
+    │   └── 📄 energon_system.py
+    ├── 📁 Random/              # Entertainment suite
+    │   ├── 📄 fun_system.py
+    │   ├── 📄 talk_system.py
+    │   └── 📄 walktru.py
+    ├── 📁 PnW/                 # Politics & War integration
+    │   └── 📄 recruit.py
+    └── 📁 Global Saves/        # User data storage
 
 🛠️ Development
-Local Development Setup
- * Clone and setup: git clone and pip install -r requirements.txt.
- * Configuration: Copy .env.example to .env and fill in your credentials.
- * Testing: Run python allspark.py --debug to test locally.
-Contribution Process
+ * Setup: Follow the Installation steps.
+ * Enable Debug Mode: Run the bot with the --debug flag for verbose logging.
+   python allspark.py --debug
+
+ * Reporting Issues:
+   * Bugs: Use GitHub Issues with the provided template.
+   * Features: Use GitHub Discussions to propose new ideas.
+   * Security: Please email the maintainers directly.
+🤝 Contributing
  * Fork the repository.
- * Create a feature branch.
- * Commit your changes.
- * Push to the branch.
- * Open a Pull Request.
-Reporting Issues
- * Bug Reports: Use GitHub Issues with the provided template.
- * Feature Requests: Use GitHub Discussions.
- * Security Issues: Email the maintainers directly.
-🙏 Acknowledgments
- * Discord.py Community: For the excellent Discord API wrapper.
- * Transformers Universe: For the inspiration for the theme and content.
- * Politics & War: For the recruitment system integration.
- * Contributors: All the amazing people who contributed to this project.
-📞 Support
- * Discord Server: Join our support server
-<div align="center">
-<p><strong>AllSpark Bot</strong> - Bringing the Transformers universe to Discord</p>
-<p>Built with ❤️ by the AllSpark Development Team</p>
-</div>
+ * Create a new feature branch (git checkout -b feature/AmazingFeature).
+ * Commit your changes (git commit -m 'Add some AmazingFeature').
+ * Push to the branch (git push origin feature/AmazingFeature).
+ * Open a Pull Request for review.
+📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
