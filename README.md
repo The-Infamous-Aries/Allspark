@@ -7,47 +7,56 @@
 
 ## 📋 Table of Contents
 
-- [🚀 Overview](#rocket-overview)
-- [✨ Major Features](#sparkles-major-features)
-  - [🐾 EnergonPets System](#paw-prints-energonpets-system)
-  - [⚔️ Battle System](#crossed-swords-battle-system)
-  - [💠 Energon Economy & Game](#diamond-shape-with-a-dot-inside-energon-economy--game)
-  - [🎰 Slots Minigame](#slot-machine-slots-minigame)
-  - [🪙 CyberCoin Market](#coin-cybercoin-market)
-  - [🛡️ Transformers RPG System](#shield-transformers-rpg-system)
-    - [🎮 Character Creation & Progression](#video-game-character-creation--progression)
-    - [⚔️ RPG Battle System](#crossed-swords-rpg-battle-system)
-    - [🧭 Story, Events, & Loot](#compass-story-events--loot)
-  - [🤖 Random System](#robot-random-system)
-    - [🕹️ Main Features](#joystick-main-features)
-      - [🎯 Shooting Range](#direct-hit-shooting-range)
-      - [🏹 Hunger Games Sorter](#bow-and-arrow-hunger-games-sorter)
-      - [👾 Walktru Interactive Adventures](#space-invader-walktru-interactive-adventures)
-      - [💬 Conversational AI & Lore](#speech-balloon-conversational-ai--lore)
-      - [📚 Server Lore System](#books-server-lore-system)
-      - [🤖 Profile & Theme System](#robot-profile--theme-system)
-      - [🔗 Combiner Teams & Mega-Fight](#link-combiner-teams--mega-fight)
-    - [🗂️ Key Random System Modules](#card-index-dividers-key-random-system-modules)
-  - [🏛️ PnW Recruitment System](#classical-building-pnw-recruitment-system)
-  - [👑 Admin System](#crown-admin-system)
-  - [🗂️ User Data Manager](#card-index-dividers-user-data-manager)
-- [🗂️ System Components & Cogs](#card-index-dividers-system-components--cogs)
-- [📜 Complete Commands List](#scroll-complete-commands-list)
-  - [🐾 EnergonPets & Economy Commands](#paw-prints-energonpets--economy-commands)
-  - [📜 RPG Commands](#scroll-rpg-commands)
-  - [📜 Core Random & Fun Commands List](#scroll-core-random--fun-commands-list)
-  - [📜 Recruitment Commands](#scroll-recruitment-commands)
-  - [📜 Admin Commands](#scroll-admin-commands)
-- [🏗️ Architecture & Data](#building-construction-architecture--data)
-- [🔧 Configuration](#wrench-configuration)
-- [📁 File Structure](#file-folder-file-structure)
-- [🤝 Contributing](#handshake-contributing)
+- [🚀 Overview](#-overview)
+- [✨ Major Features](#-major-features)
+  - [🐾 EnergonPets System](#-energonpets-system)
+    - [⚔️ Battle System](#️-battle-system)
+    - [💠 Energon Economy & Game](#-energon-economy--game)
+    - [🎰 Slots Minigame](#-slots-minigame)
+    - [🪙 CyberCoin Market](#-cybercoin-market)
+  - [🛡️ Transformers RPG System](#️-transformers-rpg-system)
+    - [🎮 Character Creation & Progression](#-character-creation--progression)
+    - [⚔️ RPG Battle System](#️-rpg-battle-system)
+    - [🧭 Story, Events, & Loot](#-story-events--loot)
+  - [🤖 Random System](#-random-system)
+    - [🕹️ Main Features](#-main-features)
+      - [🎯 Shooting Range](#-shooting-range)
+      - [🏹 Hunger Games Sorter](#-hunger-games-sorter)
+      - [👾 Walktru Interactive Adventures](#-walktru-interactive-adventures)
+      - [💬 Conversational AI & Lore](#-conversational-ai--lore)
+      - [📚 Server Lore System](#-server-lore-system)
+      - [🤖 Profile & Theme System](#-profile--theme-system)
+      - [🔗 Combiner Teams & Mega-Fight](#-combiner-teams--mega-fight)
+    - [🗂️ Key Random System Modules](#️-key-random-system-modules)
+  - [🏛️ PnW Recruitment System](#-pnw-recruitment-system)
+    - [🌐 What It Does](#-what-it-does)
+    - [🛠️ Major Features](#️-major-features-1)
+  - [👑 Admin System](#-admin-system)
+    - [🛠️ Major Features](#️-major-features-2)
+  - [🗂️ User Data Manager](#️-user-data-manager)
+    - [🚀 Key Features](#-key-features)
+    - [📦 What Does It Store?](#-what-does-it-store)
+    - [🛠️ Key API Methods (examples)](#️-key-api-methods-examples)
+- [🗂️ System Components & Cogs](#️-system-components--cogs)
+- [📜 Complete Commands List (70+)](#-complete-commands-list-70)
+  - [🐾 EnergonPets & Economy](#-energonpets--economy)
+  - [📜 RPG Commands](#-rpg-commands)
+  - [📜 Core Random & Fun Commands List](#-core-random--fun-commands-list)
+  - [📜 Recruitment Commands](#-recruitment-commands)
+  - [📜 Admin Commands](#-admin-commands)
+- [🏗️ Architecture & Data](#-architecture--data)
+- [🔧 Configuration](#-configuration)
+- [📁 File Structure](#-file-structure)
+- [🛠️ Development & Support](#️-development--support)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [🔗 Support](#-support)
 
 ---
 
 ## 🚀 Overview
 
-AllSpark is a modular, feature-rich Discord bot that brings the Transformers universe to life through interactive digital pets, RPG battles, interactive stories, games, recruiting, a full cyber-economy, and advanced admin tools. All systems are interconnected, use persistent user data, and support cross-server play.  
+AllSpark is a modular, feature-rich Discord bot that brings the Transformers universe to life through interactive digital pets, RPG battles, interactive stories, games, recruiting, a full cyber-economy, and much more.  
 **Every system, view, and cog is documented here.**
 
 ---
@@ -119,7 +128,7 @@ The RPG system in AllSpark lets you create your own original Cybertronian charac
 
 ## 🤖 Random System
 
-The Random System in AllSpark brings a huge variety of games, minigames, lore, fun utilities, and interactive experiences to your server. It's loaded with entertainment, social, and creative features—many with deep Transformers theming.
+The Random System in AllSpark brings a huge variety of games, minigames, lore, fun utilities, and interactive experiences to your server. It's loaded with entertainment, social, and creative features.
 
 ### 🕹️ Main Features
 
@@ -197,67 +206,51 @@ The PnW Recruitment System automates and streamlines the process of finding and 
 
 ## 👑 Admin System
 
-The Admin System is a comprehensive set of tools for bot administrators and owners to manage, monitor, debug, and maintain the AllSpark bot ecosystem. It provides real-time monitoring, activity logging, data and file management, and advanced error handling—all from within Discord.
+The Admin System is a comprehensive set of tools for bot administrators and owners to manage, monitor, debug, and maintain the AllSpark bot ecosystem. It provides real-time monitoring, activity logging, stress testing, and advanced data/file management tools.
 
 ### 🛠️ Major Features
 
 - **System Resource Monitor:**  
   Live dashboard showing bot CPU, RAM, storage, thread/file handles, Discord server/user counts, uptime, and module status. Includes colored progress bars, refresh, stress test, and dismiss buttons.
-
 - **Bot Activity Logging:**  
-  Every major admin, mod, or sensitive action is logged (with username, command, and details), viewable as an embed or filtered by user. Logs are stored via the unified UserDataManager for reliability and performance.
-
+  Every major admin, mod, or sensitive action is logged (with username, command, and details), viewable as an embed or filtered by user. Logs are stored via the unified UserDataManager.
 - **Log Management:**  
   View all recent logs, filter by user, see how many entries in total, and clear logs (with confirmation dialogs). Supports partial and full clears.
-
 - **Stress Testing:**  
   Launch simulated stress tests, spawning fake users and commands to measure bot performance under load. Live stats and progress updates are shown.
-
 - **User Data File Management:**  
   Admins can select and permanently delete user data files—useful for GDPR compliance or purging abandoned/test accounts. Multi-user selection, safety checks, and feedback included.
-
 - **Debug Log Control:**  
   Instantly clear the `bot_debug.log` file from Discord.
-
 - **Slash Command Sync:**  
   Force-resync all bot slash commands with Discord, with instant feedback and a list of synced commands.
-
 - **Uptime and Performance:**  
   Check bot uptime, system RAM/CPU, and storage stats at any time.
-
 - **Error Handling:**  
   All admin commands feature robust error handling, rate limiting, and detailed feedback.
 
 ## 🗂️ User Data Manager
 
-The User Data Manager is the core engine for persistent, high-performance, and scalable data storage in AllSpark. It provides a unified interface for saving, loading, updating, and migrating all user, game, and system data—handling everything from RPG characters to minigame stats, economy, logs, and beyond.
+The User Data Manager is the core engine for persistent, high-performance, and scalable data storage in AllSpark. It provides a unified interface for saving, loading, updating, and migrating all user, game, and system data.
 
 ### 🚀 Key Features
 
 - **Optimized Async I/O:**  
   All read and write operations are asynchronous, non-blocking, and use file-level locks to ensure stability and performance even under heavy loads.
-
 - **Smart Caching & LRU Eviction:**  
   Hot data is kept in memory, with configurable TTL and automatic least-recently-used (LRU) eviction to balance speed and memory efficiency.
-
 - **Automatic Directory & File Management:**  
   Ensures all required directories and JSON files exist, handling upgrades, migrations, and new installs seamlessly.
-
 - **Unified User Data Schema:**  
   Every user has a single data file (`Systems/Users/{user_id}.json`) containing all RPG characters, pet info, minigame stats, economy, slots, cybercoin, achievements, theme/identity, and more.
-
 - **Batch Operations & Migration:**  
   Tools to migrate legacy data, update all pet records, or clean up inactive data in bulk.
-
 - **Advanced Game & Economy Support:**  
   Persistent storage for Energon balances, CyberCoin portfolios, slot/jackpot records, RPG and pet progression, battle logs, event history, achievements, and more.
-
 - **Global & System Data:**  
   Efficient storage and retrieval for global game state, market data, logs, lore, jokes, blessings, templates, and system-wide settings.
-
 - **Validation & Integrity Checks:**  
   Built-in tools to validate file/data integrity, check for negative values, consistency, and auto-heal missing fields.
-
 - **Admin, Logging, & Debug Tools:**  
   Backed by a real-time logging system, performance metrics, and support for admin operations like log viewing, clearing, and user file deletion.
 
@@ -297,7 +290,7 @@ The User Data Manager is the core engine for persistent, high-performance, and s
 **Every major system and cog is included with full views/UI:**
 
 ### `/Systems/EnergonPets/`
-- `pets_system.py`, `battle_system.py`, `battle_commands.py`, `pets_commands.py`, `energon_system.py`, `energon_commands.py`, `slots.py`, and more:  
+- `pets_system.py`, `battle_system.py`, `battle_commands.py`, `pets_commands.py`, `energon_system.py`, `energon_commands.py`, `slots.py`, `enemy_selection_view.py`:  
   *Pet logic, missions, battles, economy, slot machine, equipment, and all battle-related views, joiners, and embeds.*
 
 ### `/Systems/RPG/`
@@ -326,7 +319,7 @@ The User Data Manager is the core engine for persistent, high-performance, and s
 
 ---
 
-## 📜 Complete Commands List
+## 📜 Complete Commands List (70+)
 
 > For the absolute latest, use `/features` or `/help` in your server, or see the code: [GitHub Code Search](https://github.com/The-Infamous-Aries/Allspark/search?q=commands.hybrid_command).
 
@@ -486,4 +479,20 @@ AllSpark/
 
 ---
 
-> 🔗 **Need help, bug reporting, or want to suggest features? [Join the Support Discord Server!](https://discord.gg/pDTKNQJXdh)**
+## 🤝 Contributing
+
+1. Fork and branch
+2. Commit & push
+3. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the MIT License.
+
+---
+
+## 🔗 Support
+
+> **Need help, bug reporting, or want to suggest features? [Join the Support Discord Server!](https://discord.gg/pDTKNQJXdh)**
