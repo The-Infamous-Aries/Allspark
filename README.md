@@ -32,7 +32,7 @@
   - [👑 Admin System](#crown-admin-system)
   - [🗂️ User Data Manager](#card-index-dividers-user-data-manager)
 - [🗂️ System Components & Cogs](#card-index-dividers-system-components--cogs)
-- [📜 Complete Commands List (70+)](#scroll-complete-commands-list-70)
+- [📜 Complete Commands List](#scroll-complete-commands-list)
   - [🐾 EnergonPets & Economy Commands](#paw-prints-energonpets--economy-commands)
   - [📜 RPG Commands](#scroll-rpg-commands)
   - [📜 Core Random & Fun Commands List](#scroll-core-random--fun-commands-list)
