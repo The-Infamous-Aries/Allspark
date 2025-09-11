@@ -7,16 +7,41 @@
 
 ## 📋 Table of Contents
 
-- [🚀 Overview](#🚀-overview)
-- [✨ Major Features](#✨-major-features)
-- [🗂️ System Components & Cogs](#🗂️-system-components--cogs)
-- [📜 Complete Commands List (70+)](#📜-complete-commands-list-70)
-- [🏗️ Architecture & Data](#🏗️-architecture--data)
-- [🔧 Configuration](#🔧-configuration)
-- [📁 File Structure](#📁-file-structure)
-- [🛠️ Development & Support](#🛠️-development--support)
-- [🤝 Contributing](#🤝-contributing)
-- [📄 License](#📄-license)
+- [🚀 Overview](#rocket-overview)
+- [✨ Major Features](#sparkles-major-features)
+  - [🐾 EnergonPets System](#paw-prints-energonpets-system)
+  - [⚔️ Battle System](#crossed-swords-battle-system)
+  - [💠 Energon Economy & Game](#diamond-shape-with-a-dot-inside-energon-economy--game)
+  - [🎰 Slots Minigame](#slot-machine-slots-minigame)
+  - [🪙 CyberCoin Market](#coin-cybercoin-market)
+  - [🛡️ Transformers RPG System](#shield-transformers-rpg-system)
+    - [🎮 Character Creation & Progression](#video-game-character-creation--progression)
+    - [⚔️ RPG Battle System](#crossed-swords-rpg-battle-system)
+    - [🧭 Story, Events, & Loot](#compass-story-events--loot)
+  - [🤖 Random System](#robot-random-system)
+    - [🕹️ Main Features](#joystick-main-features)
+      - [🎯 Shooting Range](#direct-hit-shooting-range)
+      - [🏹 Hunger Games Sorter](#bow-and-arrow-hunger-games-sorter)
+      - [👾 Walktru Interactive Adventures](#space-invader-walktru-interactive-adventures)
+      - [💬 Conversational AI & Lore](#speech-balloon-conversational-ai--lore)
+      - [📚 Server Lore System](#books-server-lore-system)
+      - [🤖 Profile & Theme System](#robot-profile--theme-system)
+      - [🔗 Combiner Teams & Mega-Fight](#link-combiner-teams--mega-fight)
+    - [🗂️ Key Random System Modules](#card-index-dividers-key-random-system-modules)
+  - [🏛️ PnW Recruitment System](#classical-building-pnw-recruitment-system)
+  - [👑 Admin System](#crown-admin-system)
+  - [🗂️ User Data Manager](#card-index-dividers-user-data-manager)
+- [🗂️ System Components & Cogs](#card-index-dividers-system-components--cogs)
+- [📜 Complete Commands List (70+)](#scroll-complete-commands-list-70)
+  - [🐾 EnergonPets & Economy Commands](#paw-prints-energonpets--economy-commands)
+  - [📜 RPG Commands](#scroll-rpg-commands)
+  - [📜 Core Random & Fun Commands List](#scroll-core-random--fun-commands-list)
+  - [📜 Recruitment Commands](#scroll-recruitment-commands)
+  - [📜 Admin Commands](#scroll-admin-commands)
+- [🏗️ Architecture & Data](#building-construction-architecture--data)
+- [🔧 Configuration](#wrench-configuration)
+- [📁 File Structure](#file-folder-file-structure)
+- [🤝 Contributing](#handshake-contributing)
 
 ---
 
@@ -458,14 +483,6 @@ AllSpark/
 - **Run:** `python allspark.py`
 - **Debug:** `python allspark.py --debug`
 - **Issues/Support:** [Join the Support Discord Server](https://discord.gg/pDTKNQJXdh)
-
----
-
-## 🤝 Contributing
-
-1. Fork and branch
-2. Commit & push
-3. Open a Pull Request
 
 ---
 
