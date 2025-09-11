@@ -184,21 +184,18 @@ The RPG system in AllSpark lets you create your own original Cybertronian charac
 - `/cybercoin_market` — Trade CyberCoin (interactive market)
 - `/cybercoin_profile` — View your CyberCoin portfolio
 
-### ⚔️ RPG & Theme
+### 📜 RPG Commands
 
-- `/me` or `/profile` — View your RPG profile and stats, inventory, combiner status, CyberCoin (full UI)
-- `/class` — Choose your RPG class
-- `/equip` — Equip RPG loot
-- `/character_new` — Create new RPG character
-- `/character_view` — View RPG character(s)
-- `/cyber_random` — Start random group adventure
-- `/cyber_battle` — Start group battle adventure
-- `/cyber_event` — Start group event challenge
-- `/cyber_story` — Start group story adventure
-- `/spark` — Assign yourself a Transformer identity
-- `/combiner` — Start/join a Combiner team (UI view)
-- `/analysis` — Run advanced analysis to determine your class
-- `/what_is` — Look up Transformers lore topic
+- `/character_new` — Create a new character (choose name, faction, class)
+- `/character_view` — View all your characters and their stats
+- `/equip` — Equip or unequip items (weapons, armor, beast modes, etc.)
+- `/kill_character` — Delete a character forever (confirmation required)
+- `/cyber_info` — Show RPG system help and overview
+- `/cyber_random` — Start a group adventure with random events
+- `/cyber_battle` — Start a group combat scenario
+- `/cyber_event` — Start a group event challenge
+- `/cyber_story` — Start a group story-driven session
+- `/start_cyberchronicles` — Begin an AI-generated long-form RPG adventure
 
 ### 🤖 Random & Fun
 
