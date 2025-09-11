@@ -147,21 +147,123 @@ The Random System in AllSpark brings a huge variety of games, minigames, lore, f
 - **me.py** — Multi-tab interactive profile system (personal stats, pet, combiner, CyberCoin).
 - **talk_system.py** — Lore, jokes, blessings, conversational analysis, roasts, and more.
 
-### 🏛️ PnW Recruitment
+## 🏛️ PnW Recruitment System
 
-- **API Integration:** Recruits from Politics & War.
-- **Auto-Filtering:** Excludes ineligible nations, customizes messages, prevents API abuse.
+The PnW Recruitment System automates and streamlines the process of finding and messaging unallied nations in Politics & War, making mass recruitment and alliance growth efficient and safe.
 
-### 👑 Admin System
+### 🌐 What It Does
 
-- **Admin Controls:** Permissions, roles, configuration, moderation, event automation.
-- **Debug/Logging:** Enable for troubleshooting.
-- **Custom Settings:** Change limits/rules/features live.
+- **Fetches all unallied nations** (up to 15,000 at a time) directly from the Politics & War API, sorted by most recent activity.
+- **Filters out** game admin nations, nations inactive for 7+ days, and those in vacation mode.
+- **Displays comprehensive stats:** nation name, leader, score, activity, cities, and more.
+- **Supports mass or targeted messaging** with customizable recruitment messages, including links to Discord and alliance application.
 
-### 🛡️ User Data
+### 🛠️ Major Features
 
-- **Persistent Profiles:** Stats, inventories, and achievements across all systems.
-- **Data Manager:** JSON-based, robust, and easily backed up.
+- **Paged, interactive navigation:** Browse unallied nations 5 at a time, with "Previous" and "Next" buttons.
+- **Recruitment buttons:**
+  - **Refresh:** Instantly re-fetches the latest nation data.
+  - **Recruit All Shown:** Sends recruitment messages to all nations on the current page.
+  - **Mass Recruit ALL:** Sends to every nation in the list (rate-limited, with progress updates).
+  - **Close:** Ends the session and cleans up the UI.
+- **Smart error handling:** Handles API errors, rate limits, and provides user feedback at every step.
+- **Activity indicators:** Color-coded icons (🟢 just now, 🟡 recent, 🟠 older, 🔴 inactive) and "time ago" for each nation.
+- **Recruitment messages:** Professionally formatted, themed, and customizable; always includes your Discord and alliance links.
+
+## 👑 Admin System
+
+The Admin System is a comprehensive set of tools for bot administrators and owners to manage, monitor, debug, and maintain the AllSpark bot ecosystem. It provides real-time monitoring, activity logging, data and file management, and advanced error handling—all from within Discord.
+
+### 🛠️ Major Features
+
+- **System Resource Monitor:**  
+  Live dashboard showing bot CPU, RAM, storage, thread/file handles, Discord server/user counts, uptime, and module status. Includes colored progress bars, refresh, stress test, and dismiss buttons.
+
+- **Bot Activity Logging:**  
+  Every major admin, mod, or sensitive action is logged (with username, command, and details), viewable as an embed or filtered by user. Logs are stored via the unified UserDataManager for reliability and performance.
+
+- **Log Management:**  
+  View all recent logs, filter by user, see how many entries in total, and clear logs (with confirmation dialogs). Supports partial and full clears.
+
+- **Stress Testing:**  
+  Launch simulated stress tests, spawning fake users and commands to measure bot performance under load. Live stats and progress updates are shown.
+
+- **User Data File Management:**  
+  Admins can select and permanently delete user data files—useful for GDPR compliance or purging abandoned/test accounts. Multi-user selection, safety checks, and feedback included.
+
+- **Debug Log Control:**  
+  Instantly clear the `bot_debug.log` file from Discord.
+
+- **Slash Command Sync:**  
+  Force-resync all bot slash commands with Discord, with instant feedback and a list of synced commands.
+
+- **Uptime and Performance:**  
+  Check bot uptime, system RAM/CPU, and storage stats at any time.
+
+- **Error Handling:**  
+  All admin commands feature robust error handling, rate limiting, and detailed feedback.
+
+## 🗂️ User Data Manager
+
+The User Data Manager is the core engine for persistent, high-performance, and scalable data storage in AllSpark. It provides a unified interface for saving, loading, updating, and migrating all user, game, and system data—handling everything from RPG characters to minigame stats, economy, logs, and beyond.
+
+### 🚀 Key Features
+
+- **Optimized Async I/O:**  
+  All read and write operations are asynchronous, non-blocking, and use file-level locks to ensure stability and performance even under heavy loads.
+
+- **Smart Caching & LRU Eviction:**  
+  Hot data is kept in memory, with configurable TTL and automatic least-recently-used (LRU) eviction to balance speed and memory efficiency.
+
+- **Automatic Directory & File Management:**  
+  Ensures all required directories and JSON files exist, handling upgrades, migrations, and new installs seamlessly.
+
+- **Unified User Data Schema:**  
+  Every user has a single data file (`Systems/Users/{user_id}.json`) containing all RPG characters, pet info, minigame stats, economy, slots, cybercoin, achievements, theme/identity, and more.
+
+- **Batch Operations & Migration:**  
+  Tools to migrate legacy data, update all pet records, or clean up inactive data in bulk.
+
+- **Advanced Game & Economy Support:**  
+  Persistent storage for Energon balances, CyberCoin portfolios, slot/jackpot records, RPG and pet progression, battle logs, event history, achievements, and more.
+
+- **Global & System Data:**  
+  Efficient storage and retrieval for global game state, market data, logs, lore, jokes, blessings, templates, and system-wide settings.
+
+- **Validation & Integrity Checks:**  
+  Built-in tools to validate file/data integrity, check for negative values, consistency, and auto-heal missing fields.
+
+- **Admin, Logging, & Debug Tools:**  
+  Backed by a real-time logging system, performance metrics, and support for admin operations like log viewing, clearing, and user file deletion.
+
+### 📦 What Does It Store?
+
+- **User Profiles:** Discord/user IDs, names, creation/update times.
+- **RPG Characters:** Full stats, history, combat, inventory, equipment, and more.
+- **Pets:** Pet data (with auto-migration for legacy formats), equipment, inventory, stats.
+- **Mini-Game Stats:** Shooting range, slots, missions, mega-fights, leaderboards, achievements.
+- **Economy & Currency:** Energon (banked, earned, spent, in-game), CyberCoin market, transactions.
+- **Themes & Identities:** Transformer name, faction, class, combiner teams, roles, history.
+- **Lore & Social:** Server lore, jokes, blessings, user sayings, and custom templates.
+- **Logs:** All admin/mod actions, system events, and user activity.
+- **Global Saves:** Game state, global leaderboards, CyberCoin market, admin data.
+
+### 🛠️ Key API Methods (examples)
+
+- `get_user_data(user_id, username)` — Load or create a user's data file.
+- `save_user_data(user_id, username, data)` — Save all data for a user.
+- `get_rpg_character(user_id, username, name)` — Retrieve a specific RPG character.
+- `save_rpg_character(user_id, username, character)` — Save RPG character info.
+- `get_pet_data(user_id)` / `save_pet_data(user_id, username, pet_data)` — Manage digital pet storage.
+- `get_energon_data(player_id)` / `save_energon_data(player_id, energon_data)` — Game currency management.
+- `add_energon(player_id, amount, source)` / `subtract_energon(player_id, amount, source)` — Add or remove currency.
+- `get_monsters_and_bosses()` — Load monster/boss/titan data for RPG.
+- `get_slot_machine_data(player_id, username)` — Minigame stats.
+- `get_theme_system_data(user_id, username)` — Get/set theme, combiner, and identity info.
+- `add_bot_log(log_entry)` / `get_bot_logs()` — Logging system.
+- `cleanup_inactive_data(days_inactive)` — Batch cleanup for stale users.
+- `migrate_all_pet_data()` — Batch migration for legacy pet data.
+- ...and many more for leaderboard, validation, admin tools, and system data.
 
 ---
 
@@ -271,25 +373,25 @@ The Random System in AllSpark brings a huge variety of games, minigames, lore, f
 - `/ping` — Bot latency (with escalating threats)
 - `/grump` — Have fun pinging the "Grump" user
 
-### 🏛️ PnW & Recruitment
+### 📜 Recruitment Commands
 
-- `/recruit` — View unallied nations for recruitment (admin only)
+- `/recruit` — Shows the full, paginated list of unallied nations, sorted by most recent activity (restricted to Aries only).
+- **Recruit View Buttons** (within the embed):
+  - **Previous/Next** — Navigate through the nation list, 5 at a time.
+  - **🔄 Refresh** — Reload nation data from the API.
+  - **Recruit All Shown** — Send the recruitment message to every nation on the current page.
+  - **🎯 Mass Recruit ALL** — Send to every nation; includes live progress and rate limiting.
+  - **Close** — Exit and clean up the view.
 
-### 👑 Admin & Utility
+### 📜 Admin Commands
 
-- `/admin` — Admin/moderator dashboard (UI & commands)
-- `/monitor` — View system monitor (CPU/mem stats)
-- `/logs` — View admin logs
-- `/logs_clear` — Clear admin logs (with confirmation)
-- `/uptime` — View bot uptime and system info
-- `/clear_debug_log` — Clear debug log (admin only)
-- `/sync_commands` — Sync all slash commands (admin only)
-- `/features` — List all bot commands and features
-- `/debug` — Show debug info (owner only)
-- `/test_error` — (Owner only, test error handling)
-
-> ℹ️ *There are more context, sub, and modal commands (e.g., `/equip`, `/item`, `/equipment_type`, `/character_autocomplete`, etc.).  
-For the full list, use `/features`, `/help`, or the GitHub code search.*
+- `/monitor` — Real-time, paginated dashboard for system resources (RAM, CPU, storage, threads, uptime, Discord stats, and more).
+- `/admin_clear` — Select users and delete their data files (supports multi-select and per-user feedback).
+- `/logs` — View bot logs (all or filtered by user), see the last 10 entries, and get total log count.
+- `/logs_clear` — Clear logs (partial or all, with confirmation dialog).
+- `/uptime` — Show bot uptime, RAM/CPU percentage, and more.
+- `/clear_debug_log` — Instantly clear the bot’s debug log file.
+- `/sync_commands` — Force-sync all slash commands with Discord and see the results.
 
 ---
 
@@ -364,12 +466,6 @@ AllSpark/
 1. Fork and branch
 2. Commit & push
 3. Open a Pull Request
-
----
-
-## 📄 License
-
-MIT License. See LICENSE for details.
 
 ---
 
