@@ -1,0 +1,1709 @@
+{
+  "rarity_colors": {
+    "common": {
+      "hex": "#9CA3AF",
+      "name": "Gray",
+      "rgb": [156, 163, 175]
+    },
+    "uncommon": {
+      "hex": "#10B981",
+      "name": "Green",
+      "rgb": [16, 185, 129]
+    },
+    "rare": {
+      "hex": "#3B82F6",
+      "name": "Blue",
+      "rgb": [59, 130, 246]
+    },
+    "epic": {
+      "hex": "#8B5CF6",
+      "name": "Purple",
+      "rgb": [139, 92, 246]
+    },
+    "legendary": {
+      "hex": "#F59E0B",
+      "name": "Orange",
+      "rgb": [245, 158, 11]
+    },
+    "mythic": {
+      "hex": "#EF4444",
+      "name": "Red",
+      "rgb": [239, 68, 68]
+    }
+  },
+  "beast_modes": {
+    "trax": {
+      "id": "trex",
+      "name": "T-Rex Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Dinosaur form with powerful bite - grants primal strength",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 1
+      },
+      "unlock_message": "You've unlocked the ancient T-Rex beast mode! Your primal instincts awaken."
+    },
+    "gorilla": {
+      "id": "gorilla",
+      "name": "Gorilla Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Primal strength and agility - the power of the jungle",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 2
+      },
+      "unlock_message": "The spirit of the gorilla flows through you! Raw power courses through your circuits."
+    },
+    "snake": {
+      "id": "snake",
+      "name": "Snake Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Stealth and precision strikes - strike like lightning",
+      "stat_bonus": {
+        "dexterity": 3,
+        "charisma": 1
+      },
+      "unlock_message": "You've gained the cunning of the serpent! Your movements become fluid and deadly."
+    },
+    "eagle": {
+      "id": "eagle",
+      "name": "Eagle Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Aerial reconnaissance and speed - soar above your enemies",
+      "stat_bonus": {
+        "dexterity": 2,
+        "charisma": 2
+      },
+      "unlock_message": "The eagle's keen sight is now yours! You can see opportunities others miss."
+    },
+    "wolf": {
+      "id": "wolf",
+      "name": "Wolf Beast Mode",
+      "type": "beast_mode",
+      "rarity": "common",
+      "description": "Pack hunter with keen senses - loyalty and instinct combined",
+      "stat_bonus": {
+        "attack": 1,
+        "dexterity": 1,
+        "charisma": 2
+      },
+      "unlock_message": "The wolf pack accepts you as one of their own! Your leadership skills sharpen."
+    },
+    "shark": {
+      "id": "shark",
+      "name": "Shark Beast Mode",
+      "type": "beast_mode",
+      "rarity": "epic",
+      "description": "Aquatic predator - relentless and powerful",
+      "stat_bonus": {
+        "attack": 4
+      },
+      "unlock_message": "The ocean's apex predator awakens within you! Your attacks become devastating."
+    },
+    "spider": {
+      "id": "spider",
+      "name": "Spider Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Web-spinning tactician - patience and strategy",
+      "stat_bonus": {
+        "defense": 2,
+        "charisma": 2
+      },
+      "unlock_message": "You've gained the spider's cunning! Your tactical mind weaves complex strategies."
+    },
+    "lion": {
+      "id": "lion",
+      "name": "Lion Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "King of beasts - natural leadership and fierce courage",
+      "stat_bonus": {
+        "attack": 2,
+        "charisma": 3
+      },
+      "unlock_message": "The lion's roar echoes through your spark! You command respect and fear."
+    },
+    "tiger": {
+      "id": "tiger",
+      "name": "Tiger Beast Mode",
+      "type": "beast_mode",
+      "rarity": "epic",
+      "description": "Solitary hunter with devastating power and stealth",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "The tiger's stripes mark you as a deadly predator! Your strikes are swift and lethal."
+    },
+    "bear": {
+      "id": "bear",
+      "name": "Bear Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Massive strength and endurance - an unstoppable force",
+      "stat_bonus": {
+        "attack": 2,
+        "defense": 3
+      },
+      "unlock_message": "The bear's strength flows through your frame! You become an immovable object."
+    },
+    "falcon": {
+      "id": "falcon",
+      "name": "Falcon Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Swift aerial hunter with incredible precision",
+      "stat_bonus": {
+        "dexterity": 3,
+        "attack": 1
+      },
+      "unlock_message": "The falcon's speed is now yours! You strike with pinpoint accuracy."
+    },
+    "dragon": {
+      "id": "dragon",
+      "name": "Dragon Beast Mode",
+      "type": "beast_mode",
+      "rarity": "legendary",
+      "description": "Mythical beast of ultimate power - fire and fury incarnate",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 2,
+        "charisma": 2
+      },
+      "unlock_message": "The ancient dragon awakens within you! Your very presence commands awe and terror."
+    },
+    "panther": {
+      "id": "panther",
+      "name": "Panther Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Shadow stalker with deadly grace and stealth",
+      "stat_bonus": {
+        "dexterity": 4,
+        "attack": 1
+      },
+      "unlock_message": "The panther's shadow embraces you! You move like liquid darkness."
+    },
+    "rhino": {
+      "id": "rhino",
+      "name": "Rhino Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Armored tank with devastating charge attacks",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 2
+      },
+      "unlock_message": "The rhino's unstoppable force is yours! Nothing can stand in your way."
+    },
+    "scorpion": {
+      "id": "scorpion",
+      "name": "Scorpion Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Desert predator with venomous strikes",
+      "stat_bonus": {
+        "attack": 2,
+        "defense": 1,
+        "dexterity": 2
+      },
+      "unlock_message": "The scorpion's deadly sting is now yours! Your enemies will fear your poison."
+    },
+    "cheetah": {
+      "id": "cheetah",
+      "name": "Cheetah Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Fastest land predator - unmatched speed and agility",
+      "stat_bonus": {
+        "dexterity": 5
+      },
+      "unlock_message": "The cheetah's lightning speed flows through you! You are faster than the wind."
+    },
+    "crocodile": {
+      "id": "crocodile",
+      "name": "Crocodile Beast Mode",
+      "type": "beast_mode",
+      "rarity": "rare",
+      "description": "Ancient predator with crushing jaws and armor",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 2
+      },
+      "unlock_message": "The crocodile's ancient power awakens! Your bite is legendary."
+    },
+    "octopus": {
+      "id": "octopus",
+      "name": "Octopus Beast Mode",
+      "type": "beast_mode",
+      "rarity": "epic",
+      "description": "Master of camouflage and multi-limbed combat",
+      "stat_bonus": {
+        "dexterity": 3,
+        "charisma": 2,
+        "defense": 1
+      },
+      "unlock_message": "The octopus grants you its wisdom! Your adaptability knows no bounds."
+    },
+    "phoenix": {
+      "id": "phoenix",
+      "name": "Phoenix Beast Mode",
+      "type": "beast_mode",
+      "rarity": "legendary",
+      "description": "Immortal firebird - rebirth through flames",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 3,
+        "charisma": 3
+      },
+      "unlock_message": "The Phoenix rises within you! Death itself cannot claim you."
+    },
+    "mantis": {
+      "id": "mantis",
+      "name": "Mantis Beast Mode",
+      "type": "beast_mode",
+      "rarity": "uncommon",
+      "description": "Patient hunter with lightning-fast strikes",
+      "stat_bonus": {
+        "dexterity": 2,
+        "attack": 2,
+        "charisma": 1
+      },
+      "unlock_message": "The mantis teaches you patience! Your strikes become perfectly timed."
+    },
+    "bat": {
+      "id": "bat",
+      "name": "Bat Beast Mode",
+      "type": "beast_mode",
+      "rarity": "common",
+      "description": "Night hunter with echolocation and flight",
+      "stat_bonus": {
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "The bat's night vision is yours! Darkness holds no secrets from you."
+    },
+    "kraken": {
+      "id": "kraken",
+      "name": "Kraken Beast Mode",
+      "type": "beast_mode",
+      "rarity": "legendary",
+      "description": "Legendary sea monster with crushing tentacles",
+      "stat_bonus": {
+        "attack": 5,
+        "defense": 3,
+        "dexterity": 1
+      },
+      "unlock_message": "The Kraken's ancient fury awakens! The depths themselves obey your will."
+    }
+  },
+  "transformations": {
+    "tank": {
+      "id": "tank",
+      "name": "Tank Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "Heavy armor and firepower - become an unstoppable force",
+      "stat_bonus": {
+        "attack": 2,
+        "defense": 3
+      },
+      "unlock_message": "Tank transformation protocols activated! You are now a mobile fortress."
+    },
+    "jet": {
+      "id": "jet",
+      "name": "Jet Transformation",
+      "type": "transformation",
+      "rarity": "rare",
+      "description": "High-speed aerial combat - rule the skies",
+      "stat_bonus": {
+        "dexterity": 4,
+        "attack": 1
+      },
+      "unlock_message": "Jet transformation online! The sky is no longer the limit."
+    },
+    "car": {
+      "id": "car",
+      "name": "Car Transformation",
+      "type": "transformation",
+      "rarity": "common",
+      "description": "Balanced ground vehicle - speed and versatility",
+      "stat_bonus": {
+        "dexterity": 2,
+        "charisma": 2
+      },
+      "unlock_message": "Car transformation acquired! You can now blend in while staying mobile."
+    },
+    "truck": {
+      "id": "truck",
+      "name": "Truck Transformation",
+      "type": "transformation",
+      "rarity": "common",
+      "description": "Heavy hauler with durability - built to last",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 1
+      },
+      "unlock_message": "Truck transformation ready! You're built for the long haul."
+    },
+    "motorcycle": {
+      "id": "motorcycle",
+      "name": "Motorcycle Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "Speed and maneuverability - quick and agile",
+      "stat_bonus": {
+        "dexterity": 3,
+        "charisma": 1
+      },
+      "unlock_message": "Motorcycle transformation engaged! Feel the freedom of the open road."
+    },
+    "helicopter": {
+      "id": "helicopter",
+      "name": "Helicopter Transformation",
+      "type": "transformation",
+      "rarity": "rare",
+      "description": "Versatile aerial support - hover and strike",
+      "stat_bonus": {
+        "dexterity": 2,
+        "defense": 1,
+        "charisma": 1
+      },
+      "unlock_message": "Helicopter transformation active! You can now provide aerial support."
+    },
+    "submarine": {
+      "id": "submarine",
+      "name": "Submarine Transformation",
+      "type": "transformation",
+      "rarity": "epic",
+      "description": "Underwater stealth operations - master of the depths",
+      "stat_bonus": {
+        "defense": 2,
+        "charisma": 2
+      },
+      "unlock_message": "Submarine transformation unlocked! The ocean depths are now your domain."
+    },
+    "spaceship": {
+      "id": "spaceship",
+      "name": "Spaceship Transformation",
+      "type": "transformation",
+      "rarity": "legendary",
+      "description": "Interstellar travel capability - explore the cosmos",
+      "stat_bonus": {
+        "attack": 1,
+        "defense": 1,
+        "dexterity": 1,
+        "charisma": 2
+      },
+      "unlock_message": "Spaceship transformation achieved! The stars themselves await your exploration."
+    },
+    "stealth_fighter": {
+      "id": "stealth_fighter",
+      "name": "Stealth Fighter Transformation",
+      "type": "transformation",
+      "rarity": "epic",
+      "description": "Advanced stealth technology - strike unseen",
+      "stat_bonus": {
+        "dexterity": 3,
+        "attack": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Stealth fighter protocols engaged! You are now a ghost in the machine."
+    },
+    "sports_car": {
+      "id": "sports_car",
+      "name": "Sports Car Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "High-performance racing machine - speed and style",
+      "stat_bonus": {
+        "dexterity": 4,
+        "charisma": 1
+      },
+      "unlock_message": "Sports car transformation complete! You're built for speed and style."
+    },
+    "artillery": {
+      "id": "artillery",
+      "name": "Artillery Transformation",
+      "type": "transformation",
+      "rarity": "rare",
+      "description": "Long-range heavy weapons platform - devastating firepower",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 1
+      },
+      "unlock_message": "Artillery transformation locked and loaded! Your firepower is unmatched."
+    },
+    "space_shuttle": {
+      "id": "space_shuttle",
+      "name": "Space Shuttle Transformation",
+      "type": "transformation",
+      "rarity": "legendary",
+      "description": "Advanced space exploration vessel - bridge between worlds",
+      "stat_bonus": {
+        "defense": 2,
+        "dexterity": 2,
+        "charisma": 3
+      },
+      "unlock_message": "Space shuttle transformation achieved! You are now an ambassador to the stars."
+    },
+    "battleship": {
+      "id": "battleship",
+      "name": "Battleship Transformation",
+      "type": "transformation",
+      "rarity": "epic",
+      "description": "Naval fortress with massive firepower",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 3
+      },
+      "unlock_message": "Battleship transformation ready! You command the seas with overwhelming force."
+    },
+    "drill_tank": {
+      "id": "drill_tank",
+      "name": "Drill Tank Transformation",
+      "type": "transformation",
+      "rarity": "rare",
+      "description": "Underground assault vehicle with drilling capabilities",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 2,
+        "dexterity": 1
+      },
+      "unlock_message": "Drill Tank transformation engaged! No barrier can stop your advance."
+    },
+    "race_car": {
+      "id": "race_car",
+      "name": "Race Car Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "Formula racing machine built for pure speed",
+      "stat_bonus": {
+        "dexterity": 5
+      },
+      "unlock_message": "Race car transformation complete! You are speed incarnate."
+    },
+    "bomber": {
+      "id": "bomber",
+      "name": "Bomber Transformation",
+      "type": "transformation",
+      "rarity": "rare",
+      "description": "Heavy aerial bombardment platform",
+      "stat_bonus": {
+        "attack": 5,
+        "defense": 1
+      },
+      "unlock_message": "Bomber transformation armed! Rain destruction from above."
+    },
+    "hovercraft": {
+      "id": "hovercraft",
+      "name": "Hovercraft Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "All-terrain vehicle that glides over any surface",
+      "stat_bonus": {
+        "dexterity": 3,
+        "defense": 1,
+        "charisma": 1
+      },
+      "unlock_message": "Hovercraft transformation active! No terrain can slow you down."
+    },
+    "mech_suit": {
+      "id": "mech_suit",
+      "name": "Mech Suit Transformation",
+      "type": "transformation",
+      "rarity": "epic",
+      "description": "Humanoid combat frame with enhanced capabilities",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 2,
+        "dexterity": 2
+      },
+      "unlock_message": "Mech Suit transformation online! You are a walking weapon of war."
+    },
+    "starfighter": {
+      "id": "starfighter",
+      "name": "Starfighter Transformation",
+      "type": "transformation",
+      "rarity": "legendary",
+      "description": "Elite space combat vessel for interstellar warfare",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 4,
+        "charisma": 2
+      },
+      "unlock_message": "Starfighter transformation achieved! You are master of space combat."
+    },
+    "construction_vehicle": {
+      "id": "construction_vehicle",
+      "name": "Construction Vehicle Transformation",
+      "type": "transformation",
+      "rarity": "common",
+      "description": "Heavy machinery for building and demolition",
+      "stat_bonus": {
+        "defense": 2,
+        "attack": 2
+      },
+      "unlock_message": "Construction Vehicle transformation ready! You build and destroy with equal skill."
+    },
+    "rescue_vehicle": {
+      "id": "rescue_vehicle",
+      "name": "Rescue Vehicle Transformation",
+      "type": "transformation",
+      "rarity": "uncommon",
+      "description": "Emergency response vehicle with life-saving equipment",
+      "stat_bonus": {
+        "defense": 1,
+        "dexterity": 2,
+        "charisma": 3
+      },
+      "unlock_message": "Rescue Vehicle transformation active! You are hope in times of crisis."
+    }
+  },
+  "weapons": {
+    "energon_blade": {
+      "id": "energon_blade",
+      "name": "Energon Blade",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "A basic energon-infused melee weapon",
+      "stat_bonus": {
+        "attack": 2
+      },
+      "unlock_message": "You've acquired an Energon Blade! Its crystalline edge hums with power."
+    },
+    "ion_cannon": {
+      "id": "ion_cannon",
+      "name": "Ion Cannon",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Powerful ranged weapon that fires concentrated ion bursts",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 1
+      },
+      "unlock_message": "Ion Cannon acquired! Crackling energy courses through its barrel."
+    },
+    "plasma_rifle": {
+      "id": "plasma_rifle",
+      "name": "Plasma Rifle",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Advanced plasma weapon with devastating firepower",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 1
+      },
+      "unlock_message": "Plasma Rifle online! Superheated plasma awaits your command."
+    },
+    "matrix_sword": {
+      "id": "matrix_sword",
+      "name": "Matrix Sword",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Legendary blade forged from Matrix energy itself",
+      "stat_bonus": {
+        "attack": 5,
+        "charisma": 2
+      },
+      "unlock_message": "The Matrix Sword chooses you! Its divine light cuts through darkness itself."
+    },
+    "fusion_cannon": {
+      "id": "fusion_cannon",
+      "name": "Fusion Cannon",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Megatron's signature weapon - ultimate destructive power",
+      "stat_bonus": {
+        "attack": 6,
+        "defense": 1
+      },
+      "unlock_message": "The Fusion Cannon is yours! Feel the power that once belonged to Megatron."
+    },
+    "star_saber": {
+      "id": "star_saber",
+      "name": "Star Saber",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "The ultimate weapon of the Primes - cuts through reality itself",
+      "stat_bonus": {
+        "attack": 7,
+        "charisma": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "The Star Saber has awakened! You now wield the power of the Primes themselves."
+    },
+    "null_ray": {
+      "id": "null_ray",
+      "name": "Null Ray",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Seeker weapon that disrupts enemy systems",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 2
+      },
+      "unlock_message": "Null Ray acquired! Its disruptive energy will confuse your enemies."
+    },
+    "cyber_key_sword": {
+      "id": "cyber_key_sword",
+      "name": "Cyber Key Sword",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Mystical blade powered by ancient Cyber Keys",
+      "stat_bonus": {
+        "attack": 4,
+        "charisma": 1,
+        "defense": 1
+      },
+      "unlock_message": "The Cyber Key Sword resonates with ancient power! Its secrets are now yours."
+    },
+    "photon_blaster": {
+      "id": "photon_blaster",
+      "name": "Photon Blaster",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "Standard issue energy weapon for all Cybertronians",
+      "stat_bonus": {
+        "attack": 1,
+        "dexterity": 1
+      },
+      "unlock_message": "Photon Blaster equipped! A reliable weapon for any situation."
+    },
+    "thermal_lance": {
+      "id": "thermal_lance",
+      "name": "Thermal Lance",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Superheated spear that melts through armor",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 1
+      },
+      "unlock_message": "Thermal Lance ignited! Its heat signature burns bright."
+    },
+    "quantum_rifle": {
+      "id": "quantum_rifle",
+      "name": "Quantum Rifle",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Experimental weapon that manipulates quantum fields",
+      "stat_bonus": {
+        "attack": 5,
+        "dexterity": 2
+      },
+      "unlock_message": "Quantum Rifle calibrated! Reality bends to your will."
+    },
+    "dark_energon_mace": {
+      "id": "dark_energon_mace",
+      "name": "Dark Energon Mace",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Corrupted weapon infused with dark energon's power",
+      "stat_bonus": {
+        "attack": 6,
+        "charisma": -1,
+        "defense": 1
+      },
+      "unlock_message": "Dark Energon Mace pulses with forbidden power! Its corruption spreads."
+    },
+    "sonic_cannon": {
+      "id": "sonic_cannon",
+      "name": "Sonic Cannon",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Sound-based weapon that shatters armor with vibrations",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "Sonic Cannon resonates! Your enemies will hear their doom."
+    },
+    "cyber_sword": {
+      "id": "cyber_sword",
+      "name": "Cyber Sword",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Traditional Cybertronian blade with energy edge",
+      "stat_bonus": {
+        "attack": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Cyber Sword drawn! Honor guides your blade."
+    },
+    "graviton_hammer": {
+      "id": "graviton_hammer",
+      "name": "Graviton Hammer",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Mythical weapon that controls gravitational forces",
+      "stat_bonus": {
+        "attack": 8,
+        "defense": 2,
+        "dexterity": -1
+      },
+      "unlock_message": "The Graviton Hammer chooses you! Gravity itself obeys your command."
+    },
+    "energon_axe": {
+      "id": "energon_axe",
+      "name": "Energon Axe",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "Heavy melee weapon with energon-powered edge",
+      "stat_bonus": {
+        "attack": 3
+      },
+      "unlock_message": "Energon Axe ready! Its weight feels perfect in your hands."
+    },
+    "phase_shifter": {
+      "id": "phase_shifter",
+      "name": "Phase Shifter",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Experimental weapon that phases through defenses",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 3
+      },
+      "unlock_message": "Phase Shifter activated! No armor can protect against you."
+    },
+    "cyber_bow": {
+      "id": "cyber_bow",
+      "name": "Cyber Bow",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Precision ranged weapon with energy arrows",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 3
+      },
+      "unlock_message": "Cyber Bow strung! Your aim is true and deadly."
+    },
+    "void_blade": {
+      "id": "void_blade",
+      "name": "Void Blade",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Blade forged from the void between dimensions",
+      "stat_bonus": {
+        "attack": 6,
+        "dexterity": 3,
+        "charisma": 2
+      },
+      "unlock_message": "The Void Blade materializes! It cuts through space itself."
+    },
+    "energon_spear": {
+      "id": "energon_spear",
+      "name": "Energon Spear",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "Long-reach melee weapon with energon tip",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 1
+      },
+      "unlock_message": "Energon Spear ready! Keep your enemies at bay."
+    },
+    "cyber_whip": {
+      "id": "cyber_whip",
+      "name": "Cyber Whip",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Flexible energy weapon with stunning capabilities",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 2
+      },
+      "unlock_message": "Cyber Whip crackling! Your reach extends beyond imagination."
+    },
+    "plasma_cannon": {
+      "id": "plasma_cannon",
+      "name": "Plasma Cannon",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Heavy plasma artillery with devastating area damage",
+      "stat_bonus": {
+        "attack": 5,
+        "dexterity": -1
+      },
+      "unlock_message": "Plasma Cannon charged! Devastation awaits your command."
+    },
+    "neutron_rifle": {
+      "id": "neutron_rifle",
+      "name": "Neutron Rifle",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Atomic-level weapon that disrupts molecular bonds",
+      "stat_bonus": {
+        "attack": 6,
+        "dexterity": 1
+      },
+      "unlock_message": "Neutron Rifle armed! Atoms themselves fear your touch."
+    },
+    "cyber_claws": {
+      "id": "cyber_claws",
+      "name": "Cyber Claws",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Retractable energy claws for close combat",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "Cyber Claws extended! Your hands become deadly weapons."
+    },
+    "energon_staff": {
+      "id": "energon_staff",
+      "name": "Energon Staff",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Mystical staff channeling pure energon energy",
+      "stat_bonus": {
+        "attack": 3,
+        "charisma": 2,
+        "defense": 1
+      },
+      "unlock_message": "Energon Staff pulses with power! Ancient wisdom guides your strikes."
+    },
+    "disruptor_beam": {
+      "id": "disruptor_beam",
+      "name": "Disruptor Beam",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Energy weapon that scrambles enemy systems",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "Disruptor Beam online! Your enemies' systems will fail them."
+    },
+    "cyber_hammer": {
+      "id": "cyber_hammer",
+      "name": "Cyber Hammer",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Heavy impact weapon with shock absorption",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 1
+      },
+      "unlock_message": "Cyber Hammer ready! Your strikes will shake the earth."
+    },
+    "photon_saber": {
+      "id": "photon_saber",
+      "name": "Photon Saber",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Elegant light-based blade for precise combat",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Photon Saber ignited! Light itself becomes your weapon."
+    },
+    "energon_crossbow": {
+      "id": "energon_crossbow",
+      "name": "Energon Crossbow",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Precision ranged weapon with energon bolts",
+      "stat_bonus": {
+        "attack": 3,
+        "dexterity": 2
+      },
+      "unlock_message": "Energon Crossbow loaded! Your shots never miss their mark."
+    },
+    "cyber_shield": {
+      "id": "cyber_shield",
+      "name": "Cyber Shield",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "Defensive weapon that can bash enemies",
+      "stat_bonus": {
+        "attack": 1,
+        "defense": 3
+      },
+      "unlock_message": "Cyber Shield equipped! Defense becomes your offense."
+    },
+    "plasma_sword": {
+      "id": "plasma_sword",
+      "name": "Plasma Sword",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Superheated blade that cuts through any material",
+      "stat_bonus": {
+        "attack": 5,
+        "dexterity": 1
+      },
+      "unlock_message": "Plasma Sword ignited! No armor can withstand its heat."
+    },
+    "quantum_disruptor": {
+      "id": "quantum_disruptor",
+      "name": "Quantum Disruptor",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Reality-warping weapon that exists in multiple dimensions",
+      "stat_bonus": {
+        "attack": 7,
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Quantum Disruptor phased in! Reality bends to your will."
+    },
+    "dark_star_cannon": {
+      "id": "dark_star_cannon",
+      "name": "Dark Star Cannon",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Weapon powered by collapsed star matter",
+      "stat_bonus": {
+        "attack": 8,
+        "defense": 1
+      },
+      "unlock_message": "Dark Star Cannon charged! The power of dying stars flows through you."
+    },
+    "cyber_scythe": {
+      "id": "cyber_scythe",
+      "name": "Cyber Scythe",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Curved blade weapon with sweeping attacks",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 2
+      },
+      "unlock_message": "Cyber Scythe ready! Your strikes reap destruction."
+    },
+    "energon_mace": {
+      "id": "energon_mace",
+      "name": "Energon Mace",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Spiked weapon with energon-enhanced impact",
+      "stat_bonus": {
+        "attack": 3,
+        "defense": 1
+      },
+      "unlock_message": "Energon Mace charged! Your blows will shatter defenses."
+    },
+    "photon_lance": {
+      "id": "photon_lance",
+      "name": "Photon Lance",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Long-range energy spear with piercing capability",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 1,
+        "defense": 1
+      },
+      "unlock_message": "Photon Lance extended! Your reach knows no bounds."
+    },
+    "cyber_gauntlets": {
+      "id": "cyber_gauntlets",
+      "name": "Cyber Gauntlets",
+      "type": "weapon",
+      "rarity": "common",
+      "description": "Enhanced fists with energy amplifiers",
+      "stat_bonus": {
+        "attack": 2,
+        "defense": 1
+      },
+      "unlock_message": "Cyber Gauntlets activated! Your fists become weapons of war."
+    },
+    "plasma_whip": {
+      "id": "plasma_whip",
+      "name": "Plasma Whip",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Flexible plasma weapon with burning strikes",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 3
+      },
+      "unlock_message": "Plasma Whip ignited! Your enemies will feel the burn."
+    },
+    "neutron_blade": {
+      "id": "neutron_blade",
+      "name": "Neutron Blade",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Sword forged from neutron star material",
+      "stat_bonus": {
+        "attack": 7,
+        "defense": 2,
+        "dexterity": 1
+      },
+      "unlock_message": "Neutron Blade materialized! The weight of stars guides your strikes."
+    },
+    "cyber_trident": {
+      "id": "cyber_trident",
+      "name": "Cyber Trident",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Three-pronged weapon with energy discharge",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 1,
+        "charisma": 1
+      },
+      "unlock_message": "Cyber Trident charged! Rule the battlefield like the depths."
+    },
+    "energon_chakram": {
+      "id": "energon_chakram",
+      "name": "Energon Chakram",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Circular throwing weapon that returns to wielder",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 3
+      },
+      "unlock_message": "Energon Chakram spinning! Your weapon always returns."
+    },
+    "quantum_blade": {
+      "id": "quantum_blade",
+      "name": "Quantum Blade",
+      "type": "weapon",
+      "rarity": "legendary",
+      "description": "Sword that exists in quantum superposition",
+      "stat_bonus": {
+        "attack": 6,
+        "dexterity": 3,
+        "charisma": 2
+      },
+      "unlock_message": "Quantum Blade phased! You strike from all possibilities."
+    },
+    "cyber_halberd": {
+      "id": "cyber_halberd",
+      "name": "Cyber Halberd",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Polearm with axe blade and spear point",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 2
+      },
+      "unlock_message": "Cyber Halberd ready! Versatility is your strength."
+    },
+    "photon_daggers": {
+      "id": "photon_daggers",
+      "name": "Photon Daggers",
+      "type": "weapon",
+      "rarity": "uncommon",
+      "description": "Twin light-based daggers for swift strikes",
+      "stat_bonus": {
+        "attack": 2,
+        "dexterity": 3
+      },
+      "unlock_message": "Photon Daggers gleaming! Strike like lightning, twice."
+    },
+    "energon_war_hammer": {
+      "id": "energon_war_hammer",
+      "name": "Energon War Hammer",
+      "type": "weapon",
+      "rarity": "epic",
+      "description": "Massive two-handed hammer with devastating impact",
+      "stat_bonus": {
+        "attack": 6,
+        "defense": 1,
+        "dexterity": -1
+      },
+      "unlock_message": "Energon War Hammer raised! Your strikes will reshape the battlefield."
+    },
+    "cyber_katana": {
+      "id": "cyber_katana",
+      "name": "Cyber Katana",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Elegant curved blade with perfect balance",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Cyber Katana drawn! Honor and precision guide your blade."
+    },
+    "plasma_javelin": {
+      "id": "plasma_javelin",
+      "name": "Plasma Javelin",
+      "type": "weapon",
+      "rarity": "rare",
+      "description": "Throwing spear with plasma tip that pierces all",
+      "stat_bonus": {
+        "attack": 4,
+        "dexterity": 2
+      },
+      "unlock_message": "Plasma Javelin ready! Your throws will find their mark."
+    },
+    "void_cannon": {
+      "id": "void_cannon",
+      "name": "Void Cannon",
+      "type": "weapon",
+      "rarity": "mythic",
+      "description": "Fires concentrated nothingness that erases targets from existence",
+      "stat_bonus": {
+        "attack": 12,
+        "defense": 2
+      },
+      "unlock_message": "The Void Cannon accepts you as its wielder! Nothingness itself is your weapon."
+    },
+    "reality_ripper": {
+      "id": "reality_ripper",
+      "name": "Reality Ripper",
+      "type": "weapon",
+      "rarity": "mythic",
+      "description": "Weapon that tears holes in the fabric of existence itself",
+      "stat_bonus": {
+        "attack": 10,
+        "dexterity": 3,
+        "charisma": 4
+      },
+      "unlock_message": "The Reality Ripper chooses you! Existence itself bends to your will."
+    },
+    "cosmic_destroyer": {
+      "id": "cosmic_destroyer",
+      "name": "Cosmic Destroyer",
+      "type": "weapon",
+      "rarity": "mythic",
+      "description": "Universe-ending weapon that channels the power of dying galaxies",
+      "stat_bonus": {
+        "attack": 15,
+        "charisma": 3
+      },
+      "unlock_message": "The Cosmic Destroyer awakens! Galaxies tremble at your approach."
+    },
+    "dimension_cutter": {
+      "id": "dimension_cutter",
+      "name": "Dimension Cutter",
+      "type": "weapon",
+      "rarity": "mythic",
+      "description": "Blade that slices through dimensional barriers",
+      "stat_bonus": {
+        "attack": 9,
+        "dexterity": 5,
+        "charisma": 3
+      },
+      "unlock_message": "The Dimension Cutter phases in! All realities are within your reach."
+    }
+  },
+  "armor": {
+    "basic_plating": {
+      "id": "basic_plating",
+      "name": "Basic Armor Plating",
+      "type": "armor",
+      "rarity": "common",
+      "rarity_value": 1,
+      "description": "Standard Cybertronian armor plating",
+      "stat_bonus": {
+        "defense": 2
+      },
+      "unlock_message": "Basic Armor Plating installed! Your defenses are reinforced."
+    },
+    "scrap_armor": {
+      "id": "scrap_armor",
+      "name": "Scrap Metal Armor",
+      "type": "armor",
+      "rarity": "common",
+      "rarity_value": 1,
+      "description": "Makeshift armor cobbled together from salvaged parts",
+      "stat_bonus": {
+        "defense": 1,
+        "attack": 1
+      },
+      "unlock_message": "Scrap Metal Armor assembled! Rough but functional protection."
+    },
+    "patrol_armor": {
+      "id": "patrol_armor",
+      "name": "Patrol Armor",
+      "type": "armor",
+      "rarity": "common",
+      "rarity_value": 1,
+      "description": "Standard issue armor for routine patrols",
+      "stat_bonus": {
+        "defense": 2,
+        "dexterity": 1
+      },
+      "unlock_message": "Patrol Armor equipped! Ready for standard duty."
+    },
+    "civilian_plating": {
+      "id": "civilian_plating",
+      "name": "Civilian Plating",
+      "type": "armor",
+      "rarity": "common",
+      "rarity_value": 1,
+      "description": "Basic protective plating for non-combat personnel",
+      "stat_bonus": {
+        "defense": 1,
+        "charisma": 1
+      },
+      "unlock_message": "Civilian Plating installed! Basic protection for everyday life."
+    },
+    "worker_armor": {
+      "id": "worker_armor",
+      "name": "Worker Armor",
+      "type": "armor",
+      "rarity": "common",
+      "rarity_value": 1,
+      "description": "Durable armor designed for industrial work",
+      "stat_bonus": {
+        "defense": 3
+      },
+      "unlock_message": "Worker Armor equipped! Built to withstand industrial hazards."
+    },
+    "energon_armor": {
+      "id": "energon_armor",
+      "name": "Energon-Infused Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Armor enhanced with energon crystals for extra protection",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 1
+      },
+      "unlock_message": "Energon-Infused Armor equipped! Crystalline energy strengthens your frame."
+    },
+    "seeker_armor": {
+      "id": "seeker_armor",
+      "name": "Seeker Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Lightweight armor designed for aerial combat",
+      "stat_bonus": {
+        "defense": 2,
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Seeker Armor equipped! Built for speed and aerial superiority."
+    },
+    "crystal_armor": {
+      "id": "crystal_armor",
+      "name": "Crystal Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Armor made from pure energon crystals",
+      "stat_bonus": {
+        "defense": 2,
+        "attack": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Crystal Armor resonates! Pure energon flows through your frame."
+    },
+    "scout_armor": {
+      "id": "scout_armor",
+      "name": "Scout Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Lightweight armor optimized for reconnaissance missions",
+      "stat_bonus": {
+        "defense": 1,
+        "dexterity": 3,
+        "charisma": 1
+      },
+      "unlock_message": "Scout Armor equipped! Silent and swift for reconnaissance."
+    },
+    "medic_armor": {
+      "id": "medic_armor",
+      "name": "Medic Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Specialized armor with integrated medical systems",
+      "stat_bonus": {
+        "defense": 2,
+        "charisma": 3
+      },
+      "unlock_message": "Medic Armor activated! Ready to heal and protect."
+    },
+    "engineer_armor": {
+      "id": "engineer_armor",
+      "name": "Engineer Armor",
+      "type": "armor",
+      "rarity": "uncommon",
+      "rarity_value": 2,
+      "description": "Technical armor with built-in repair tools",
+      "stat_bonus": {
+        "defense": 2,
+        "attack": 1,
+        "dexterity": 1
+      },
+      "unlock_message": "Engineer Armor online! Tools and protection in perfect harmony."
+    },
+    "stealth_armor": {
+      "id": "stealth_armor",
+      "name": "Stealth Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Advanced cloaking technology integrated into armor",
+      "stat_bonus": {
+        "defense": 2,
+        "dexterity": 3
+      },
+      "unlock_message": "Stealth Armor activated! You blend with the shadows."
+    },
+    "predacon_hide": {
+      "id": "predacon_hide",
+      "name": "Predacon Hide Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Organic armor that adapts and regenerates",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Predacon Hide Armor bonds with you! Living armor that grows stronger with battle."
+    },
+    "reactive_armor": {
+      "id": "reactive_armor",
+      "name": "Reactive Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Smart armor that adapts to incoming damage",
+      "stat_bonus": {
+        "defense": 4,
+        "dexterity": 1
+      },
+      "unlock_message": "Reactive Armor online! It learns from every hit."
+    },
+    "guardian_armor": {
+      "id": "guardian_armor",
+      "name": "Guardian Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Protective armor designed for defending others",
+      "stat_bonus": {
+        "defense": 5,
+        "charisma": 2
+      },
+      "unlock_message": "Guardian Armor blessed! You are the shield that protects the innocent."
+    },
+    "shadow_armor": {
+      "id": "shadow_armor",
+      "name": "Shadow Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Armor that bends light and shadow for concealment",
+      "stat_bonus": {
+        "defense": 2,
+        "dexterity": 4
+      },
+      "unlock_message": "Shadow Armor cloaks you! You move unseen through darkness."
+    },
+    "assault_armor": {
+      "id": "assault_armor",
+      "name": "Assault Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Heavy armor designed for frontline combat",
+      "stat_bonus": {
+        "defense": 4,
+        "attack": 2
+      },
+      "unlock_message": "Assault Armor locked and loaded! Ready for heavy combat."
+    },
+    "tactical_armor": {
+      "id": "tactical_armor",
+      "name": "Tactical Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Balanced armor with integrated tactical systems",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 1,
+        "dexterity": 2
+      },
+      "unlock_message": "Tactical Armor engaged! Strategic advantage achieved."
+    },
+    "beast_armor": {
+      "id": "beast_armor",
+      "name": "Beast Mode Armor",
+      "type": "armor",
+      "rarity": "rare",
+      "rarity_value": 3,
+      "description": "Organic-tech hybrid armor that enhances beast mode capabilities",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 3
+      },
+      "unlock_message": "Beast Mode Armor awakens! Primal instincts enhanced."
+    },
+    "prime_armor": {
+      "id": "prime_armor",
+      "name": "Prime Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Legendary armor worn by the greatest Autobot leaders",
+      "stat_bonus": {
+        "defense": 4,
+        "charisma": 3,
+        "attack": 1
+      },
+      "unlock_message": "Prime Armor bestowed upon you! You carry the legacy of leadership."
+    },
+    "gladiator_armor": {
+      "id": "gladiator_armor",
+      "name": "Gladiator Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Battle-tested armor from Cybertron's gladiatorial pits",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 3,
+        "dexterity": 1
+      },
+      "unlock_message": "Gladiator Armor equipped! You are forged in the fires of combat."
+    },
+    "quantum_plating": {
+      "id": "quantum_plating",
+      "name": "Quantum Plating",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Experimental armor that exists in multiple dimensions",
+      "stat_bonus": {
+        "defense": 4,
+        "dexterity": 2,
+        "charisma": 1
+      },
+      "unlock_message": "Quantum Plating phased in! You exist between realities."
+    },
+    "berserker_armor": {
+      "id": "berserker_armor",
+      "name": "Berserker Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Armor that enhances combat fury and aggression",
+      "stat_bonus": {
+        "attack": 4,
+        "defense": 2,
+        "charisma": -1
+      },
+      "unlock_message": "Berserker Armor awakens your fury! Rage courses through your circuits."
+    },
+    "nano_armor": {
+      "id": "nano_armor",
+      "name": "Nano Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Microscopic armor that self-repairs and adapts",
+      "stat_bonus": {
+        "defense": 3,
+        "dexterity": 2,
+        "attack": 1
+      },
+      "unlock_message": "Nano Armor integrated! Millions of microscopic guardians protect you."
+    },
+    "wrecker_armor": {
+      "id": "wrecker_armor",
+      "name": "Wrecker Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Elite special forces armor for the most dangerous missions",
+      "stat_bonus": {
+        "defense": 4,
+        "attack": 3,
+        "dexterity": 1
+      },
+      "unlock_message": "Wrecker Armor activated! Elite forces, elite protection."
+    },
+    "decepticon_armor": {
+      "id": "decepticon_armor",
+      "name": "Decepticon War Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Intimidating armor bearing the Decepticon insignia",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 2,
+        "charisma": 2
+      },
+      "unlock_message": "Decepticon War Armor equipped! Fear is your ally."
+    },
+    "combiner_armor": {
+      "id": "combiner_armor",
+      "name": "Combiner Armor",
+      "type": "armor",
+      "rarity": "epic",
+      "rarity_value": 4,
+      "description": "Specialized armor designed for gestalt combination",
+      "stat_bonus": {
+        "defense": 3,
+        "attack": 2,
+        "dexterity": 1,
+        "charisma": 1
+      },
+      "unlock_message": "Combiner Armor synchronized! Unity through technology."
+    },
+    "matrix_armor": {
+      "id": "matrix_armor",
+      "name": "Matrix Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Divine protection blessed by the Matrix of Leadership",
+      "stat_bonus": {
+        "defense": 5,
+        "charisma": 4,
+        "attack": 2,
+        "dexterity": 2
+      },
+      "unlock_message": "Matrix Armor embraces you! The wisdom of the Primes shields your spark."
+    },
+    "titan_armor": {
+      "id": "titan_armor",
+      "name": "Titan Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Massive armor plating from the ancient Titans",
+      "stat_bonus": {
+        "defense": 6,
+        "attack": 3,
+        "dexterity": -1
+      },
+      "unlock_message": "Titan Armor awakens! You carry the strength of the ancients."
+    },
+    "void_armor": {
+      "id": "void_armor",
+      "name": "Void Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Armor forged from the emptiness between stars",
+      "stat_bonus": {
+        "defense": 5,
+        "dexterity": 3,
+        "charisma": 2
+      },
+      "unlock_message": "Void Armor materializes! The darkness protects you."
+    },
+    "phoenix_armor": {
+      "id": "phoenix_armor",
+      "name": "Phoenix Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Armor that regenerates from destruction like the mythical phoenix",
+      "stat_bonus": {
+        "defense": 4,
+        "attack": 2,
+        "charisma": 3,
+        "dexterity": 1
+      },
+      "unlock_message": "Phoenix Armor rises! From destruction comes rebirth."
+    },
+    "cosmic_armor": {
+      "id": "cosmic_armor",
+      "name": "Cosmic Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Armor infused with the power of distant stars",
+      "stat_bonus": {
+        "defense": 4,
+        "attack": 3,
+        "dexterity": 2,
+        "charisma": 4
+      },
+      "unlock_message": "Cosmic Armor blazes! The power of the universe flows through you."
+    },
+    "primal_armor": {
+      "id": "primal_armor",
+      "name": "Primal Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Ancient armor from the first Transformers",
+      "stat_bonus": {
+        "defense": 5,
+        "attack": 4,
+        "charisma": 3
+      },
+      "unlock_message": "Primal Armor awakens! The power of the first sparks flows through you."
+    },
+    "omega_armor": {
+      "id": "omega_armor",
+      "name": "Omega Armor",
+      "type": "armor",
+      "rarity": "legendary",
+      "rarity_value": 5,
+      "description": "Ultimate defensive armor with reality-warping properties",
+      "stat_bonus": {
+        "defense": 6,
+        "attack": 2,
+        "dexterity": 2,
+        "charisma": 3
+      },
+      "unlock_message": "Omega Armor transcends! Reality bends to your will."
+    },
+    "unicron_armor": {
+      "id": "unicron_armor",
+      "name": "Unicron Armor",
+      "type": "armor",
+      "rarity": "mythic",
+      "rarity_value": 6,
+      "description": "Forbidden armor forged from Unicron's dark essence",
+      "stat_bonus": {
+        "defense": 7,
+        "attack": 6,
+        "dexterity": 3,
+        "charisma": 5
+      },
+      "unlock_message": "Unicron Armor consumes! The Chaos Bringer's power courses through you."
+    },
+    "primus_armor": {
+      "id": "primus_armor",
+      "name": "Primus Armor",
+      "type": "armor",
+      "rarity": "mythic",
+      "rarity_value": 6,
+      "description": "Divine armor blessed by Primus himself",
+      "stat_bonus": {
+        "defense": 8,
+        "attack": 4,
+        "dexterity": 4,
+        "charisma": 6
+      },
+      "unlock_message": "Primus Armor sanctifies! The Creator's blessing shields your spark."
+    },
+    "allspark_armor": {
+      "id": "allspark_armor",
+      "name": "AllSpark Armor",
+      "type": "armor",
+      "rarity": "mythic",
+      "rarity_value": 6,
+      "description": "Legendary armor infused with the power of creation itself",
+      "stat_bonus": {
+        "defense": 6,
+        "attack": 5,
+        "dexterity": 5,
+        "charisma": 7
+      },
+      "unlock_message": "AllSpark Armor ignites! The power of creation flows through your very being."
+    }
+  }
+}

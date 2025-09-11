@@ -1,0 +1,88 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-08-23T09:21:03.208527+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-23T09:22:05.379992+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "uptime",
+      "details": "Checked bot uptime and performance"
+    },
+    {
+      "timestamp": "2025-08-23T09:22:30.914504+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-23T09:41:09.765921+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-23T09:42:51.583139+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "admin_clear",
+      "details": "Data clear interface accessed"
+    },
+    {
+      "timestamp": "2025-08-24T06:06:23.329362+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-26T21:29:20.644174+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-27T06:39:21.506338+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-08-29T22:40:03.433836+00:00",
+      "user_id": 12345,
+      "username": "test_user",
+      "command": "test_command",
+      "details": "testing Json access"
+    },
+    {
+      "timestamp": "2025-09-03T10:01:09.323111+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-09-04T02:25:45.831431+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    },
+    {
+      "timestamp": "2025-09-09T09:46:00.480931+00:00",
+      "user_id": 1344242023577817098,
+      "username": "the_infamous_aries",
+      "command": "monitor",
+      "details": "System monitor accessed"
+    }
+  ]
+}
