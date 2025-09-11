@@ -66,14 +66,31 @@ AllSpark is a modular, feature-rich Discord bot that brings the Transformers uni
 - **Interactive UI:** Buy/sell through Discord modals, see live market stats and trends.
 - **Leaderboard:** Track your position among the richest CyberCoin traders.
 
-### ⚔️ RPG System
+## 🛡️ Transformers RPG System
 
-- **8 classes per faction** with unique stats.
-- **Stats:** ATT, DEF, DEX, INT, CHA, HP.
-- **Loot:** 30+ RPG weapons/artifacts/relics.
-- **Progression:** Unified with EnergonPets.
-- **Enemies:** 100+ unique monsters, bosses, titans.
-- **Loot:** 200+ lootable weapons, armors, transformations, beast modes (6 rarity tiers).
+The RPG system in AllSpark lets you create your own original Cybertronian character, join group adventures, and participate in classic turn-based battles—fully themed for Transformers and deeply integrated with the rest of the bot.
+
+### 🎮 Character Creation & Progression
+
+- **Create up to three custom characters** per user, each with their own name, faction (Autobot or Decepticon), and class (e.g., Scientist, Warrior, Engineer, Mariner, Scout, Seeker, Commander, Medic).
+- **Classes have unique stat templates** (Attack, Defense, Dexterity, Intelligence, Charisma, HP), and your main stat determines your health scaling and battle focus.
+- **Persistent leveling:** Gain experience from battles, missions, and events. Stat increases and unique bonuses as you level up.
+- **Full inventory system:** Collect, equip, and manage beast modes, transformations, weapons, and armor—each with their own rarity and effects.
+
+### ⚔️ RPG Battle System
+
+- **Classic turn-based d20 combat:** Solo, group (up to 4 players), and PvP battles. Group up against monsters, bosses, or legendary titans.
+- **Dynamic enemies:** 100+ monsters, bosses, and titans, each with distinct stats and rarities.
+- **Interactive UI:** Battle views, action buttons, health bars, and real-time updates.
+- **Skill checks, parries, and criticals:** Use your character’s main stats in and out of combat.
+- **Party mechanics:** Group skill checks and “first to react” events, where the fastest player in your party makes key choices for the group.
+
+### 🧭 Story, Events, & Loot
+
+- **AI-powered story engine:** Adventures, group events, and exploration segments are generated dynamically, blending Transformers lore with your party’s actions and choices.
+- **Skill-based random events:** Parties face events where Attack, Defense, Dexterity, Intelligence, or Charisma may be tested, with outcomes and rewards based on rolls and stats.
+- **Loot & rewards:** Battles and events can grant powerful new items, rare transformations, XP, and energon. All loot is persistent and equippable.
+- **Full integration:** RPG inventory items can cross over with the EnergonPets and global economy systems for a unified experience.
 
 ### 🤖 Random System
 
