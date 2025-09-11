@@ -1,4 +1,3 @@
-<div align="center">
 🌟 AllSpark Discord Bot
 > The ultimate Transformers-themed Discord bot featuring advanced pet systems, RPG mechanics, interactive storytelling, and comprehensive entertainment features.
 > 
@@ -204,3 +203,4 @@ AllSpark/
  * Open a Pull Request for review.
 📄 License
 This project is licensed under the MIT License - see the LICENSE file for details.
+
