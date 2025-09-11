@@ -27,9 +27,9 @@ AllSpark is a modular, feature-rich Discord bot that brings the Transformers uni
 
 ---
 
-## ✨ Major Features
+# ✨ Major Features
 
-### 🐾 EnergonPets System
+## 🐾 EnergonPets System
 
 - **Adopt and raise a digital Transformer pet** (Autobot or Decepticon) with unique attributes, evolution stages, and persistent stats.
 - **Pet management** includes Energy, Happiness, Maintenance, Equipment, and a massive progression ladder up to level 100.
