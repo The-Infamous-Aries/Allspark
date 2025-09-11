@@ -92,12 +92,60 @@ The RPG system in AllSpark lets you create your own original Cybertronian charac
 - **Loot & rewards:** Battles and events can grant powerful new items, rare transformations, XP, and energon. All loot is persistent and equippable.
 - **Full integration:** RPG inventory items can cross over with the EnergonPets and global economy systems for a unified experience.
 
-### 🤖 Random System
+## 🤖 Random System
 
-- **Mini-Games:** Shooting Range, Hunger Games Sorter, Mega-Fight (6v6).
-- **RPG Stories:** 6 genres (Horror, Western, Gangster, Knight, Robot, Wizard).
-- **Conversational AI:** Keyword-extraction, jokes, and dialogue.
-- **Combiner Teams:** Become part of a combiner team for mega-battles.
+The Random System in AllSpark brings a huge variety of games, minigames, lore, fun utilities, and interactive experiences to your server. It's loaded with entertainment, social, and creative features—many with deep Transformers theming.
+
+### 🕹️ Main Features
+
+#### 🎯 Shooting Range
+
+- **/range** — Fast-paced reaction game: race to click the 🎯 target before time runs out!
+- Tracks hits, accuracy, and new personal bests, with full stat history and ranks (Matrix Bearer, Spark Guardian, etc).
+- Leaderboard and performance stats for all users.
+
+#### 🏹 Hunger Games Sorter
+
+- **/hg_sorter** — Randomly sorts users into Hunger Games districts for custom games.
+- Filter by bots, Cybertron citizens, or everyone. Output includes `/hungergames add` commands for each tribute.
+
+#### 👾 Walktru Interactive Adventures
+
+- **/walktru** — Choose a story genre (Horror, Gangster, Knight, Robot, Western, Wizard) and play a branching, fully interactive adventure.
+- 20+ event stages per story, different mechanics (fear, heat, honor, power, health, mana), progress bars, and dozens of outcomes.
+- Every choice impacts your character and the narrative.
+- Visual progress bars, event warnings, endings, and full journey summaries.
+
+#### 💬 Conversational AI & Lore
+
+- **/user_says** — Analyze the top 3 words used by you or any user in the server and generate a funny "What would you say?" line.
+- **/what_is** — Explore Transformers lore on any topic, with rich embeds from a curated database.
+- **/blessing** — Receive a random or themed "blessing" from the Allspark.
+- **/joke** and **/roast** — Get a joke (Transformers, coding, puns, seasonal, etc) or a savage roast (or compliment!) with themed responses.
+
+#### 📚 Server Lore System
+
+- **/add_lore** — Save any message or story as part of your server's permanent lore archive.
+- **/view_lore**, **/random_lore**, **/lore_stats** — Browse lore entries, pick random stories, and see stats for top contributors.
+
+#### 🤖 Profile & Theme System
+
+- **/profile** — Interactive, multi-tab profile: see your stats, assigned Transformer identity, digital pet, combiner team, and CyberCoin market standing.
+- **/spark** — Assign yourself a unique Transformer name, faction, and class, fully integrated with the RPG system.
+- **/analysis** — Take a "faction quiz" that assigns you to Autobot, Decepticon, or Maverick based on your answers.
+
+#### 🔗 Combiner Teams & Mega-Fight
+
+- **/combiner** — Form a team of 6 (legs, arms, head, body) to unlock special mega-battles.
+- **/mega_fight** — Challenge other teams to multi-round, head-controlled battles with energon rewards.
+
+### 🗂️ Key Random System Modules
+
+- **fun_system.py** — All games, minigames, shooting range, and Hunger Games logic.
+- **walktru.py** — Interactive adventure engine, story map manager, progress bars, and adventure logic.
+- **themer.py** — Transformer identity assignment, combiner teams, name generation, theme data, and profile utilities.
+- **me.py** — Multi-tab interactive profile system (personal stats, pet, combiner, CyberCoin).
+- **talk_system.py** — Lore, jokes, blessings, conversational analysis, roasts, and more.
 
 ### 🏛️ PnW Recruitment
 
@@ -197,14 +245,31 @@ The RPG system in AllSpark lets you create your own original Cybertronian charac
 - `/cyber_story` — Start a group story-driven session
 - `/start_cyberchronicles` — Begin an AI-generated long-form RPG adventure
 
-### 🤖 Random & Fun
+### 📜 Core Random & Fun Commands List
 
-- `/walktru` — Start an interactive adventure (pick genre)
-- `/hg_sorter` — Hunger Games team sorter (choose filters)
-- `/range` — Shooting range mini-game (reaction-based)
-- `/mega_fight` — Start/join a 6v6 mega battle (UI)
-- `/random_lore` — Get a random lore entry
-- `/lore_stats` — View lore collection stats
+- `/range` — Shooting range minigame (test your reaction speed)
+- `/rangestats` — View your training stats
+- `/hg_sorter` — Randomly assign users to Hunger Games districts
+- `/walktru` — Start an interactive adventure (choose genre)
+- `/user_says` — Analyze most-used words and "what you'd say"
+- `/what_is` — Look up Transformers lore topics
+- `/blessing` — Get a blessing from the Allspark
+- `/joke` — Get a random joke (multiple categories)
+- `/roast` — Get roasted, or roast someone else
+- `/compliment` — Get a compliment, or compliment someone else
+- `/add_lore` — Add a new lore entry to the server's archive
+- `/add_message_to_lore` — Add an existing message to lore
+- `/view_lore` — Paginated lore browser
+- `/random_lore` — Show a random lore entry
+- `/lore_stats` — Lore collection statistics
+- `/profile` — Interactive personal profile (stats, pet, combiner, coin)
+- `/spark` — Assign a transformer identity to yourself
+- `/analysis` — Take the Allspark faction quiz
+- `/combiner` — Form or join a combiner team
+- `/mega_fight` — Start a mega-battle between combiner teams
+- `/hello` — Say hello to the bot (with escalating responses)
+- `/ping` — Bot latency (with escalating threats)
+- `/grump` — Have fun pinging the "Grump" user
 
 ### 🏛️ PnW & Recruitment
 
