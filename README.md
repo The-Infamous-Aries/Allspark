@@ -326,7 +326,7 @@ The User Data Manager is the core engine for persistent, high-performance, and s
 
 ---
 
-## 📜 Complete Commands List (70+)
+## 📜 Complete Commands List
 
 > For the absolute latest, use `/features` or `/help` in your server, or see the code: [GitHub Code Search](https://github.com/The-Infamous-Aries/Allspark/search?q=commands.hybrid_command).
 
