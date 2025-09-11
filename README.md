@@ -31,16 +31,40 @@ AllSpark is a modular, feature-rich Discord bot that brings the Transformers uni
 
 ### 🐾 EnergonPets System
 
-- **100-level pet progression:** Nano Core → Nano Supreme (XP: 50 → 6.32B).
-- **Factions:** Autobot or Decepticon, each with unique bonuses and UI.
-- **Missions:** Over **150+** unique pet missions (50 easy, 50 average, 50 hard).
-- **Battles:** Turn-based d20, supports:
-  - Solo, Group (4v1), PvP, FFA, Group PvP, Energon Challenge.
-- **Enemies:** 100+ unique monsters, bosses, titans.
-- **Loot:** 100+ lootable Chassis Plating, Energy Cores and Utility Modules (6 rarity tiers).
-- **Resource Management:** Energy, Maintenance, Happiness, Equipment.
-- **Economy:** Energon mining, cross-server games, market events, persistent banking, slots.
-- **Pet Boosts:** Up to 200% bonus at max level for Energon searching.
+- **Adopt and raise a digital Transformer pet** (Autobot or Decepticon) with unique attributes, evolution stages, and persistent stats.
+- **Pet management** includes Energy, Happiness, Maintenance, Equipment, and a massive progression ladder up to level 100.
+- **Actions:** Charge, Play, Repair, Train, Rename, and send on Missions. Each action affects stats and unlocks new rewards.
+- **Loot & Equipment:** Earn, equip, and collect 100+ unique items (Chassis Plating, Energy Cores, Utility Modules) across 6 rarity tiers.
+- **Persistent growth:** All progress, stats, and inventory are saved across servers.
+
+### ⚔️ Battle System
+
+- **Turn-based d20 combat**: Classic RPG-style battles with rich mechanics, critical hits, group defense, and parry systems.
+- **Battle types:** Solo (vs monsters), Group (up to 4 vs bosses/titans), PvP, Group PvP, Free-For-All, and Energon Challenges (betting battles).
+- **Dynamic enemies:** 100+ monsters, bosses, and titans, each with unique stats, types, and rarities.
+- **Rewards:** Earn Energon, XP, loot, and leaderboard glory from battles.
+- **Full UI:** Interactive Discord views for joining, action selection, and real-time combat updates.
+
+### 💠 Energon Economy & Game
+
+- **Energon:** The core currency, earned from battles, missions, events, and games.
+- **Energon Rush:** A cross-server competitive game where players race from 0 to 10,000 Energon—progress resets each game, but leaderboard and stats persist.
+- **Banking:** Bank your Energon for safekeeping or risk it in games and challenges.
+- **Leaderboards:** Track global, daily, weekly, and all-time rankings.
+
+### 🎰 Slots Minigame
+
+- **Energon Slot Machine:** Play for fun or bet Energon in a flashy, interactive slot machine with 3-reel and 6-stage spinning animations.
+- **Difficulties:** Easy (skills), Medium (characters), Hard (zodiac)—each with unique emoji themes and payout multipliers.
+- **Win tracking:** Full stats, including jackpots, winnings, losses, and highest bets.
+
+### 🪙 CyberCoin Market
+
+- **Simulated cryptocurrency:** Buy, sell, and trade CyberCoin, with a real-time updating market and price chart.
+- **Market events:** Dynamic world/holiday events, random surges and crashes, and a complete market history.
+- **Portfolio tracking:** Persistent user holdings, profit/loss, and transaction history.
+- **Interactive UI:** Buy/sell through Discord modals, see live market stats and trends.
+- **Leaderboard:** Track your position among the richest CyberCoin traders.
 
 ### ⚔️ RPG System
 
