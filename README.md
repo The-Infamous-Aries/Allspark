@@ -3,10 +3,6 @@
 
 > **The ultimate Transformers-themed Discord bot featuring advanced pet systems, RPG mechanics, interactive storytelling, and comprehensive entertainment features.**
 
-[![Discord.py](https://img.shields.io/badge/Discord.py-2.3+-blue.svg)](https://discordpy.readthedocs.io/)
-[![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
 ## 📋 Table of Contents
 
 - [🚀 Overview](#-overview)
@@ -824,10 +820,6 @@ python-dotenv 1.0+
 - **Docstrings**: Document all functions and classes
 - **Async/Await**: All Discord operations are async
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
 ### Contribution Process
 
 1. **Fork the repository**
@@ -841,10 +833,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - **Bug Reports**: Use GitHub Issues with template
 - **Feature Requests**: Use GitHub Discussions
 - **Security Issues**: Email maintainers directly
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -863,3 +851,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <p><strong>AllSpark Bot</strong> - Bringing the Transformers universe to Discord</p>
   <p>Built with ❤️ by the AllSpark Development Team</p>
 </div>
+
