@@ -1,4 +1,4 @@
-# 🌟 AllSpark Discord Bot
+# 🌟 The AllSpark
 
 > **The most advanced and complete Transformers-themed Discord bot.**  
 > 🚨 **For help, bug reports, or feature requests: [Join the Support Discord Server!](https://discord.gg/pDTKNQJXdh)**
