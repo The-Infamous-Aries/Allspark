@@ -36,8 +36,8 @@ AllSpark is a modular, feature-rich Discord bot that brings the Transformers uni
 - **Missions:** Over **150+** unique pet missions (50 easy, 50 average, 50 hard).
 - **Battles:** Turn-based d20, supports:
   - Solo, Group (4v1), PvP, FFA, Group PvP, Energon Challenge.
-- **Enemies:** 30+ unique monsters, bosses, titans.
-- **Loot:** 60+ lootable weapons, armors, transformations, beast modes (6 rarity tiers).
+- **Enemies:** 100+ unique monsters, bosses, titans.
+- **Loot:** 100+ lootable Chassis Plating, Energy Cores and Utility Modules (6 rarity tiers).
 - **Resource Management:** Energy, Maintenance, Happiness, Equipment.
 - **Economy:** Energon mining, cross-server games, market events, persistent banking, slots.
 - **Pet Boosts:** Up to 200% bonus at max level for Energon searching.
@@ -48,11 +48,13 @@ AllSpark is a modular, feature-rich Discord bot that brings the Transformers uni
 - **Stats:** ATT, DEF, DEX, INT, CHA, HP.
 - **Loot:** 30+ RPG weapons/artifacts/relics.
 - **Progression:** Unified with EnergonPets.
+- **Enemies:** 100+ unique monsters, bosses, titans.
+- **Loot:** 200+ lootable weapons, armors, transformations, beast modes (6 rarity tiers).
 
 ### 🤖 Random System
 
 - **Mini-Games:** Shooting Range, Hunger Games Sorter, Mega-Fight (6v6).
-- **Stories:** 6 genres (Horror, Western, Gangster, Knight, Robot, Wizard).
+- **RPG Stories:** 6 genres (Horror, Western, Gangster, Knight, Robot, Wizard).
 - **Conversational AI:** Keyword-extraction, jokes, and dialogue.
 - **Combiner Teams:** Become part of a combiner team for mega-battles.
 
