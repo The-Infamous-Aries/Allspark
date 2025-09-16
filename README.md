@@ -38,7 +38,7 @@
     - [📦 What Does It Store?](#-what-does-it-store)
     - [🛠️ Key API Methods (examples)](#️-key-api-methods-examples)
 - [🗂️ System Components & Cogs](#️-system-components--cogs)
-- [📜 Complete Commands List (70+)](#-complete-commands-list-70)
+- [📜 Complete Commands List (62+)](#-complete-commands-list-62)
   - [🐾 EnergonPets & Economy](#-energonpets--economy)
   - [📜 RPG Commands](#-rpg-commands)
   - [📜 Core Random & Fun Commands List](#-core-random--fun-commands-list)
@@ -49,7 +49,7 @@
 - [📁 File Structure](#-file-structure)
 - [🛠️ Development & Support](#️-development--support)
 - [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+- [📄 License](LICENSE.txt)
 - [🔗 Support](#-support)
 
 ---
