@@ -1,0 +1,754 @@
+{
+  "recruit_messages": [
+    {
+      "message_number": 1,
+      "title": "📡 Signal From Cybertr0n",
+      "message": "Greetings, {leader_name}. Cybertr0n has detected your rising potential. Why remain unaligned when you could be part of something greater? Join us, and upgrade your nation’s future with our guidance, aid, and protection."
+    },
+    {
+      "message_number": 2,
+      "title": "⚡ The Power Surge",
+      "message": "{leader_name}, your nation is ready for an upgrade. Cybertr0n offers growth programs, coordinated defense, and financial support to accelerate your rise. Don’t operate alone when the surge is waiting for you."
+    },
+    {
+      "message_number": 3,
+      "title": "🤖 Directive: Integration",
+      "message": "Attention {leader_name}. Your progress is commendable, but isolation limits your growth. Cybertr0n invites you to integrate into our ranks—where unity, resources, and experience unlock your true potential."
+    },
+    {
+      "message_number": 4,
+      "title": "🛰️ Alliance Protocol",
+      "message": "Cybertr0n extends a signal to you, {leader_name}. The protocol is simple: join, upgrade, evolve. Together, we defend, build, and conquer. Don’t remain vulnerable when the network is open."
+    },
+    {
+      "message_number": 5,
+      "title": "💠 Ascension Key",
+      "message": "Your future awaits, {leader_name}. Cybertr0n holds the resources to unlock rapid development, coordinated defense, and lasting security. Align with us and claim the key to ascension."
+    },
+    {
+      "message_number": 6,
+      "title": "🔥 Ignition Sequence",
+      "message": "Cybertr0n sees the fire within your nation, {leader_name}. Alone, it may flicker. With us, it ignites into something unstoppable. Join our ranks and fuel your rise with strength, wisdom, and unity."
+    },
+    {
+      "message_number": 7,
+      "title": "🌌 Starlight Convergence",
+      "message": "Across the cosmos, Cybertr0n gathers nations ready to grow and thrive. {leader_name}, your path leads to greater things. Join us, and let your nation shine brighter among the aligned."
+    },
+    {
+      "message_number": 8,
+      "title": "🛡️ Defense Matrix",
+      "message": "{leader_name}, Cybertr0n shields its own. Alone, every nation is vulnerable. With us, you gain allies, protection, and coordinated strategies to thrive in both peace and conflict. Don’t stand alone—link into the Matrix."
+    },
+    {
+      "message_number": 9,
+      "title": "🔮 Future Protocol",
+      "message": "Cybertr0n predicts great potential for your nation, {leader_name}. Why gamble on isolation? Secure growth, safety, and guidance with us. The future is forged through alliances—yours begins here."
+    },
+    {
+      "message_number": 10,
+      "title": "⚙️ System Alignment",
+      "message": "Greetings {leader_name}. Cybertr0n operates as one unified machine. Every part, every nation, strengthens the whole. Join us and synchronize your rise with our network of support and power."
+    },
+    {
+      "message_number": 11,
+      "title": "🌐 Signal Override",
+      "message": "{leader_name}, Cybertr0n interrupts the silence. The signal is clear: alone you grow slowly, with us you accelerate. Join Cybertr0n, where aid, coordination, and unity forge a stronger tomorrow."
+    },
+    {
+      "message_number": 12,
+      "title": "🚨 Priority Alert",
+      "message": "Attention {leader_name}. Remaining unaligned leaves your nation exposed. Cybertr0n offers protection, aid, and a family of allies. Accept our invitation and secure your place among the strong."
+    },
+    {
+      "message_number": 13,
+      "title": "💫 Core Upgrade",
+      "message": "{leader_name}, Cybertr0n specializes in helping nations evolve faster and stronger. We supply financial aid, guidance, and military backing to those who join. Upgrade your nation’s future with us."
+    },
+    {
+      "message_number": 14,
+      "title": "🌑 Awakening Call",
+      "message": "Cybertr0n is calling, {leader_name}. The unaligned remain scattered, but with us, you’ll awaken to new strength, new allies, and new opportunities. Answer the call—awaken with Cybertr0n."
+    },
+    {
+      "message_number": 15,
+      "title": "🔧 Reinforcement Protocol",
+      "message": "{leader_name}, Cybertr0n exists to strengthen its members. Aid flows where it’s needed, defenses hold firm, and nations thrive. Don’t struggle alone—reinforce your future with us."
+    },
+    {
+      "message_number": 16,
+      "title": "🌠 Constellation Rising",
+      "message": "Your nation is a star in the making, {leader_name}. Alone it shines dimly, but in Cybertr0n’s constellation, your light becomes part of something greater. Join us and rise together."
+    },
+    {
+      "message_number": 17,
+      "title": "🌀 Nexus Pathway",
+      "message": "Every leader must choose a path, {leader_name}. The Nexus of Cybertr0n opens to you now. Step through, and discover unity, strength, and allies who will never leave you stranded."
+    },
+    {
+      "message_number": 18,
+      "title": "⚔️ Warforged Bond",
+      "message": "{leader_name}, Cybertr0n is more than an alliance—it’s a brotherhood forged in peace and battle alike. Join us, and stand with nations who will defend you as fiercely as their own."
+    },
+    {
+      "message_number": 19,
+      "title": "💎 Prime Directive",
+      "message": "Cybertr0n’s Prime Directive is clear: growth, unity, and security for all members. {leader_name}, join us to experience protection, guidance, and prosperity beyond isolation."
+    },
+    {
+      "message_number": 20,
+      "title": "🚀 Hyperdrive Initiative",
+      "message": "Cybertr0n doesn’t just grow nations—it launches them into the future. {leader_name}, your nation is ready to accelerate. Join the Hyperdrive Initiative and unlock new heights."
+    },
+    {
+      "message_number": 21,
+      "title": "📜 Legacy Protocol",
+      "message": "{leader_name}, every nation leaves a legacy. Cybertr0n ensures yours is strong, secure, and enduring. Join our ranks to build history with allies who stand the test of time."
+    },
+    {
+      "message_number": 22,
+      "title": "🔓 Unlock Potential",
+      "message": "Your nation holds untapped strength, {leader_name}. Cybertr0n provides the key: aid, coordination, and unity. Unlock your potential by joining our alliance today."
+    },
+    {
+      "message_number": 23,
+      "title": "🌍 Universal Link",
+      "message": "No nation thrives alone, {leader_name}. Cybertr0n offers you a link to a greater whole—one alliance, many nations, united in growth and defense. Align with us now."
+    },
+    {
+      "message_number": 24,
+      "title": "💥 Energy Uprising",
+      "message": "{leader_name}, Cybertr0n fuels nations with strength and opportunity. Don’t remain idle—ignite your rise with our energy, aid, and unwavering unity."
+    },
+    {
+      "message_number": 25,
+      "title": "🪐 Galactic Accord",
+      "message": "Cybertr0n extends the Galactic Accord to you, {leader_name}. Join us to gain allies, security, and aid in a universe where unaligned nations risk being left behind."
+    },
+    {
+      "message_number": 26,
+      "title": "🛠️ Nation Reforged",
+      "message": "{leader_name}, Cybertr0n specializes in reforging nations into stronger, greater versions of themselves. Join us and watch your nation evolve into its prime form."
+    },
+    {
+      "message_number": 27,
+      "title": "🎇 Spark of Unity",
+      "message": "Every nation has a spark, {leader_name}. Alone, it fades. With Cybertr0n, sparks unite into a blaze of strength and growth. Join us, and keep your fire alive."
+    },
+    {
+      "message_number": 28,
+      "title": "⚡ Voltage Uprising",
+      "message": "Cybertr0n channels energy where it’s needed most. {leader_name}, your nation is ready for a charge. Join us and electrify your growth with aid and protection."
+    },
+    {
+      "message_number": 29,
+      "title": "🕊️ Peacebound Protocol",
+      "message": "{leader_name}, Cybertr0n values both peace and strength. With us, your nation gains protection and allies while maintaining dignity and stability. Join our peacebound ranks."
+    },
+    {
+      "message_number": 30,
+      "title": "🛰️ The Network Expands",
+      "message": "Cybertr0n is expanding its network of nations. {leader_name}, your nation belongs with us—gaining aid, coordination, and unity. Don’t remain outside the system."
+    },
+    {
+      "message_number": 31,
+      "title": "🌋 Rising Power",
+      "message": "{leader_name}, your nation is rising like a force of nature. Cybertr0n will amplify that rise with allies, aid, and coordinated defense. Join the power that grows together."
+    },
+    {
+      "message_number": 32,
+      "title": "🔭 Horizon Initiative",
+      "message": "The horizon is limitless, {leader_name}. Cybertr0n guides nations beyond isolation into new heights of prosperity and security. Join us, and expand your horizons."
+    },
+    {
+      "message_number": 33,
+      "title": "🌟 Stellar Alliance",
+      "message": "Cybertr0n is more than a name—it’s a constellation of strong nations. {leader_name}, join our stellar alliance and shine among allies who protect and uplift."
+    },
+    {
+      "message_number": 34,
+      "title": "🧭 Vector Protocol",
+      "message": "{leader_name}, alone your path is uncertain. Cybertr0n provides direction: growth, safety, and opportunity. Align your vector with us and move forward together."
+    },
+    {
+      "message_number": 35,
+      "title": "⚔️ Iron Vanguard",
+      "message": "Cybertr0n stands as an iron vanguard for its members. {leader_name}, your nation will never stand alone with us. Join and claim allies who will defend and aid you always."
+    },
+    {
+      "message_number": 36,
+      "title": "🌌 Cosmic Unity",
+      "message": "Across the galaxy, Cybertr0n unites nations ready to rise. {leader_name}, join us to experience true growth, safety, and purpose beyond isolation."
+    },
+    {
+      "message_number": 37,
+      "title": "📡 Beacon Signal",
+      "message": "Cybertr0n sends out a beacon to unaligned nations. {leader_name}, this signal is for you. Join us and move from isolation into strength, aid, and coordinated growth."
+    },
+    {
+      "message_number": 38,
+      "title": "🧩 Perfect Fit",
+      "message": "{leader_name}, every alliance thrives on unity. Your nation is the piece Cybertr0n is missing. Join us and fit into a network of support, growth, and power."
+    },
+    {
+      "message_number": 39,
+      "title": "⚡ Dynamo Protocol",
+      "message": "Cybertr0n is a living dynamo of power and support. {leader_name}, your nation belongs with us. Don’t limit yourself—energize your growth with Cybertr0n."
+    },
+    {
+      "message_number": 40,
+      "title": "🛡️ Eternal Guard",
+      "message": "{leader_name}, Cybertr0n protects its own with unbreakable resolve. Alone, you remain exposed. With us, you gain allies and lasting defense. Join the Eternal Guard today."
+    },
+    {
+      "message_number": 41,
+      "title": "🚀 Launch Sequence",
+      "message": "{leader_name}, your nation is primed for takeoff. Cybertr0n provides the fuel: aid, guidance, and allies. Initiate your launch sequence with us today."
+    },
+    {
+      "message_number": 42,
+      "title": "🔗 Forged Unity",
+      "message": "{leader_name}, unity is strength. Cybertr0n forges nations into one unbreakable chain of defense and prosperity. Join us, and never face challenges alone again."
+    },
+    {
+      "message_number": 43,
+      "title": "🌠 Galactic Spark",
+      "message": "Cybertr0n ignites nations into greatness. {leader_name}, your nation holds the spark. Join us, and rise as part of a galactic alliance of thriving nations."
+    },
+    {
+      "message_number": 44,
+      "title": "📜 Alliance Codex",
+      "message": "{leader_name}, the Cybertr0n Codex is simple: unity, defense, prosperity. Align with us and see your nation thrive under the guidance of experience and strength."
+    },
+    {
+      "message_number": 45,
+      "title": "🌀 Energy Nexus",
+      "message": "Cybertr0n gathers energy from every nation to strengthen all. {leader_name}, connect to the Nexus and gain allies, aid, and lasting security."
+    },
+    {
+      "message_number": 46,
+      "title": "⚔️ Titan’s Oath",
+      "message": "Cybertr0n swears an oath to protect its members. {leader_name}, your nation will never stand alone when aligned with us. Join our oathbound ranks."
+    },
+    {
+      "message_number": 47,
+      "title": "🌟 Ascendant Flame",
+      "message": "Your flame is rising, {leader_name}. Cybertr0n will keep it burning bright. Join our alliance and secure lasting growth, aid, and unity."
+    },
+    {
+      "message_number": 48,
+      "title": "🛰️ Eternal Signal",
+      "message": "{leader_name}, Cybertr0n’s call is constant. Answer it, and you’ll never be left isolated again. Join our network and claim allies for every challenge ahead."
+    },
+    {
+      "message_number": 49,
+      "title": "💎 Prime Spark",
+      "message": "Within every nation lies a Prime Spark, {leader_name}. Cybertr0n helps yours grow into strength and stability. Join us, and keep your spark burning eternal."
+    },
+    {
+      "message_number": 50,
+      "title": "🚨 Final Transmission",
+      "message": "This is the final transmission, {leader_name}. Cybertr0n is ready for your arrival. Join us today, and ensure your nation’s future is strong, defended, and prosperous."
+    },
+    {
+      "message_number": 51,
+      "title": "🌐 Digital Dominion",
+      "message": "{leader_name}, your nation is strong, but Cybertr0n can amplify it. Link with us to gain allies, aid, and protection within a unified digital dominion."
+    },
+    {
+      "message_number": 52,
+      "title": "⚡ Circuit Surge",
+      "message": "{leader_name}, nations alone lose power fast. Cybertr0n will recharge your path with coordinated growth, aid programs, and security."
+    },
+    {
+      "message_number": 53,
+      "title": "🔭 Signal Horizon",
+      "message": "Cybertr0n scans the horizon and sees your nation, {leader_name}. Join us and expand beyond isolation into growth and alliance strength."
+    },
+    {
+      "message_number": 54,
+      "title": "💠 Energon Reserve",
+      "message": "{leader_name}, Cybertr0n maintains vast reserves of aid and support. Connect with us to fuel your rise and secure your prosperity."
+    },
+    {
+      "message_number": 55,
+      "title": "🚀 Ascension Drive",
+      "message": "Your nation is ready for liftoff, {leader_name}. Cybertr0n provides the drive to propel you upward with allies at your side."
+    },
+    {
+      "message_number": 56,
+      "title": "🧭 Starpath Directive",
+      "message": "Every nation must chart a course, {leader_name}. Cybertr0n offers guidance, protection, and resources to keep you on a path to greatness."
+    },
+    {
+      "message_number": 57,
+      "title": "⚔️ Steel Resolve",
+      "message": "{leader_name}, Cybertr0n defends all who join with unwavering resolve. Stand with us and never face threats alone."
+    },
+    {
+      "message_number": 58,
+      "title": "🌌 Celestial Accord",
+      "message": "Cybertr0n extends a pact to you, {leader_name}. Join our celestial accord and secure a place among thriving nations."
+    },
+    {
+      "message_number": 59,
+      "title": "🔮 Infinite Spark",
+      "message": "Within every nation lies a spark of greatness. Cybertr0n fans it into flame, {leader_name}. Join us and unlock your infinite spark."
+    },
+    {
+      "message_number": 60,
+      "title": "🛡️ Guardian Protocol",
+      "message": "{leader_name}, Cybertr0n guards its members with strength and unity. Align with us to shield your nation from harm."
+    },
+    {
+      "message_number": 61,
+      "title": "🌠 Orbit of Strength",
+      "message": "Step into Cybertr0n’s orbit, {leader_name}. With us, your nation gains allies, security, and aid to keep you rising higher."
+    },
+    {
+      "message_number": 62,
+      "title": "🔧 Forge Protocol",
+      "message": "Cybertr0n reforges nations into stronger, united powers. {leader_name}, join us and watch your future be forged in strength."
+    },
+    {
+      "message_number": 63,
+      "title": "📡 Frequency Lock",
+      "message": "{leader_name}, Cybertr0n has locked onto your frequency. The message is clear: join us and gain the unity and growth you deserve."
+    },
+    {
+      "message_number": 64,
+      "title": "🌍 Planetary Pact",
+      "message": "Cybertr0n welcomes all nations ready to thrive. {leader_name}, join our planetary pact and never stand alone again."
+    },
+    {
+      "message_number": 65,
+      "title": "⚡ Shockwave Uprising",
+      "message": "Cybertr0n channels its power into every nation that joins. {leader_name}, align with us and unleash your rise."
+    },
+    {
+      "message_number": 66,
+      "title": "🚨 Secure Transmission",
+      "message": "Cybertr0n transmits this secure message to you, {leader_name}. Join us for protection, prosperity, and purpose."
+    },
+    {
+      "message_number": 67,
+      "title": "🌌 Nebula Rising",
+      "message": "{leader_name}, alone your light fades. With Cybertr0n, your nation rises among a nebula of allies. Join us and shine."
+    },
+    {
+      "message_number": 68,
+      "title": "💫 Evolution Protocol",
+      "message": "Cybertr0n evolves nations into their strongest form. {leader_name}, join us and let your nation ascend beyond isolation."
+    },
+    {
+      "message_number": 69,
+      "title": "⚔️ Sentinel Guard",
+      "message": "{leader_name}, with Cybertr0n your nation gains the strength of countless sentinels. Join us and secure your defense."
+    },
+    {
+      "message_number": 70,
+      "title": "🔗 Chain of Unity",
+      "message": "Every link strengthens the whole, {leader_name}. Join Cybertr0n and become part of an unbreakable chain of nations."
+    },
+    {
+      "message_number": 71,
+      "title": "🌠 Cosmic Dawn",
+      "message": "A new dawn rises for your nation, {leader_name}. Join Cybertr0n and step into the light of growth and security."
+    },
+    {
+      "message_number": 72,
+      "title": "💎 Spark Eternal",
+      "message": "{leader_name}, your spark should never fade. Cybertr0n preserves it with aid, allies, and strength. Join us today."
+    },
+    {
+      "message_number": 73,
+      "title": "🚀 Stellar Drive",
+      "message": "Cybertr0n propels nations beyond their limits. {leader_name}, join our stellar drive and accelerate into greatness."
+    },
+    {
+      "message_number": 74,
+      "title": "🛡️ Iron Bastion",
+      "message": "{leader_name}, Cybertr0n forms a bastion of strength around every member. Join us and never stand undefended."
+    },
+    {
+      "message_number": 75,
+      "title": "⚡ Pulse Signal",
+      "message": "Cybertr0n pulses across the world, seeking nations like yours. {leader_name}, join us and feel the surge of unity."
+    },
+    {
+      "message_number": 76,
+      "title": "🌌 Starforge Alliance",
+      "message": "Cybertr0n forges nations into stars, {leader_name}. Join our Starforge and shine among allies who defend and support."
+    },
+    {
+      "message_number": 77,
+      "title": "🔮 Oracle Protocol",
+      "message": "The Oracle predicts strength for your nation with Cybertr0n, {leader_name}. Join us and secure the future now."
+    },
+    {
+      "message_number": 78,
+      "title": "⚔️ Vanguard Link",
+      "message": "{leader_name}, link with Cybertr0n’s vanguard. Together we defend, prosper, and rise beyond the limits of isolation."
+    },
+    {
+      "message_number": 79,
+      "title": "🌠 Starlight Bond",
+      "message": "Your nation is ready to bond with greatness, {leader_name}. Cybertr0n offers you allies, aid, and protection."
+    },
+    {
+      "message_number": 80,
+      "title": "🛰️ Expansion Protocol",
+      "message": "Cybertr0n expands its network daily, {leader_name}. Join us now and ensure your nation grows with strength and security."
+    },
+    {
+      "message_number": 81,
+      "title": "⚡ Ion Surge",
+      "message": "{leader_name}, Cybertr0n delivers surges of support to its members. Join us and supercharge your nation’s progress."
+    },
+    {
+      "message_number": 82,
+      "title": "💠 Crystalline Accord",
+      "message": "Cybertr0n builds bonds as strong as crystal, {leader_name}. Join our accord and strengthen your nation forever."
+    },
+    {
+      "message_number": 83,
+      "title": "🚨 Emergency Beacon",
+      "message": "Your nation is exposed, {leader_name}. Cybertr0n sends a beacon of protection. Answer and join us for safety and growth."
+    },
+    {
+      "message_number": 84,
+      "title": "🌌 Stellar Network",
+      "message": "Cybertr0n links nations into one great stellar network. {leader_name}, join us to thrive among allies and defenders."
+    },
+    {
+      "message_number": 85,
+      "title": "🔧 Adaptive Code",
+      "message": "Cybertr0n adapts to every nation’s needs. {leader_name}, join us for tailored aid, guidance, and unity."
+    },
+    {
+      "message_number": 86,
+      "title": "🌠 Beacon Rising",
+      "message": "Cybertr0n is the beacon your nation seeks. {leader_name}, rise with us into a future of prosperity and strength."
+    },
+    {
+      "message_number": 87,
+      "title": "🛡️ Eternal Circuit",
+      "message": "Cybertr0n protects in an endless circuit of unity. {leader_name}, join us to gain strength and stability forever."
+    },
+    {
+      "message_number": 88,
+      "title": "⚔️ Iron Circuitry",
+      "message": "{leader_name}, Cybertr0n runs on the strength of united nations. Join us and reinforce your nation with our iron network."
+    },
+    {
+      "message_number": 89,
+      "title": "🌍 Alliance Gateway",
+      "message": "Step through Cybertr0n’s gateway, {leader_name}. Beyond it lies growth, defense, and allies who stand with you always."
+    },
+    {
+      "message_number": 90,
+      "title": "⚡ Radiant Spark",
+      "message": "Your nation shines already, {leader_name}, but Cybertr0n will make it radiant. Join us and grow beyond your limits."
+    },
+    {
+      "message_number": 91,
+      "title": "🔭 Cosmic Path",
+      "message": "Cybertr0n charts a path for nations to thrive. {leader_name}, follow our course to a stronger, brighter future."
+    },
+    {
+      "message_number": 92,
+      "title": "💠 Energon Pact",
+      "message": "Cybertr0n offers you a pact of aid and growth, {leader_name}. Join us and energize your nation’s strength."
+    },
+    {
+      "message_number": 93,
+      "title": "🚀 Infinity Drive",
+      "message": "Cybertr0n powers nations into infinity. {leader_name}, join us and accelerate into prosperity without limits."
+    },
+    {
+      "message_number": 94,
+      "title": "🛡️ Iron Alliance",
+      "message": "{leader_name}, Cybertr0n builds nations into an unbreakable iron alliance. Join us and secure your defense forever."
+    },
+    {
+      "message_number": 95,
+      "title": "🌌 Starbound Pact",
+      "message": "Your nation is starbound, {leader_name}. Cybertr0n will carry you higher with allies, aid, and unity."
+    },
+    {
+      "message_number": 96,
+      "title": "⚡ Power Matrix",
+      "message": "Cybertr0n shares its power matrix with all members. {leader_name}, join us and amplify your nation’s strength."
+    },
+    {
+      "message_number": 97,
+      "title": "🔮 Fate’s Signal",
+      "message": "The signal is clear, {leader_name}: your fate lies with Cybertr0n. Join us and thrive in unity and security."
+    },
+    {
+      "message_number": 98,
+      "title": "🛰️ Network Ascension",
+      "message": "Cybertr0n uplifts every nation in its network. {leader_name}, join us and ascend beyond isolation."
+    },
+    {
+      "message_number": 99,
+      "title": "⚔️ Defender’s Oath",
+      "message": "{leader_name}, Cybertr0n swears to protect its own. Join us and gain allies who stand ready at your side."
+    },
+    {
+      "message_number": 100,
+      "title": "🌠 Final Beacon",
+      "message": "This is Cybertr0n’s final beacon, {leader_name}. Join us today and secure lasting aid, allies, and power."
+    },
+    {
+      "message_number": 101,
+      "title": "🌌 Signal of the Stars",
+      "message": "{leader_name}, Cybertr0n reaches across the stars to you. Alone you are a flicker, but with us, your nation becomes part of a radiant constellation of strength and unity."
+    },
+    {
+      "message_number": 102,
+      "title": "⚔️ Shield and Circuit",
+      "message": "Cybertr0n combines protection and progress. {leader_name}, your nation deserves both. Join us and gain allies who stand guard while helping you grow stronger."
+    },
+    {
+      "message_number": 103,
+      "title": "🔋 Power Core Online",
+      "message": "{leader_name}, your nation’s core is strong, but with Cybertr0n it becomes unstoppable. Align with us to power up your growth with support, aid, and allies."
+    },
+    {
+      "message_number": 104,
+      "title": "🌍 Unified Worldview",
+      "message": "Cybertr0n unites nations of all sizes under one banner. {leader_name}, step out of isolation and join our network where prosperity and defense are shared."
+    },
+    {
+      "message_number": 105,
+      "title": "💠 The Cyber Key",
+      "message": "Every nation has a lock on its future. Cybertr0n holds the key. {leader_name}, join us today to unlock growth, allies, and lasting security."
+    },
+    {
+      "message_number": 106,
+      "title": "🔥 Spark Ignited",
+      "message": "{leader_name}, Cybertr0n exists to fuel the sparks of unaligned nations. Join us and watch your flame transform into a blaze of strength and success."
+    },
+    {
+      "message_number": 107,
+      "title": "🌟 Rise Protocol",
+      "message": "Your nation is ready to rise, {leader_name}. Cybertr0n provides the system, guidance, and aid to elevate you above isolation. Join our Rise Protocol today."
+    },
+    {
+      "message_number": 108,
+      "title": "🛡️ Fortress Alliance",
+      "message": "In Cybertr0n, no nation stands alone. {leader_name}, join our fortress of nations and gain protection, allies, and resources to strengthen your future."
+    },
+    {
+      "message_number": 109,
+      "title": "🚀 Warp Sequence",
+      "message": "Cybertr0n propels nations into greatness. {leader_name}, align with us and activate warp speed growth, protection, and opportunity for your nation."
+    },
+    {
+      "message_number": 110,
+      "title": "🌠 Eternal Spark",
+      "message": "{leader_name}, every leader holds potential. Cybertr0n will keep your spark eternal with unity, aid, and allies who stand by your side."
+    },
+    {
+      "message_number": 111,
+      "title": "📡 Network Beacon",
+      "message": "Cybertr0n’s beacon shines bright for nations seeking strength. {leader_name}, join our network and gain the unity and growth your nation deserves."
+    },
+    {
+      "message_number": 112,
+      "title": "⚡ Surge Protocol",
+      "message": "A surge of opportunity awaits you, {leader_name}. Cybertr0n offers aid, protection, and unity. Join us and channel your nation’s true energy."
+    },
+    {
+      "message_number": 113,
+      "title": "💎 Spark of Potential",
+      "message": "Cybertr0n sees the gem in your nation, {leader_name}. Alone it remains hidden, but with us, your potential shines bright for all to see."
+    },
+    {
+      "message_number": 114,
+      "title": "🌐 Global Nexus",
+      "message": "Cybertr0n unites nations worldwide. {leader_name}, join the Nexus and gain allies, aid, and strength beyond isolation."
+    },
+    {
+      "message_number": 115,
+      "title": "🧭 Guided Path",
+      "message": "Every leader chooses a path. {leader_name}, Cybertr0n offers guidance, aid, and allies who won’t let you walk alone. Join us today."
+    },
+    {
+      "message_number": 116,
+      "title": "🔮 Destiny Awaits",
+      "message": "Your nation’s destiny can be brighter, {leader_name}. Cybertr0n is the path to strength, unity, and prosperity. Join us and claim your future."
+    },
+    {
+      "message_number": 117,
+      "title": "🛠️ Upgrade Sequence",
+      "message": "{leader_name}, Cybertr0n upgrades nations into stronger versions of themselves. Join us and receive the tools for growth, protection, and stability."
+    },
+    {
+      "message_number": 118,
+      "title": "🚨 Secure Link",
+      "message": "Remaining unaligned leaves you exposed, {leader_name}. Cybertr0n offers a secure link: allies, aid, and lasting protection. Join us now."
+    },
+    {
+      "message_number": 119,
+      "title": "🌌 Galactic Unity",
+      "message": "Cybertr0n unites nations across the stars. {leader_name}, join our alliance and become part of a galaxy of strength and prosperity."
+    },
+    {
+      "message_number": 120,
+      "title": "⚔️ Strength in Steel",
+      "message": "{leader_name}, Cybertr0n is forged from steel and unity. Join us, and your nation will be backed by an unbreakable alliance."
+    },
+    {
+      "message_number": 121,
+      "title": "🌟 Cyber Dawn",
+      "message": "A new dawn rises, {leader_name}. Cybertr0n offers light, guidance, and unity. Join our ranks and step into a brighter future."
+    },
+    {
+      "message_number": 122,
+      "title": "🔗 Alliance Chain",
+      "message": "Every link strengthens the chain. {leader_name}, Cybertr0n invites you to connect and forge bonds that will protect and uplift your nation."
+    },
+    {
+      "message_number": 123,
+      "title": "🌀 Energy Flow",
+      "message": "Cybertr0n channels energy into its members. {leader_name}, join us to share in the flow of aid, protection, and lasting unity."
+    },
+    {
+      "message_number": 124,
+      "title": "📜 Code of Cybertr0n",
+      "message": "Our code is simple: unity, strength, and prosperity. {leader_name}, align your nation with Cybertr0n and see your path to greatness secured."
+    },
+    {
+      "message_number": 125,
+      "title": "🚀 Ascension Path",
+      "message": "{leader_name}, Cybertr0n’s Ascension Path is open. Join us and rise faster, stronger, and safer than you could alone."
+    },
+    {
+      "message_number": 126,
+      "title": "🛡️ Guardian Network",
+      "message": "Cybertr0n stands guard over its members. {leader_name}, join us and gain the guardianship of allies who fight and grow with you."
+    },
+    {
+      "message_number": 127,
+      "title": "💫 Infinite Spark",
+      "message": "Your spark is infinite, {leader_name}. Cybertr0n ensures it never fades by fueling your growth, security, and unity with allies."
+    },
+    {
+      "message_number": 128,
+      "title": "🌠 Starlight Path",
+      "message": "{leader_name}, follow the Starlight Path to Cybertr0n. Here you’ll find unity, aid, and allies to guide your nation into greatness."
+    },
+    {
+      "message_number": 129,
+      "title": "🛠️ Constructive Unity",
+      "message": "Cybertr0n builds nations into greatness. {leader_name}, join our constructive unity and gain strength, aid, and protection."
+    },
+    {
+      "message_number": 130,
+      "title": "⚡ Energy Surge",
+      "message": "Cybertr0n fuels progress. {leader_name}, join our surge of energy and watch your nation grow faster and stronger than ever."
+    },
+    {
+      "message_number": 131,
+      "title": "🌍 World Signal",
+      "message": "The Cybertr0n signal is global, {leader_name}. Answer the call and join a world of unity, aid, and powerful allies."
+    },
+    {
+      "message_number": 132,
+      "title": "🤖 The Machine Awakens",
+      "message": "{leader_name}, Cybertr0n awakens nations into their prime. Alone you remain dormant, but with us, your nation thrives."
+    },
+    {
+      "message_number": 133,
+      "title": "🔧 Nation Upgrade",
+      "message": "{leader_name}, Cybertr0n offers upgrades in protection, aid, and unity. Don’t remain unaligned—join us and grow stronger."
+    },
+    {
+      "message_number": 134,
+      "title": "🌌 Path of Unity",
+      "message": "{leader_name}, walk the Path of Unity with Cybertr0n. Together we thrive, protect, and grow stronger than isolation allows."
+    },
+    {
+      "message_number": 135,
+      "title": "⚔️ Blade of Alliance",
+      "message": "Cybertr0n is sharp, united, and unyielding. {leader_name}, join our blade and cut through the risks of isolation."
+    },
+    {
+      "message_number": 136,
+      "title": "📡 The Signal Calls",
+      "message": "Cybertr0n’s signal reaches you, {leader_name}. Answer it and step into a network of allies, aid, and prosperity."
+    },
+    {
+      "message_number": 137,
+      "title": "🌟 Cyber Ascendancy",
+      "message": "Your nation is destined to ascend, {leader_name}. Cybertr0n provides the allies and tools to elevate your success."
+    },
+    {
+      "message_number": 138,
+      "title": "🚨 Warning: Vulnerable",
+      "message": "Remaining unaligned is dangerous, {leader_name}. Cybertr0n provides the shield, aid, and allies you need to survive and thrive."
+    },
+    {
+      "message_number": 139,
+      "title": "🔮 Vision of Strength",
+      "message": "{leader_name}, Cybertr0n sees your potential. Join us and turn vision into reality with aid, allies, and protection."
+    },
+    {
+      "message_number": 140,
+      "title": "🛰️ Satellite Link",
+      "message": "Cybertr0n’s satellite finds you, {leader_name}. Connect with us and gain aid, unity, and growth far beyond what isolation offers."
+    },
+    {
+      "message_number": 141,
+      "title": "💎 Radiant Core",
+      "message": "Your core shines bright, {leader_name}, but Cybertr0n makes it radiant. Join us for strength, growth, and enduring unity."
+    },
+    {
+      "message_number": 142,
+      "title": "🌠 Galactic Bridge",
+      "message": "{leader_name}, Cybertr0n offers the bridge from isolation to unity. Cross it, and your nation will never face challenges alone again."
+    },
+    {
+      "message_number": 143,
+      "title": "🛡️ Protectorate Signal",
+      "message": "Cybertr0n protects its members fiercely. {leader_name}, join us and gain allies who ensure your nation thrives in safety."
+    },
+    {
+      "message_number": 144,
+      "title": "⚡ Voltage Path",
+      "message": "Cybertr0n energizes nations to rise stronger. {leader_name}, join us and take the Voltage Path to success and growth."
+    },
+    {
+      "message_number": 145,
+      "title": "🌍 Alliance Horizon",
+      "message": "The horizon is brighter with allies, {leader_name}. Cybertr0n invites you to join and expand your nation’s possibilities."
+    },
+    {
+      "message_number": 146,
+      "title": "🚀 Vector Uprising",
+      "message": "Cybertr0n uplifts nations into the future. {leader_name}, join our uprising and accelerate your growth beyond isolation."
+    },
+    {
+      "message_number": 147,
+      "title": "🌀 Signal Flow",
+      "message": "The signal flows to you, {leader_name}. Cybertr0n offers strength, allies, and prosperity to those who answer. Will you join?"
+    },
+    {
+      "message_number": 148,
+      "title": "🔗 Unity Drive",
+      "message": "{leader_name}, Cybertr0n’s Unity Drive powers nations together. Join us and never stand alone again."
+    },
+    {
+      "message_number": 149,
+      "title": "🌟 Celestial Spark",
+      "message": "Your spark reaches the stars, {leader_name}. Cybertr0n ensures it grows brighter with aid, unity, and allies who stand strong."
+    },
+    {
+      "message_number": 150,
+      "title": "🚨 Final Beacon",
+      "message": "This beacon calls for you, {leader_name}. Cybertr0n is ready to receive your nation into safety, unity, and strength. Don’t ignore the signal."
+    }
+  ]
+}
