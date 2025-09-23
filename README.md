@@ -11,6 +11,7 @@
 - [✨ Major Features](#-major-features)
   - [🐾 EnergonPets System](#-energonpets-system)
   - [🤖 Random System](#-random-system)
+  - [🧠 Trivia System](#-trivia-system)
   - [🏛️ PnW Recruitment System](#-pnw-recruitment-system)
   - [👑 Admin System](#-admin-system)
   - [🗂️ User Data Manager](#️-user-data-manager)
@@ -130,6 +131,40 @@ Comprehensive entertainment and interactive content system featuring AI-powered 
 - **Template Systems**: Sophisticated content generation with dynamic variable insertion
 - **Performance Optimization**: Lazy loading and caching systems for efficient data access
 
+### 🧠 Trivia System (`Systems/trivia.py`)
+
+Interactive knowledge testing system featuring comprehensive Transformers-themed trivia with real-time multiplayer gameplay and detailed performance tracking.
+
+#### 🎯 Core Trivia Features
+- **Multi-Category Support**: Five specialized trivia categories covering the entire Transformers universe
+  - **Culture**: Cybertronian society, traditions, and lore
+  - **Characters**: Iconic Autobots, Decepticons, and other faction members
+  - **Factions**: Organizations, groups, and allegiances across the franchise
+  - **Movies**: Live-action and animated film content and storylines
+  - **Shows**: TV series, episodes, and animated content knowledge
+- **Random Mix Mode**: Dynamic question selection from all categories for varied gameplay
+- **Flexible Question Count**: Customizable sessions from 1-100 questions per game
+
+#### 🎮 Interactive Gameplay
+- **Real-time Multiplayer**: Multiple users can participate simultaneously in the same channel
+- **Interactive UI**: Discord button interface with A, B, C, D answer choices
+- **Smart Answer Tracking**: Each user can answer once per question with immediate feedback
+- **Automatic Progression**: Questions advance after correct answers or 2-minute timeouts
+- **Session Management**: One active trivia session per channel with proper cleanup
+
+#### 📊 Performance Analytics
+- **Individual Statistics**: Personal accuracy tracking and question attempt counts
+- **Leaderboard System**: Real-time ranking based on correct answers and performance
+- **Session Results**: Comprehensive end-game statistics showing all participant performance
+- **Progress Tracking**: Visual progress indicators showing current question and category
+- **Duration Monitoring**: Session timing and completion statistics
+
+#### 🗄️ Data Integration
+- **Extensive Question Database**: 3,900+ carefully curated trivia questions across all categories
+- **UserDataManager Integration**: Seamless data loading with optimized performance
+- **Question Randomization**: Smart selection algorithms ensuring varied gameplay experiences
+- **Category Balance**: Well-distributed question counts across all trivia categories
+
 ### 🏛️ PnW Recruitment System (`Systems/PnW/`)
 
 Advanced automated recruitment system for Politics and War game integration with comprehensive rule compliance and task management.
@@ -189,6 +224,7 @@ AllSpark/
 ├── Systems/                    # Modular system architecture
 │   ├── admin_system.py        # Administrative functions
 │   ├── user_data_manager.py   # Centralized data management
+│   ├── trivia.py              # Interactive trivia game system
 │   ├── Data/                  # Persistent storage
 │   ├── EnergonPets/           # Complete pet and battle system
 │   ├── PnW/                   # Politics and War integration
@@ -217,6 +253,13 @@ The bot maintains comprehensive data persistence through specialized JSON files:
 - **`recruit.json`**: Recruitment message templates featuring themed invitations from Transformers characters (Optimus Prime, Bumblebee, Megatron, etc.) with personalized content
 - **`recruit_backup.json`**: Backup copy of recruitment templates for data recovery and system reliability
 - **`recruitment_history.json`**: Historical tracking of recruitment campaigns with nation IDs, leader names, message numbers, and timestamps
+
+#### 🧠 Trivia System Data (`Systems/Data/Trivia/`)
+- **`transformers_culture.json`**: Cybertronian culture, society, and lore questions (780+ questions)
+- **`transformers_characters.json`**: Character knowledge covering Autobots, Decepticons, and other factions (780+ questions)
+- **`transformers_factions.json`**: Organizations, groups, and allegiances across the franchise (780+ questions)
+- **`transformers_movies.json`**: Live-action and animated film content and storylines (780+ questions)
+- **`transformers_shows.json`**: TV series, episodes, and animated content knowledge (780+ questions)
 
 #### 🎭 Entertainment & System Data
 - **`roasts.json`**: Comprehensive collection of categorized roasts and humorous insults for entertainment commands
@@ -304,6 +347,18 @@ This bundled approach ensures consistent deployment across different hosting env
 - `/ping` - Check bot latency
 - `/hello` - Friendly greeting
 - `/grump` - Ping revenge system
+
+---
+
+### 🧠 Trivia & Knowledge
+
+#### Interactive Trivia Gaming
+- `/trivia` - Start interactive trivia sessions with category and question count selection:
+  - **Categories**: Culture, Characters, Factions, Movies, Shows, Random Mix
+  - **Question Count**: 1-100 questions per session
+  - **Multiplayer Support**: Multiple users can participate simultaneously
+  - **Real-time Scoring**: Live leaderboards and performance tracking
+  - **Interactive UI**: A, B, C, D button interface with immediate feedback
 
 ---
 
