@@ -1,0 +1,24 @@
+{
+  "game_data": {},
+  "challenges": {},
+  "cooldowns": {},
+  "global_stats": {
+    "total_games": 0,
+    "total_energon_won": 0,
+    "total_energon_lost": 0,
+    "active_players": [],
+    "last_game_end": null,
+    "daily_reset": null
+  },
+  "leaderboard": {
+    "daily": {},
+    "weekly": {},
+    "all_time": {}
+  },
+  "system_status": {
+    "last_cleanup": null,
+    "active_games": 0,
+    "total_players": 0
+  },
+  "last_updated": null
+}
