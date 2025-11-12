@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>War Cost Embed Preview</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: #0f1621; color: #e8edf2; padding: 24px; }
+    .card { background: #1b2433; border-radius: 12px; padding: 20px; max-width: 820px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .section { margin: 14px 0; }
+    .section h2 { font-size: 15px; margin: 0 0 8px; color: #9ab0c6; }
+    pre { background: #121826; border: 1px solid #223048; border-radius: 8px; padding: 12px; overflow-x: auto; }
+    code { background: #0c1320; border: 1px solid #1f2e47; border-radius: 6px; padding: 0 4px; color: #d1e7ff; }
+    .note { color: #8da2b8; font-size: 13px; }
+  </style>
+  <script>
+    // This preview simulates how values are wrapped in single backticks and spaced uniformly.
+    // Actual Discord rendering uses figure spaces for alignment in proportional fonts.
+  </script>
+</head>
+<body>
+  <div class="card">
+    <h1>War Cost Embed — Value Formatting Preview</h1>
+    <p class="note">All Home/Away values are wrapped in single backticks and aligned uniformly.</p>
+
+    <div class="section">
+      <h2>Infra</h2>
+      <pre>🏗️ Levels   | `12,345`     | `9,876`
+💸 Value    | `$12,345`    | `$9,876`</pre>
+    </div>
+
+    <div class="section">
+      <h2>Consumption</h2>
+      <pre>⛽ Gasoline  | `1,234.5`    | `987.6`
+💥 Munitions | `543.2`      | `321.0`</pre>
+    </div>
+
+    <div class="section">
+      <h2>Units</h2>
+      <pre>🪖 Soldiers  | `123,456`    | `98,765`
+🚙 Tanks     | `12,345`     | `9,876`
+🛩️ Aircraft  | `1,234`      | `987`
+⚓ Ships      | `123`        | `98`
+🎯 Missiles   | `12`         | `9`
+☢️ Nukes      | `3`          | `2`</pre>
+    </div>
+
+    <div class="section">
+      <h2>Loot Loss</h2>
+      <pre>⛽ Gasoline  | `1,234.5`    | `987.6`
+💥 Munitions | `543.2`      | `321.0`
+🪙 Money     | `$123,456`   | `$98,765`</pre>
+    </div>
+
+    <div class="section">
+      <h2>Totals</h2>
+      <pre>🧰 Consumption| `$12.3M`     | `$9.8M`
+⚰️ Units      | `$23.4M`     | `$18.7M`
+🏗️ Infra      | `$10.2M`     | `$8.1M`
+💎 Looted     | `$4.5M`      | `$3.2M`
+🧮 Combined   | `$50.4M`     | `$39.8M`</pre>
+    </div>
+
+    <div class="section">
+      <h2>War Types</h2>
+      <pre>🏴‍☠️ Raid      12
+💣 Attrition  6
+🛡️ Ordinary  22</pre>
+    </div>
+  </div>
+</body>
+</html>
