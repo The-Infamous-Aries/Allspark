@@ -13,6 +13,7 @@ import random
 import logging
 import traceback
 import time
+from pathlib import Path
 try:
     import pnwkit
     PNWKIT_AVAILABLE = True
@@ -52,6 +53,24 @@ except ImportError:
     except ImportError:
         create_query_instance = None
 
+# Import AERO_ALLIANCES and leadership role check
+try:
+    from .bloc import AERO_ALLIANCES
+except ImportError:
+    try:
+        from Systems.PnW.MA.bloc import AERO_ALLIANCES
+    except ImportError:
+        AERO_ALLIANCES = {}
+
+try:
+    from Systems.PnW.snipe import leadership_role_check
+except Exception:
+    try:
+        from snipe import leadership_role_check
+    except Exception:
+        def leadership_role_check():
+            return commands.check(lambda ctx: True)
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 
@@ -65,7 +84,7 @@ if current_dir_parent not in sys.path:
     sys.path.insert(0, current_dir_parent)
 
 try:
-    from config import PANDW_API_KEY, CYBERTRON_ALLIANCE_ID, ARIES_NATION_ID, CARNAGE_NATION_ID, PRIMAL_NATION_ID, TECH_NATION_ID, BENEVOLENT_NATION_ID
+    from config import PANDW_API_KEY, CYBERTRON_ALLIANCE_ID, PRIME_BANK_ALLIANCE_ID, ARIES_NATION_ID, CARNAGE_NATION_ID, PRIMAL_NATION_ID, TECH_NATION_ID, BENEVOLENT_NATION_ID
 except ImportError as e:
     print(f"Failed to import config: {e}")
     print(f"Python path: {sys.path}")
@@ -92,7 +111,27 @@ class NationListView(discord.ui.View):
                 valid_nations.append(nation)
             else:
                 print(f"Warning: Skipping non-dictionary nation at index {i}: {type(nation)} - {str(nation)[:100]}")
-        
+        # Enforce alliance-only view: Cybertron or Prime Banking
+        try:
+            allowed_ids = {str(CYBERTRON_ALLIANCE_ID)}
+            if 'PRIME_BANK_ALLIANCE_ID' in globals() and PRIME_BANK_ALLIANCE_ID:
+                allowed_ids.add(str(PRIME_BANK_ALLIANCE_ID))
+            valid_nations = [n for n in valid_nations if str(n.get('alliance_id')) in allowed_ids]
+            # Further restrict to Members only (exclude applicants)
+            def _is_member(n: Dict[str, Any]) -> bool:
+                pos = str(n.get('alliance_position', '') or '').lower()
+                return pos == 'member'
+            def _not_in_vacation(n: Dict[str, Any]) -> bool:
+                try:
+                    turns = n.get('vacation_mode_turns', 0)
+                    turns_val = int(turns) if isinstance(turns, (int, str)) and str(turns).isdigit() else (turns or 0)
+                except Exception:
+                    turns_val = 0
+                return (turns_val or 0) == 0
+            valid_nations = [n for n in valid_nations if _is_member(n) and _not_in_vacation(n)]
+        except Exception as e:
+            print(f"Warning: Failed to filter nations by alliance: {e}")
+
         self.nations = valid_nations
         self.current_page = 0
         self.author_id = author_id
@@ -1373,7 +1412,7 @@ class NationImprovementsView(discord.ui.View):
             await interaction.followup.send(embed=embed)
 
 
-class PartyView(discord.ui.View):
+class PartyManagementView(discord.ui.View):
     """View for displaying party information."""
     
     def __init__(self, author_id, bot, blitz_cog, party_data):
@@ -1644,6 +1683,52 @@ class BlitzParties(commands.Cog):
         """Create optimal parties of 3 for coordinated same-target attacks."""
         return self.party_sorter.create_balanced_parties(nations)
 
+    async def create_balanced_parties_multi_alliance(self, alliance_keys: List[str]) -> List[List[Dict[str, Any]]]:
+        """Create parties from multiple selected alliances by fetching and combining their nations."""
+        try:
+            if not alliance_keys:
+                return []
+            # Build alliance_data mapping concurrently
+            tasks = []
+            task_keys = []
+            for key in alliance_keys:
+                if key == 'cybertron_combined':
+                    # Fetch both Cybertr0n and Prime Bank
+                    cybertron_id = AERO_ALLIANCES.get('cybertron', {}).get('id')
+                    prime_bank_id = AERO_ALLIANCES.get('prime_bank', {}).get('id')
+                    if cybertron_id:
+                        tasks.append(asyncio.wait_for(self.get_alliance_nations(str(cybertron_id)), timeout=8))
+                        task_keys.append('cybertron')
+                    if prime_bank_id:
+                        tasks.append(asyncio.wait_for(self.get_alliance_nations(str(prime_bank_id)), timeout=8))
+                        task_keys.append('prime_bank')
+                else:
+                    alliance_id = AERO_ALLIANCES.get(key, {}).get('id')
+                    if alliance_id:
+                        tasks.append(asyncio.wait_for(self.get_alliance_nations(str(alliance_id)), timeout=8))
+                        task_keys.append(key)
+            alliance_data: Dict[str, List[Dict[str, Any]]] = {}
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for i, result in enumerate(results):
+                    k = task_keys[i]
+                    if isinstance(result, Exception) or not result:
+                        alliance_data[k] = []
+                    else:
+                        # Filter results to Cybertron or Prime Banking only
+                        try:
+                            allowed_ids = {str(CYBERTRON_ALLIANCE_ID)}
+                            if 'PRIME_BANK_ALLIANCE_ID' in globals() and PRIME_BANK_ALLIANCE_ID:
+                                allowed_ids.add(str(PRIME_BANK_ALLIANCE_ID))
+                            alliance_data[k] = [n for n in (result or []) if str(n.get('alliance_id')) in allowed_ids]
+                        except Exception:
+                            alliance_data[k] = result or []
+            # Use sorter’s multi-alliance method
+            return self.party_sorter.create_balanced_parties_multi_alliance(alliance_data, alliance_keys)
+        except Exception as e:
+            self._log_error("Error creating multi-alliance parties", e)
+            return []
+
     def process_parties_for_display(self, parties: List[List[Dict[str, Any]]], team_names: List[str] = None) -> tuple:
         """Process parties for display, handling all party statistics and data preparation."""
         try:
@@ -1792,3 +1877,124 @@ class BlitzParties(commands.Cog):
         except Exception as e:
             self._log_error(f"Error safely getting value for key '{key}'", e)
             return default
+
+    @commands.hybrid_command(name='nations', description='Display alliance nations with detailed UI')
+    @leadership_role_check()
+    async def nations_command(self, ctx: commands.Context):
+        """Display alliance nations with page navigation and details."""
+        try:
+            initial_msg = await ctx.send("🔄 Loading Alliance Nations...")
+            # Force refresh Cybertr0n alliance data before proceeding (equivalent to refresh_alliance)
+            try:
+                if hasattr(self, 'query_instance') and self.query_instance:
+                    await self.query_instance.get_alliance_nations(
+                        str(self.cybertron_alliance_id), bot=self.bot, force_refresh=True
+                    )
+                    # Also refresh Prime Bank to ensure combined view is fresh
+                    if PRIME_BANK_ALLIANCE_ID:
+                        await self.query_instance.get_alliance_nations(
+                            str(PRIME_BANK_ALLIANCE_ID), bot=self.bot, force_refresh=True
+                        )
+            except Exception as e:
+                self._log_error("Error refreshing Cybertr0n alliance data before nations", e)
+            # Fetch nations from Cybertr0n and Prime Bank only
+            cybertron_id = str(self.cybertron_alliance_id)
+            prime_bank_id = str(PRIME_BANK_ALLIANCE_ID) if 'PRIME_BANK_ALLIANCE_ID' in globals() and PRIME_BANK_ALLIANCE_ID else AERO_ALLIANCES.get('prime_bank', {}).get('id') and str(AERO_ALLIANCES.get('prime_bank', {}).get('id'))
+            cybertron_nations = await self.get_alliance_nations(cybertron_id)
+            prime_bank_nations = []
+            if prime_bank_id:
+                prime_bank_nations = await self.get_alliance_nations(prime_bank_id)
+            nations = (cybertron_nations or []) + (prime_bank_nations or [])
+            # Filter strictly to the two alliance IDs to avoid accidental leakage
+            allowed_ids = {cybertron_id}
+            if prime_bank_id:
+                allowed_ids.add(str(prime_bank_id))
+            nations = [n for n in (nations or []) if str(n.get('alliance_id')) in allowed_ids]
+            if not nations:
+                await initial_msg.edit(content="❌ No nation data available.")
+                return
+            view = NationListView(nations=nations, author_id=ctx.author.id, bot=self.bot, blitz_cog=self)
+            embed = view.create_embed()
+            await initial_msg.edit(content=None, embed=embed, view=view)
+        except Exception as e:
+            self._log_error("Error in nations command", e)
+            await ctx.send(f"❌ An error occurred: {str(e)}")
+
+    @commands.hybrid_command(name='blitz', description='Generate blitz parties and show interactive UI')
+    @leadership_role_check()
+    async def blitz_command(self, ctx: commands.Context, alliances: Optional[str] = None):
+        """Generate blitz parties and display them with navigation.
+        Optionally provide a comma-separated list of alliance keys (restricted to "cybertron", "prime_bank", or "cybertron_combined")."""
+        try:
+            initial_msg = await ctx.send("🔄 Generating Blitz Parties...")
+            # Force refresh Cybertr0n alliance data before proceeding (equivalent to refresh_alliance)
+            try:
+                if hasattr(self, 'query_instance') and self.query_instance:
+                    await self.query_instance.get_alliance_nations(
+                        str(self.cybertron_alliance_id), bot=self.bot, force_refresh=True
+                    )
+                    # Also refresh Prime Bank to ensure combined view is fresh
+                    if 'PRIME_BANK_ALLIANCE_ID' in globals() and PRIME_BANK_ALLIANCE_ID:
+                        await self.query_instance.get_alliance_nations(
+                            str(PRIME_BANK_ALLIANCE_ID), bot=self.bot, force_refresh=True
+                        )
+            except Exception as e:
+                self._log_error("Error refreshing Cybertr0n alliance data before blitz", e)
+            parties = []
+            allowed_ids = {str(self.cybertron_alliance_id)}
+            prime_id = str(PRIME_BANK_ALLIANCE_ID) if 'PRIME_BANK_ALLIANCE_ID' in globals() and PRIME_BANK_ALLIANCE_ID else None
+            if prime_id:
+                allowed_ids.add(prime_id)
+            if alliances:
+                # Sanitize alliance keys to permitted set only
+                input_keys = [k.strip().lower() for k in alliances.split(',') if k.strip()]
+                permitted = {'cybertron', 'prime_bank', 'cybertron_combined'}
+                alliance_keys = [k for k in input_keys if k in permitted]
+                if not alliance_keys or 'cybertron_combined' in alliance_keys or set(alliance_keys) == {'cybertron', 'prime_bank'}:
+                    # Combined view from both alliances
+                    cybertron_nations = await self.get_alliance_nations(str(self.cybertron_alliance_id)) or []
+                    prime_bank_nations = await self.get_alliance_nations(prime_id) if prime_id else []
+                    nations = [n for n in (cybertron_nations + (prime_bank_nations or [])) if str(n.get('alliance_id')) in allowed_ids]
+                    active_nations = self.get_active_nations(nations)
+                    parties = self.create_balanced_parties(active_nations)
+                elif alliance_keys == ['cybertron']:
+                    nations = await self.get_alliance_nations(str(self.cybertron_alliance_id)) or []
+                    nations = [n for n in nations if str(n.get('alliance_id')) in allowed_ids]
+                    active_nations = self.get_active_nations(nations)
+                    parties = self.create_balanced_parties(active_nations)
+                elif alliance_keys == ['prime_bank'] and prime_id:
+                    nations = await self.get_alliance_nations(prime_id) or []
+                    nations = [n for n in nations if str(n.get('alliance_id')) in allowed_ids]
+                    active_nations = self.get_active_nations(nations)
+                    parties = self.create_balanced_parties(active_nations)
+                else:
+                    # Fallback to combined
+                    cybertron_nations = await self.get_alliance_nations(str(self.cybertron_alliance_id)) or []
+                    prime_bank_nations = await self.get_alliance_nations(prime_id) if prime_id else []
+                    nations = [n for n in (cybertron_nations + (prime_bank_nations or [])) if str(n.get('alliance_id')) in allowed_ids]
+                    active_nations = self.get_active_nations(nations)
+                    parties = self.create_balanced_parties(active_nations)
+            else:
+                # Default to combined Cybertron + Prime Bank parties
+                cybertron_nations = await self.get_alliance_nations(str(self.cybertron_alliance_id)) or []
+                prime_bank_nations = await self.get_alliance_nations(prime_id) if prime_id else []
+                nations = [n for n in (cybertron_nations + (prime_bank_nations or [])) if str(n.get('alliance_id')) in allowed_ids]
+                if not nations:
+                    await initial_msg.edit(content="❌ No nation data available for party sorting.")
+                    return
+                active_nations = self.get_active_nations(nations)
+                parties = self.create_balanced_parties(active_nations)
+            processed_parties, _ = self.process_parties_for_display(parties)
+            if not processed_parties:
+                await initial_msg.edit(content="❌ Unable to create parties from current data.")
+                return
+            view = PartyView(parties=processed_parties, blitz_cog=self)
+            embed = view.create_embed()
+            await initial_msg.edit(content=None, embed=embed, view=view)
+        except Exception as e:
+            self._log_error("Error in blitz command", e)
+            await ctx.send(f"❌ An error occurred: {str(e)}")
+
+async def setup(bot: commands.Bot):
+    """Register the BlitzParties cog with the bot."""
+    await bot.add_cog(BlitzParties(bot))

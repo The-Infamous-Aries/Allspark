@@ -1,53 +1,14 @@
 import discord
 from discord.ext import commands
-import requests
-import json
+from discord import app_commands
 import os
 import re
-from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
-import asyncio
 from datetime import datetime
 import sys
 import logging
 import traceback
 
-# Try to import pnwkit, handle gracefully if not available
-try:
-    import pnwkit
-    PNWKIT_AVAILABLE = True
-    PNWKIT_ERROR = None
-    PNWKIT_SOURCE = "system"
-except ImportError as e:
-    # Try to use local pnwkit if system version is not available
-    try:
-        import sys
-        import os
-        local_packages_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'local_packages')
-        if local_packages_dir not in sys.path:
-            sys.path.insert(0, local_packages_dir)
-        
-        import pnwkit
-        PNWKIT_AVAILABLE = True
-        PNWKIT_ERROR = None
-        PNWKIT_SOURCE = "local"
-    except ImportError as local_e:
-        pnwkit = None
-        PNWKIT_AVAILABLE = False
-        PNWKIT_ERROR = f"System: {str(e)}, Local: {str(local_e)}"
-        PNWKIT_SOURCE = "none"
-    except Exception as local_e:
-        pnwkit = None
-        PNWKIT_AVAILABLE = False
-        PNWKIT_ERROR = f"System: {str(e)}, Local unexpected error: {str(local_e)}"
-        PNWKIT_SOURCE = "none"
-except Exception as e:
-    pnwkit = None
-    PNWKIT_AVAILABLE = False
-    PNWKIT_ERROR = f"Unexpected error: {str(e)}"
-    PNWKIT_SOURCE = "none"
-
-# Import config for API keys and settings
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 try:
     from .query import create_query_instance
@@ -59,15 +20,6 @@ except ImportError:
         from Systems.PnW.MA.query import create_query_instance
 from config import PANDW_API_KEY, CYBERTRON_ALLIANCE_ID
 from Systems.user_data_manager import UserDataManager
-import time
-
-try:
-    from .sorter import BlitzPartySorter
-except ImportError:
-    try:
-        from sorter import BlitzPartySorter
-    except ImportError:
-        from Systems.PnW.MA.sorter import BlitzPartySorter
 
 try:
     from .calc import AllianceCalculator
@@ -76,6 +28,25 @@ except ImportError:
         from calc import AllianceCalculator
     except ImportError:
         from Systems.PnW.MA.calc import AllianceCalculator
+
+try:
+    from .bloc import AERO_ALLIANCES
+except ImportError:
+    try:
+        from bloc import AERO_ALLIANCES
+    except ImportError:
+        from Systems.PnW.MA.bloc import AERO_ALLIANCES
+
+# Import AllianceManager to refresh bloc data prior to fetching attackers
+try:
+    from .bloc import AllianceManager
+except ImportError:
+    try:
+        from bloc import AllianceManager
+    except ImportError:
+        from Systems.PnW.MA.bloc import AllianceManager
+
+# Role checks removed: allow all users to run commands without gating
 
 class DestroyCog(commands.Cog):
     """Cog for managing war destruction commands."""
@@ -94,18 +65,8 @@ class DestroyCog(commands.Cog):
                 self.logger.addHandler(handler)
                 self.logger.setLevel(logging.INFO)
             self.error_count = 0
-            self.max_errors = 100 
-            self.pnwkit_available = False
-            try:
-                if pnwkit:
-                    self.query_kit = pnwkit.QueryKit(self.api_key)
-                    self.pnwkit_available = True
-                    self.logger.info("pnwkit initialized successfully")
-                else:
-                    self.logger.warning("pnwkit not available - using fallback methods")
-            except Exception as e:
-                self.logger.error(f"Error initializing pnwkit: {e}")
-                self.pnwkit_available = False
+            self.max_errors = 100
+            # pnwkit disabled; rely solely on centralized query instance
             try:
                 self.query_instance = create_query_instance()
                 self.logger.info("Centralized query instance initialized successfully")
@@ -114,12 +75,7 @@ class DestroyCog(commands.Cog):
             except Exception as e:
                 self.logger.error(f"Failed to initialize query instance: {e}")
                 self.query_instance = None
-            try:
-                self.party_sorter = BlitzPartySorter(logger=self.logger)
-                self.logger.info("BlitzPartySorter initialized successfully")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize BlitzPartySorter: {e}")
-                self.party_sorter = None
+
             try:
                 self.calculator = AllianceCalculator()
                 self.logger.info("AllianceCalculator initialized successfully")
@@ -135,9 +91,7 @@ class DestroyCog(commands.Cog):
             self.cybertron_alliance_id = CYBERTRON_ALLIANCE_ID
             self.error_count = 0
             self.max_errors = 100
-            self.pnwkit_available = False
             self.query_instance = None
-            self.party_sorter = None
             self.calculator = None 
                 
     async def get_alliance_nations(self, alliance_id: str, force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -155,11 +109,18 @@ class DestroyCog(commands.Cog):
             alliance_key = f"alliance_{alliance_id}"
             
             # Try to get from individual alliance file first
-            nations_data = await self.user_data_manager.get_json_data(alliance_key, [])
+            alliance_data = await self.user_data_manager.get_json_data(alliance_key, {})
             
-            if nations_data and not force_refresh:
-                self.logger.info(f"get_alliance_nations: Retrieved {len(nations_data)} nations from file for alliance {alliance_id}")
-                return nations_data
+            # Support new dict format and legacy list format
+            cached_nations: List[Dict[str, Any]] = []
+            if isinstance(alliance_data, dict):
+                cached_nations = alliance_data.get('nations', []) or []
+            elif isinstance(alliance_data, list):
+                cached_nations = alliance_data
+            
+            if cached_nations and not force_refresh:
+                self.logger.info(f"get_alliance_nations: Retrieved {len(cached_nations)} nations from file for alliance {alliance_id}")
+                return cached_nations
             
             # If we get here, file is missing or we need to refresh
             self.logger.info(f"get_alliance_nations: File missing or refresh needed for alliance {alliance_id}, fetching from API")
@@ -171,7 +132,13 @@ class DestroyCog(commands.Cog):
                 # Store in individual alliance file for future use
                 if nations:
                     try:
-                        await self.user_data_manager.save_json_data(alliance_key, nations)
+                        save_payload = {
+                            'nations': nations,
+                            'alliance_id': str(alliance_id),
+                            'last_updated': datetime.now().isoformat(),
+                            'total_nations': len(nations)
+                        }
+                        await self.user_data_manager.save_json_data(alliance_key, save_payload)
                         self.logger.info(f"get_alliance_nations: Stored {len(nations)} nations in file for alliance {alliance_id}")
                     except Exception as file_error:
                         self.logger.error(f"Error storing alliance data in file: {file_error}")
@@ -324,7 +291,7 @@ class DestroyCog(commands.Cog):
 
     async def fetch_target_nation(self, target_data: str, input_type: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch comprehensive target nation data from P&W API with military analysis.
+        Fetch comprehensive target nation data from P&W API with military analysis and enhanced query utilization.
         
         Args:
             target_data: The target identifier
@@ -376,7 +343,44 @@ class DestroyCog(commands.Cog):
                     self.logger.info(f"No nation found for {input_type}: {target_data}")
                     return None
                 
-                # Add comprehensive military analysis similar to blitz.py
+                # Enhanced data utilization - extract and process war history data
+                try:
+                    # Process war data for strategic insights
+                    offensive_wars = target_nation.get('offensive_wars', [])
+                    defensive_wars = target_nation.get('defensive_wars', [])
+                    
+                    # Calculate war activity metrics
+                    total_wars = len(offensive_wars) + len(defensive_wars)
+                    recent_wars = [war for war in (offensive_wars + defensive_wars) 
+                                  if war.get('date', '') and self._is_recent_war(war.get('date', ''))]
+                    
+                    target_nation['war_activity'] = {
+                        'total_wars': total_wars,
+                        'recent_wars': len(recent_wars),
+                        'offensive_wars': len(offensive_wars),
+                        'defensive_wars': len(defensive_wars),
+                        'war_activity_score': min(10, len(recent_wars))  # 0-10 scale
+                    }
+                    
+                    # Extract casualty data for military assessment
+                    casualty_data = {
+                        'soldier_casualties': target_nation.get('soldier_casualties', 0) or 0,
+                        'tank_casualties': target_nation.get('tank_casualties', 0) or 0,
+                        'aircraft_casualties': target_nation.get('aircraft_casualties', 0) or 0,
+                        'ship_casualties': target_nation.get('ship_casualties', 0) or 0,
+                        'total_casualties': (target_nation.get('soldier_casualties', 0) or 0) +
+                                           (target_nation.get('tank_casualties', 0) or 0) +
+                                           (target_nation.get('aircraft_casualties', 0) or 0) +
+                                           (target_nation.get('ship_casualties', 0) or 0)
+                    }
+                    target_nation['casualty_analysis'] = casualty_data
+                    
+                except Exception as e:
+                    self._log_error("Error processing war history data", e, "fetch_target_nation")
+                    target_nation['war_activity'] = {'total_wars': 0, 'recent_wars': 0, 'war_activity_score': 0}
+                    target_nation['casualty_analysis'] = {}
+                
+                # Add comprehensive military analysis
                 try:
                     target_nation['military_analysis'] = self.calculate_target_military_analysis(target_nation)
                     self.logger.info(f"Successfully fetched and analyzed nation: {target_nation.get('nation_name', 'Unknown')}")
@@ -409,7 +413,7 @@ class DestroyCog(commands.Cog):
 
     def calculate_target_military_analysis(self, nation: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Calculate comprehensive military analysis for a target nation using the same logic as blitz.py.
+        Calculate comprehensive military analysis for a target nation using calc.py logic.
         
         Args:
             nation: Nation data dictionary
@@ -418,143 +422,34 @@ class DestroyCog(commands.Cog):
             Military analysis dictionary matching blitz.py structure
         """
         try:
-            # Validate input
-            if not self._validate_input(nation, dict, "nation"):
-                self._log_error("Invalid nation data for military analysis", context="calculate_target_military_analysis")
+            # Use AllianceCalculator from calc.py to calculate military analysis
+            if not self.calculator:
+                self._log_error("AllianceCalculator not available for military analysis calculation", context="calculate_target_military_analysis")
                 return self._get_default_target_military_analysis()
             
-            # Get basic military data with safe extraction
-            try:
-                current_military = {
-                    'soldiers': max(0, int(self._safe_get(nation, 'soldiers', 0, (int, float)) or 0)),
-                    'tanks': max(0, int(self._safe_get(nation, 'tanks', 0, (int, float)) or 0)),
-                    'aircraft': max(0, int(self._safe_get(nation, 'aircraft', 0, (int, float)) or 0)),
-                    'ships': max(0, int(self._safe_get(nation, 'ships', 0, (int, float)) or 0))
-                }
-            except (ValueError, TypeError) as e:
-                self._log_error("Error extracting military unit data", e, "calculate_target_military_analysis")
-                current_military = {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
+            # Get military analysis from calc.py
+            military_analysis = self.calculator.calculate_military_analysis(nation)
             
-            # Calculate purchase limits
-            purchase_limits = {}
-            try:
-                purchase_limits = self.calculate_target_purchase_limits(nation)
-            except Exception as e:
-                self._log_error("Error calculating purchase limits", e, "calculate_target_military_analysis")
-                purchase_limits = {
-                    'soldiers': 0,
-                    'tanks': 0,
-                    'aircraft': 0,
-                    'ships': 0
-                }
-            
-            # Calculate theoretical maximum capacities (same logic as blitz.py)
-            try:
-                num_cities = max(0, int(self._safe_get(nation, 'num_cities', 0, (int, float)) or 0))
-                theoretical_max_soldiers = num_cities * 5 * 3000  # 5 Barracks per city, 3000 soldiers per Barracks
-                theoretical_max_tanks = num_cities * 5 * 250     # 5 Factories per city, 250 tanks per Factory
-                theoretical_max_aircraft = num_cities * 5 * 15   # 5 Hangars per city, 15 aircraft per Hangar
-                theoretical_max_ships = num_cities * 3 * 5       # 3 Harbors per city, 5 ships per Harbor
-            except (ValueError, TypeError, OverflowError) as e:
-                self._log_error("Error calculating theoretical maximum capacities", e, "calculate_target_military_analysis")
-                num_cities = 0
-                theoretical_max_soldiers = theoretical_max_tanks = theoretical_max_aircraft = theoretical_max_ships = 0
-            
-            # Calculate unit percentages
-            soldier_percentage = (current_military['soldiers'] / theoretical_max_soldiers * 100) if theoretical_max_soldiers > 0 else 0
-            tank_percentage = (current_military['tanks'] / theoretical_max_tanks * 100) if theoretical_max_tanks > 0 else 0
-            aircraft_percentage = (current_military['aircraft'] / theoretical_max_aircraft * 100) if theoretical_max_aircraft > 0 else 0
-            ship_percentage = (current_military['ships'] / theoretical_max_ships * 100) if theoretical_max_ships > 0 else 0
-            
-            # Calculate ground score (tanks weighted twice as much as soldiers)
-            current_ground_score = current_military['soldiers'] + (current_military['tanks'] * 2)
-            theoretical_max_ground_score = theoretical_max_soldiers + (theoretical_max_tanks * 2)
-            ground_percentage = (current_ground_score / theoretical_max_ground_score * 100) if theoretical_max_ground_score > 0 else 0
-            
-            # Determine if "heavy" in each unit type (75% threshold)
-            is_heavy_ground = ground_percentage > 75
-            is_heavy_air = aircraft_percentage > 75
-            is_heavy_naval = ship_percentage > 75
-            
-            # Check for high purchase capacity (minimum thresholds for advantages)
-            high_ground_purchase = (purchase_limits.get('soldiers_max', 0) >= 100000 or purchase_limits.get('tanks_max', 0) >= 4000)
-            high_air_purchase = purchase_limits.get('aircraft_max', 0) >= 250
-            high_naval_purchase = purchase_limits.get('ships_max', 0) >= 40
-            
-            # Determine advantages
-            advantages = []
-            has_ground_advantage = is_heavy_ground and high_ground_purchase
-            has_air_advantage = is_heavy_air and high_air_purchase
-            has_naval_advantage = is_heavy_naval and high_naval_purchase
-            
-            if has_ground_advantage:
-                advantages.append("Ground Advantage")
-            if has_air_advantage:
-                advantages.append("Air Advantage")
-            if has_naval_advantage:
-                advantages.append("Naval Advantage")
-            
-            # Strategic capabilities
-            can_missile = self.has_project(nation, 'Missile Launch Pad')
-            can_nuke = self.has_project(nation, 'Nuclear Research Facility')
-            
-            if can_missile:
-                advantages.append("Missile Capable")
-            if can_nuke:
-                advantages.append("Nuclear Capable")
-            
-            # Calculate attack range
-            attack_range = {}
-            try:
-                attack_range = self.calculate_target_attack_range(nation)
-            except Exception as e:
-                self._log_error("Error calculating attack range", e, "calculate_target_military_analysis")
-                attack_range = {}
+            # Transform the data to match the expected format for destroy.py
+            # The calc.py function returns a more comprehensive structure, so we need to extract the relevant parts
             
             return {
-                'advantages': advantages,
-                'purchase_limits': purchase_limits,
-                'current_military': current_military,
-                'can_missile': can_missile,
-                'can_nuke': can_nuke,
-                'has_ground_advantage': has_ground_advantage,
-                'has_air_advantage': has_air_advantage,
-                'has_naval_advantage': has_naval_advantage,
-                'attack_range': attack_range,
-                'military_composition': {
-                    'current_soldiers': current_military['soldiers'],
-                    'current_tanks': current_military['tanks'],
-                    'current_aircraft': current_military['aircraft'],
-                    'current_ships': current_military['ships'],
-                    'theoretical_max_soldiers': theoretical_max_soldiers,
-                    'theoretical_max_tanks': theoretical_max_tanks,
-                    'theoretical_max_aircraft': theoretical_max_aircraft,
-                    'theoretical_max_ships': theoretical_max_ships,
-                    'soldier_percentage': soldier_percentage,
-                    'tank_percentage': tank_percentage,
-                    'aircraft_percentage': aircraft_percentage,
-                    'ship_percentage': ship_percentage,
-                    'ground_percentage': ground_percentage,
-                    'current_ground_score': current_ground_score,
-                    'theoretical_max_ground_score': theoretical_max_ground_score,
-                    'is_heavy_ground': is_heavy_ground,
-                    'is_heavy_air': is_heavy_air,
-                    'is_heavy_naval': is_heavy_naval
-                },
-                'strategic_capabilities': {
-                    'missiles': nation.get('missiles', 0) > 0,
-                    'nukes': nation.get('nukes', 0) > 0,
-                    'projects': {
-                        'missile_launch_pad': can_missile,
-                        'nuclear_research_facility': can_nuke,
-                        'iron_dome': self.has_project(nation, 'Iron Dome'),
-                        'vital_defense_system': self.has_project(nation, 'Vital Defense System'),
-                        'propaganda_bureau': self.has_project(nation, 'Propaganda Bureau'),
-                        'military_research_center': self.has_project(nation, 'Military Research Center'),
-                        'space_program': self.has_project(nation, 'Space Program')
-                    }
-                },
-                'military_research': nation.get('military_research', {})
+                'advantages': military_analysis.get('advantages', []),
+                'purchase_limits': military_analysis.get('purchase_limits', {}),
+                'current_military': military_analysis.get('current_military', {}),
+                'can_missile': military_analysis.get('can_missile', False),
+                'can_nuke': military_analysis.get('can_nuke', False),
+                'has_ground_advantage': military_analysis.get('has_ground_advantage', False),
+                'has_air_advantage': military_analysis.get('has_air_advantage', False),
+                'has_naval_advantage': military_analysis.get('has_naval_advantage', False),
+                'attack_range': military_analysis.get('attack_range', {}),
+                'military_composition': military_analysis.get('military_composition', {}),
+                'strategic_capabilities': military_analysis.get('strategic_capabilities', {
+                    'missiles': False,
+                    'nukes': False,
+                    'projects': {}
+                }),
+                'military_research': military_analysis.get('military_research', {})
             }
             
         except Exception as e:
@@ -582,120 +477,64 @@ class DestroyCog(commands.Cog):
             'military_research': {}
         }
     
-    def calculate_target_purchase_limits(self, nation: Dict[str, Any]) -> Dict[str, int]:
+    def _extract_nation_id_from_link(self, link_or_id: str) -> Optional[str]:
         """
-        Calculate purchase limits for target nation based on cities and infrastructure.
+        Extract nation ID from a Politics and War nation link.
         
         Args:
-            nation: Nation data dictionary
+            link_or_id: String that might be a nation link or just an ID
             
         Returns:
-            Dictionary with purchase limits for each unit type
+            Nation ID if found in link, None if not a link or invalid
         """
         try:
-            # Validate input
-            if not self._validate_input(nation, dict, "nation"):
-                self._log_error("Invalid nation data for purchase limits calculation", context="calculate_target_purchase_limits")
-                return {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
+            link_or_id = link_or_id.strip()
             
-            # Extract num_cities safely
-            try:
-                num_cities = max(0, int(self._safe_get(nation, 'num_cities', 0, (int, float)) or 0))
-            except (ValueError, TypeError) as e:
-                self._log_error("Error extracting num_cities", e, "calculate_target_purchase_limits")
-                num_cities = 0
+            # If it's just digits, assume it's already an ID
+            if link_or_id.isdigit():
+                return link_or_id
             
-            avg_infrastructure = 0
+            # Check if it's a nation link and extract ID
+            link_patterns = [
+                r'https?://politicsandwar\.com/nation/id=(\d+)',
+                r'https?://www\.politicsandwar\.com/nation/id=(\d+)',
+                r'politicsandwar\.com/nation/id=(\d+)',
+                r'www\.politicsandwar\.com/nation/id=(\d+)'
+            ]
             
-            # Calculate average infrastructure across all cities
-            cities = self._safe_get(nation, 'cities', [], list)
-            if cities and isinstance(cities, list):
+            for pattern in link_patterns:
                 try:
-                    total_infra = 0
-                    valid_cities = 0
-                    for city in cities:
-                        if isinstance(city, dict):
-                            infra = self._safe_get(city, 'infrastructure', 0, (int, float))
-                            if infra is not None:
-                                total_infra += float(infra)
-                                valid_cities += 1
-                    
-                    if valid_cities > 0:
-                        avg_infrastructure = total_infra / valid_cities
+                    match = re.search(pattern, link_or_id)
+                    if match:
+                        return match.group(1)
                 except Exception as e:
-                    self._log_error("Error calculating average infrastructure", e, "calculate_target_purchase_limits")
-                    avg_infrastructure = 0
+                    self.logger.warning(f"Error processing link pattern {pattern}: {str(e)}")
+                    continue
             
-            # Calculate purchase limits (similar to blitz.py logic)
-            limits = {
-                'soldiers': min(15, num_cities * 3),
-                'tanks': min(15, num_cities * 2),
-                'aircraft': min(15, num_cities),
-                'ships': min(15, num_cities // 2)
-            }
-            
-            # Infrastructure-based bonuses
-            try:
-                if avg_infrastructure >= 1000:
-                    limits['soldiers'] = min(25, limits['soldiers'] + 5)
-                    limits['tanks'] = min(20, limits['tanks'] + 3)
-                if avg_infrastructure >= 2000:
-                    limits['aircraft'] = min(20, limits['aircraft'] + 3)
-                if avg_infrastructure >= 3000:
-                    limits['ships'] = min(20, limits['ships'] + 3)
-            except Exception as e:
-                self._log_error("Error applying infrastructure bonuses", e, "calculate_target_purchase_limits")
-            
-            self.logger.debug(f"Purchase limits calculated: {limits} (cities: {num_cities}, avg_infra: {avg_infrastructure:.1f})")
-            return limits
+            # If no patterns matched, return None
+            return None
             
         except Exception as e:
-            self._log_error("Unexpected error calculating target purchase limits", e, "calculate_target_purchase_limits")
-            return {
-                'soldiers': 0,
-                'tanks': 0,
-                'aircraft': 0,
-                'ships': 0
-            }
-    
-    def calculate_target_attack_range(self, nation: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Calculate attack range for target nation.
-        
-        Args:
-            nation: Nation data dictionary
-            
-        Returns:
-            Dictionary with min and max attack range
-        """
+            self._log_error(f"Error extracting nation ID from link: {str(e)}", e, "_extract_nation_id_from_link")
+            return None
+
+    def _is_recent_war(self, war_date: str) -> bool:
+        """Check if a war date is within the last 30 days."""
         try:
-            nation_score = nation.get('score', 0)
+            from datetime import datetime, timedelta
             
-            if nation_score <= 0:
-                self.logger.warning(f"Invalid nation score: {nation_score}")
-                return {
-                    'min_range': 0.0,
-                    'max_range': 0.0,
-                    'current_score': 0.0
-                }
+            # Parse the war date (assuming ISO format or similar)
+            war_datetime = datetime.fromisoformat(war_date.replace('Z', '+00:00'))
+            current_time = datetime.now(war_datetime.timezone if hasattr(war_datetime, 'timezone') else None)
             
-            # Calculate attack range based on nation score
-            min_range = nation_score * 0.75
-            max_range = nation_score * 1.25
-            
-            return {
-                'min_range': min_range,
-                'max_range': max_range,
-                'current_score': nation_score
-            }
+            # Check if war is within last 30 days
+            thirty_days_ago = current_time - timedelta(days=30)
+            return war_datetime >= thirty_days_ago
             
         except Exception as e:
-            self._log_error(f"Error calculating target attack range: {str(e)}", e, "calculate_target_attack_range")
-            return {
-                'min_range': 0.0,
-                'max_range': 0.0,
-                'current_score': 0.0
-            }
+            self.logger.warning(f"Error parsing war date '{war_date}': {e}")
+            # If we can't parse the date, assume it's not recent to avoid false positives
+            return False
 
     def calculate_combat_score(self, nation: Dict[str, Any]) -> float:
         """
@@ -779,170 +618,145 @@ class DestroyCog(commands.Cog):
             return False
 
 
+    def _seconds_since_last_active(self, nation: Dict[str, Any]) -> Optional[int]:
+        try:
+            last_active = nation.get('last_active')
+            if not last_active:
+                return None
+            from datetime import datetime
+            dt = None
+            if isinstance(last_active, (int, float)):
+                dt = datetime.fromtimestamp(last_active)
+            elif isinstance(last_active, str):
+                s = last_active.strip()
+                if s.isdigit():
+                    dt = datetime.fromtimestamp(int(s))
+                else:
+                    try:
+                        dt = datetime.fromtimestamp(float(s))
+                    except Exception:
+                        try:
+                            dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+                        except Exception:
+                            return None
+            if not dt:
+                return None
+            now = datetime.utcnow() if dt.tzinfo is None else datetime.now(dt.tzinfo)
+            delta = now - dt
+            secs = int(delta.total_seconds())
+            if secs < 0:
+                return 0
+            return secs
+        except Exception:
+            return None
 
-    # Helper methods for calc.py functions
-    def get_active_nations(self, nations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Get active nations from a list of nations."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.get_active_nations(nations)
-        except Exception as e:
-            self._log_error(f"Error getting active nations: {str(e)}", e, "get_active_nations")
-            return []
-    
-    def _calculate_strategic_value(self, nation: Dict[str, Any]) -> float:
-        """Calculate strategic value for a nation."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator._calculate_strategic_value(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating strategic value: {str(e)}", e, "_calculate_strategic_value")
-            return 0.0
-    
-    def calculate_infrastructure_stats(self, nation: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate infrastructure stats for a nation."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_infrastructure_stats(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating infrastructure stats: {str(e)}", e, "calculate_infrastructure_stats")
-            return {}
-    
-    def calculate_military_advantage(self, nation: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate military advantage for a nation."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_military_advantage(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating military advantage: {str(e)}", e, "calculate_military_advantage")
-            return {}
-    
+    def _warchest_level(self, nation: Dict[str, Any]) -> int:
+        gasoline = nation.get('gasoline', 0) or 0
+        munitions = nation.get('munitions', 0) or 0
+        min_resource = min(gasoline, munitions)
+        if min_resource >= 10000:
+            return 5
+        elif min_resource >= 5000:
+            return 4
+        elif min_resource >= 3750:
+            return 3
+        elif min_resource >= 2500:
+            return 2
+        elif min_resource >= 1250:
+            return 1
+        else:
+            return 0
+ 
     def validate_attack_range(self, attacker_score: float, defender_score: float) -> bool:
-        """Validate if attacker can attack defender based on score range."""
+        """Validate if attacker can attack defender based on score range (-25% to +150%)."""
         try:
-            # War range validation: attacker can hit targets from 75% to 250% of their score
+            # Correct war range: attacker can hit targets from 75% to 250% of their score
+            # (-25% to +150% relative to attacker)
             if attacker_score <= 0:
                 return False
-            
-            min_range = attacker_score * 0.75  # 75% of attacker's score
-            max_range = attacker_score * 2.5   # 250% of attacker's score
-            
+
+            min_range = attacker_score * 0.75  # -25%
+            max_range = attacker_score * 2.5   # +150%
+
             return min_range <= defender_score <= max_range
-            
+
         except Exception as e:
             self._log_error(f"Error validating attack range: {str(e)}", e, "validate_attack_range")
             return False
     
-    def calculate_group_war_range(self, group_members: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate war range for a group."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_group_war_range(group_members)
-        except Exception as e:
-            self._log_error(f"Error calculating group war range: {str(e)}", e, "calculate_group_war_range")
-            return {}
-    
-    def calculate_nation_statistics(self, nation: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate nation statistics."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_nation_statistics(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating nation statistics: {str(e)}", e, "calculate_nation_statistics")
-            return {}
-    
-    def calculate_alliance_statistics(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate alliance statistics."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_alliance_statistics(nations)
-        except Exception as e:
-            self._log_error(f"Error calculating alliance statistics: {str(e)}", e, "calculate_alliance_statistics")
-            return {}
-    
-    def calculate_full_mill_data(self, nation: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate full mill data for a nation."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_full_mill_data(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating full mill data: {str(e)}", e, "calculate_full_mill_data")
-            return {}
-    
-    def calculate_improvements_data(self, nation: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate improvements data for a nation."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.calculate_improvements_data(nation)
-        except Exception as e:
-            self._log_error(f"Error calculating improvements data: {str(e)}", e, "calculate_improvements_data")
-            return {}
-    
-    def get_nation_specialty(self, nation: Dict[str, Any]) -> str:
-        """Get nation specialty."""
-        try:
-            # Use the calculator instead of party_sorter
-            return self.calculator.get_nation_specialty(nation)
-        except Exception as e:
-            self._log_error(f"Error getting nation specialty: {str(e)}", e, "get_nation_specialty")
-            return "Unknown"
-    
     def calculate_military_purchase_limits(self, nation: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate military purchase limits for a nation."""
         try:
-            # Use the standalone function from calc.py
-            from .calc import calculate_military_purchase_limits
-            return calculate_military_purchase_limits(nation)
+            # Use the AllianceCalculator from calc.py
+            if not self.calculator:
+                self._log_error("AllianceCalculator not available for military purchase limits calculation", context="calculate_military_purchase_limits")
+                return {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
+            
+            return self.calculator.calculate_military_purchase_limits(nation)
         except Exception as e:
             self._log_error(f"Error calculating military purchase limits: {str(e)}", e, "calculate_military_purchase_limits")
             return {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
 
-    async def find_optimal_attackers(self, target_nation: Dict[str, Any] = None, max_groups: int = 10) -> Dict[str, Any]:
+    async def find_optimal_attackers(
+        self,
+        target_nation: Dict[str, Any] = None,
+        max_groups: int = 10,
+        alliance_filter: str = 'cybertron',
+        exclude_inactive_7d_plus: bool = False,
+        exclude_weak: bool = False,
+        exclude_high_infra: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Find optimal groups of three alliance members for war targeting using efficient sorting approach.
+        Find optimal alliance members for war targeting and also return all in-range attackers sorted by total units.
         
         Args:
             target_nation: Target nation data to check war range against
             max_groups: Maximum number of optimal groups to return
             
         Returns:
-            Dictionary containing a list of optimal attacker groups and their analyses
+            Dictionary containing optimal attacker groups, and a sorted list of all attackers in range
         """
         try:
-            # Load alliance data from individual alliance files
-            bloc_dir = Path(__file__).parent.parent.parent / 'Data' / 'Bloc'
             eligible_members = []
             
             # Get target score for war range validation (define early to avoid scope issues)
             target_score = target_nation.get('score', 0) if target_nation else 0
             
-            if not bloc_dir.exists():
-                return {'error': 'Bloc directory not found'}
+            # Determine which alliances to fetch based on filter
+            alliances_to_fetch = []
+            if alliance_filter == 'cybertron':
+                alliances_to_fetch = [('cybertron', AERO_ALLIANCES['cybertron'])]
+                self.logger.info(f"Using Cybertr0n-only filter for finding attackers")
+            else:
+                alliances_to_fetch = AERO_ALLIANCES.items()
+                self.logger.info(f"Using all AERO alliances filter for finding attackers")
             
-            # Load data from all alliance files
-            for alliance_file in bloc_dir.glob('alliance_*.json'):
+            # Fetch data from selected alliances
+            for alliance_key, alliance_config in alliances_to_fetch:
                 try:
-                    alliance_data = await self.user_data_manager.get_json_data(alliance_file.stem, {})
-                    if isinstance(alliance_data, dict) and 'nations' in alliance_data:
-                        for nation in alliance_data['nations']:
-                            if (isinstance(nation, dict) and 
-                                nation.get('alliance_position') != 'APPLICANT' and 
-                                not nation.get('vacation_mode', False)):
-                                # If target provided, check war range
+                    alliance_id = str(alliance_config['id'])
+                    self.logger.info(f"Fetching nations for alliance: {alliance_config['name']} (ID: {alliance_id})")
+                    alliance_nations = await self.get_alliance_nations(alliance_id, force_refresh=(alliance_filter == 'cybertron'))
+                    
+                    if alliance_nations and isinstance(alliance_nations, list):
+                        start_len = len(eligible_members)
+                        for nation in alliance_nations:
+                            if isinstance(nation, dict):
                                 if target_nation:
                                     member_score = nation.get('score', 0)
                                     if self.validate_attack_range(member_score, target_score):
                                         eligible_members.append(nation)
                                 else:
                                     eligible_members.append(nation)
+                        added_count = len(eligible_members) - start_len
+                        self.logger.info(f"Added {added_count} eligible nations from {alliance_config['name']}")
+                    else:
+                        self.logger.warning(f"No nations found for alliance: {alliance_config['name']}")
                 except Exception as e:
-                    self.logger.warning(f"Error loading alliance data from {alliance_file.name}: {e}")
+                    self.logger.warning(f"Error fetching alliance data for {alliance_config['name']}: {e}")
                     continue
             
-            if len(eligible_members) < 3:
-                return {'error': f'Not enough eligible alliance members found (need 3, found {len(eligible_members)})'}
-            
-            # Filter members with military data and calculate infrastructure averages
+            # Filter members with military data, apply optional filters, and calculate infrastructure averages + total units
             members_with_military = []
             for member in eligible_members:
                 if (member.get('soldiers') is not None and 
@@ -951,77 +765,108 @@ class DestroyCog(commands.Cog):
                     member.get('ships') is not None and
                     member.get('score') is not None):
                     
+                    # Optional: Filter out nations inactive for 7+ days
+                    secs = self._seconds_since_last_active(member)
+                    member['last_active_seconds'] = secs if secs is not None else None
+                    if exclude_inactive_7d_plus and secs is not None and secs >= 7 * 24 * 3600:
+                        continue
+                    
+                    # Optional: Exclude weak nations (no Soldiers, Tanks, Aircraft, Ships)
+                    soldiers = (member.get('soldiers', 0) or 0)
+                    tanks = (member.get('tanks', 0) or 0)
+                    aircraft = (member.get('aircraft', 0) or 0)
+                    ships = (member.get('ships', 0) or 0)
+                    if exclude_weak and soldiers == 0 and tanks == 0 and aircraft == 0 and ships == 0:
+                        continue
+                    
                     # Calculate infrastructure average
                     cities = member.get('cities', [])
                     if cities:
-                        total_infra = sum(city.get('infrastructure', 0) for city in cities)
+                        total_infra = sum((city.get('infrastructure', 0) or 0) for city in cities if isinstance(city, dict))
                         member['infra_average'] = total_infra / len(cities)
                     else:
-                        member['infra_average'] = member.get('infrastructure', 0)
+                        member['infra_average'] = member.get('infrastructure', 0) or 0
+                    
+                    # Optional: Exclude nations with high infrastructure (> 2000 average per city)
+                    if exclude_high_infra and member.get('infra_average', 0) > 2000:
+                        continue
+                    
+                    # Compute total military units for sorting
+                    member['total_units'] = (
+                        soldiers + tanks + aircraft + ships
+                    )
+                    
+                    # Compute warchest level for prioritization
+                    member['warchest_level'] = self._warchest_level(member)
                     
                     members_with_military.append(member)
             
-            if len(members_with_military) < 3:
-                return {'error': f'Not enough members with complete military data (need 3, found {len(members_with_military)})'}
+            # Build all attackers in range, prioritized by activity, warchest, then units
+            def _sort_key(x: Dict[str, Any]):
+                secs = x.get('last_active_seconds')
+                if secs is None:
+                    secs = float('inf')
+                wl = x.get('warchest_level', 0)
+                units = x.get('total_units', 0)
+                return (secs, -wl, -units)
+            all_attackers_sorted = sorted(members_with_military, key=_sort_key)
             
-            # Sort by infrastructure (lowest first) - prioritize lower infra nations
-            members_with_military.sort(key=lambda x: x.get('infra_average', 0))
-            
-            # Create optimal groups using efficient approach
+            # Create optimal groups using efficient approach when enough members exist
             optimal_groups = []
-            used_nations = set()
-            
-            # Process nations in order of lowest infrastructure
-            for i, nation in enumerate(members_with_military):
-                nation_id = nation.get('nation_id') or nation.get('id')
-                if nation_id in used_nations:
-                    continue
+            if len(members_with_military) >= 3:
+                used_nations = set()
                 
-                # Find 2 compatible nations for a party
-                party = [nation]
-                used_nations.add(nation_id)
+                # Sort by lowest infrastructure to try better coverage for groups
+                members_for_groups = sorted(members_with_military, key=lambda x: x.get('infra_average', 0))
                 
-                # Look for compatible nations (within war range and good unit coverage)
-                for potential_nation in members_with_military[i+1:]:
-                    potential_id = potential_nation.get('nation_id') or potential_nation.get('id')
-                    if potential_id in used_nations or len(party) >= 3:
+                for i, nation in enumerate(members_for_groups):
+                    nation_id = nation.get('nation_id') or nation.get('id')
+                    if nation_id in used_nations:
                         continue
                     
-                    # Check if this nation is compatible with all current party members
-                    is_compatible = True
-                    for party_member in party:
-                        if not self._check_war_range_compatibility(party_member, potential_nation):
-                            is_compatible = False
-                            break
+                    # Find 2 compatible nations for a party
+                    party = [nation]
+                    used_nations.add(nation_id)
                     
-                    if is_compatible and len(party) < 3:
-                        party.append(potential_nation)
-                        used_nations.add(potential_id)
+                    # Look for compatible nations (within war range and good unit coverage)
+                    for potential_nation in members_for_groups[i+1:]:
+                        potential_id = potential_nation.get('nation_id') or potential_nation.get('id')
+                        if potential_id in used_nations or len(party) >= 3:
+                            continue
+                        
+                        # Check if this nation is compatible with all current party members
+                        is_compatible = True
+                        for party_member in party:
+                            if not self._check_war_range_compatibility(party_member, potential_nation):
+                                is_compatible = False
+                                break
+                        
+                        if is_compatible and len(party) < 3:
+                            party.append(potential_nation)
+                            used_nations.add(potential_id)
+                    
+                    # Only keep parties of exactly 3
+                    if len(party) == 3:
+                        # Analyze the party
+                        group_analysis = self._analyze_party(party, target_nation)
+                        if group_analysis.get('is_valid'):
+                            optimal_groups.append({
+                                'attackers': party,
+                                'score': group_analysis['score'],
+                                'analysis': group_analysis
+                            })
+                    
+                    # Stop if we have enough groups
+                    if len(optimal_groups) >= max_groups:
+                        break
                 
-                # Only keep parties of exactly 3
-                if len(party) == 3:
-                    # Analyze the party
-                    group_analysis = self._analyze_party(party, target_nation)
-                    if group_analysis['is_valid']:
-                        optimal_groups.append({
-                            'attackers': party,
-                            'score': group_analysis['score'],
-                            'analysis': group_analysis
-                        })
-                
-                # Stop if we have enough groups
-                if len(optimal_groups) >= max_groups:
-                    break
-            
-            if not optimal_groups:
-                return {'error': 'No valid groups found with required unit coverage'}
-            
-            # Sort groups by score (highest first)
-            optimal_groups.sort(key=lambda x: x['score'], reverse=True)
+                # Sort groups by score (highest first)
+                optimal_groups.sort(key=lambda x: x['score'], reverse=True)
             
             return {
                 'optimal_groups': optimal_groups,
-                'total_found': len(optimal_groups)
+                'all_attackers': all_attackers_sorted,
+                'total_found': len(all_attackers_sorted)
             }
             
         except Exception as e:
@@ -1164,207 +1009,437 @@ class DestroyCog(commands.Cog):
             self._log_error("Error analyzing party", e)
             return {'is_valid': False, 'error': str(e)}
 
-    def create_optimal_attackers_view(self, ctx: commands.Context, target_nation: Dict[str, Any], optimal_attackers: Dict[str, Any]) -> 'OptimalAttackersView':
+    def create_optimal_attackers_view(self, interaction: discord.Interaction, target_nation: Dict[str, Any], optimal_attackers: Dict[str, Any]) -> 'OptimalAttackersView':
         """Create an OptimalAttackersView instance for displaying optimal attacker groups."""
         try:
-            return OptimalAttackersView(ctx, target_nation, optimal_attackers.get('optimal_groups', []), self)
+            attackers_list = optimal_attackers.get('all_attackers') or optimal_attackers.get('optimal_groups', [])
+            return OptimalAttackersView(interaction, target_nation, attackers_list, self)
         except Exception as e:
             self._log_error(f"Error creating optimal attackers view: {str(e)}", e, "create_optimal_attackers_view")
             return None
 
-    @commands.command(name='destroy', aliases=['target', 'findattackers'])
-    async def destroy(self, ctx: commands.Context, *, target: str = None):
+    async def destroy_target_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """
+        Autocomplete function for destroy command target input.
+        
+        Args:
+            interaction: Discord interaction
+            current: Current input string
+            
+        Returns:
+            List of autocomplete choices
+        """
+        try:
+            if not current or len(current.strip()) < 2:
+                return []
+            
+            # Get nations from all AERO alliances
+            all_nations = []
+            for alliance_key, alliance_config in AERO_ALLIANCES.items():
+                try:
+                    alliance_id = str(alliance_config['id'])
+                    alliance_nations = await self.get_alliance_nations(alliance_id, force_refresh=False)
+                    if alliance_nations and isinstance(alliance_nations, list):
+                        all_nations.extend(alliance_nations)
+                except Exception as e:
+                    self.logger.warning(f"Error fetching alliance data for autocomplete: {e}")
+                    continue
+            
+            # Filter nations by current input
+            current_lower = current.lower().strip()
+            matches = []
+            
+            for nation in all_nations:
+                if isinstance(nation, dict):
+                    nation_name = nation.get('nation_name', '') or ''
+                    leader_name = nation.get('leader_name', '') or ''
+                    nation_id = str(nation.get('nation_id', '')) or ''
+                    
+                    # Check if nation matches search criteria
+                    if (current_lower in nation_name.lower() or 
+                        current_lower in leader_name.lower() or 
+                        current_lower in nation_id):
+                        
+                        # Create display name with nation name and leader name
+                        display_name = f"{nation_name} ({leader_name})"
+                        if len(display_name) > 100:  # Discord choice limit
+                            display_name = display_name[:97] + "..."
+                        
+                        # Use nation ID as the value for uniqueness
+                        value = nation_id
+                        
+                        matches.append({
+                            'display': display_name,
+                            'value': value,
+                            'nation_name': nation_name,
+                            'leader_name': leader_name,
+                            'nation_id': nation_id
+                        })
+            
+            # Sort matches by relevance (prefer exact matches, then nation name matches)
+            def sort_key(match):
+                score = 0
+                nation_name_lower = match['nation_name'].lower()
+                leader_name_lower = match['leader_name'].lower()
+                
+                # Exact nation name match gets highest score
+                if nation_name_lower == current_lower:
+                    score += 1000
+                # Starts with current input
+                elif nation_name_lower.startswith(current_lower):
+                    score += 500
+                # Contains current input
+                elif current_lower in nation_name_lower:
+                    score += 200
+                
+                # Leader name matches
+                if leader_name_lower == current_lower:
+                    score += 300
+                elif leader_name_lower.startswith(current_lower):
+                    score += 150
+                elif current_lower in leader_name_lower:
+                    score += 50
+                
+                # Nation ID exact match
+                if match['nation_id'] == current_lower:
+                    score += 400
+                
+                return -score  # Negative for descending sort
+            
+            matches.sort(key=sort_key)
+            
+            # Limit to 25 choices (Discord limit)
+            matches = matches[:25]
+            
+            # Convert to Discord choices
+            choices = []
+            for match in matches:
+                choices.append(app_commands.Choice(
+                    name=match['display'],
+                    value=match['value']
+                ))
+            
+            return choices
+            
+        except Exception as e:
+            self._log_error(f"Error in destroy_target_autocomplete: {str(e)}", e, "destroy_target_autocomplete")
+            return []
+
+    @app_commands.command(name='destroy', description='Find optimal attackers for a target nation with comprehensive analysis')
+    @app_commands.describe(
+        info_type='Info Type: Choose Nation Name, Leader Name, or Nation Link/ID.',
+        target_info='Target Info: Enter the nation name, leader name, or nation link/ID.',
+        alliance_filter='Alliance Filter: Include Cybertr0n only or all AERO alliances',
+        exclude_inactive_7d_plus='Exclude nations inactive for 7+ days (True/False).',
+        exclude_weak='Exclude nations with zero Soldiers, Tanks, Planes, and Ships (True/False).',
+        exclude_high_infra='Exclude nations with over 2000 infrastructure (True/False).'
+    )
+    @app_commands.rename(
+        exclude_inactive_7d_plus='exclude_7d_plus',
+        exclude_weak='exclude_weak',
+        exclude_high_infra='exclude_high_infra'
+    )
+    @app_commands.choices(
+        info_type=[
+            app_commands.Choice(name='Nation Name', value='nation_name'),
+            app_commands.Choice(name='Leader Name', value='leader_name'),
+            app_commands.Choice(name='Nation Link/ID', value='nation_link_id')
+        ],
+        alliance_filter=[
+            app_commands.Choice(name='🤖 Cybertr0n', value='cybertron'),
+            app_commands.Choice(name='📇 All of AERO', value='aero')
+        ]
+    )
+    async def destroy(
+        self,
+        interaction: discord.Interaction,
+        info_type: str,
+        target_info: str,
+        alliance_filter: str,
+        exclude_inactive_7d_plus: bool = False,
+        exclude_weak: bool = False,
+        exclude_high_infra: bool = False,
+    ):
         """
         Find optimal attackers for a target nation with comprehensive analysis.
         
-        Usage:
-        !destroy <nation_name>
-        !destroy <leader_name>
-        !destroy <nation_id>
-        !destroy <nation_link>
-        
-        Examples:
-        !destroy Testlandia
-        !destroy https://politicsandwar.com/nation/id=12345
-        !destroy 12345
+        Args:
+            interaction: Discord interaction
+            nation_name: Target nation name
+            nation_leader: Target nation leader name  
+            nation_link_or_id: Target nation link or nation ID
+            alliance_filter: Filter attackers by alliance
         """
         try:
-            # Validate input
-            if not target or not target.strip():
-                embed = discord.Embed(
-                    title="❌ Missing Target",
-                    description="Please provide a target nation. Usage: `!destroy <target>`",
-                    color=discord.Color.red()
-                )
-                embed.add_field(
-                    name="Examples:",
-                    value=(
-                        "`!destroy Testlandia`\n"
-                        "`!destroy https://politicsandwar.com/nation/id=12345`\n"
-                        "`!destroy 12345`\n"
-                        "`!destroy <leader_name>`"
-                    ),
-                    inline=False
-                )
-                await ctx.send(embed=embed)
+            # Defer the interaction to prevent timeout
+            await interaction.response.defer()
+
+            # Validate mandatory arguments
+            if not target_info or not target_info.strip():
+                await interaction.followup.send("❌ **Missing Target Info**\nPlease provide a valid value for 'Target Info'.")
                 return
 
-            # Parse target input
-            target_data, input_type = await self.parse_target_input(target.strip())
-            
-            if input_type == 'nation_name' and target_data is None:
-                target_data = target.strip()
-            elif input_type == 'leader_name' and target_data is None:
-                target_data = target.strip()
-            
+            # Map Info Type to internal input_type and parse Target Info
+            target_data = None
+            input_type = None
+            display_name = None
+
+            info_type = (info_type or '').strip().lower()
+            raw = target_info.strip()
+
+            if info_type == 'nation_name':
+                target_data = raw
+                input_type = 'nation_name'
+                display_name = f"Nation: {target_data}"
+            elif info_type == 'leader_name':
+                target_data = raw
+                input_type = 'leader_name'
+                display_name = f"Leader: {target_data}"
+            elif info_type == 'nation_link_id':
+                nation_id = self._extract_nation_id_from_link(raw)
+                if nation_id:
+                    target_data = nation_id
+                    input_type = 'nation_id'
+                    display_name = f"Nation ID: {nation_id}"
+                elif raw.isdigit():
+                    target_data = raw
+                    input_type = 'nation_id'
+                    display_name = f"Nation ID: {target_data}"
+                else:
+                    await interaction.followup.send("❌ **Invalid Nation Link/ID**\nPlease provide a valid Politics & War nation link or a numeric nation ID.")
+                    return
+            else:
+                await interaction.followup.send("❌ **Invalid Info Type**\nPlease choose one of: Nation Name, Leader Name, or Nation Link/ID.")
+                return
+
             # Send initial loading message
-            loading_embed = discord.Embed(
-                title="🔍 Searching for Target...",
-                description=f"Looking up: **{target.strip()}**",
-                color=discord.Color.blue()
-            )
-            loading_message = await ctx.send(embed=loading_embed)
+            loading_message = await interaction.followup.send(f"🔍 **Searching for Target...**\nLooking up: **{display_name}**")
+            
+            # Pre-refresh alliance/bloc data based on filter and await completion
+            if alliance_filter == 'aero':
+                # Equivalent to running /bloc_refresh (refreshes AERO bloc data)
+                try:
+                    alliance_manager = AllianceManager(self.bot)
+                    await alliance_manager.refresh_bloc_data()
+                except Exception as e:
+                    self.logger.warning(f"Bloc refresh before target fetch failed: {e}")
+            elif alliance_filter == 'cybertron':
+                # Equivalent to running /refresh_alliance (refreshes Cybertr0n alliance data)
+                try:
+                    # Force refresh Cybertr0n data via centralized query instance; persists to alliance file
+                    if self.query_instance:
+                        await self.query_instance.get_alliance_nations(
+                            str(self.cybertron_alliance_id), bot=self.bot, force_refresh=True
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Alliance refresh before target fetch failed: {e}")
             
             # Fetch target nation data
             target_nation = await self.fetch_target_nation(target_data, input_type)
             
             if not target_nation:
-                error_embed = discord.Embed(
-                    title="❌ Target Not Found",
-                    description=f"Could not find nation: **{target.strip()}**",
-                    color=discord.Color.red()
-                )
-                error_embed.add_field(
-                    name="Try:",
-                    value=(
-                        "- Check the spelling\n"
-                        "- Use the nation ID instead\n"
-                        "- Try the leader name\n"
-                        "- Use a nation link"
-                    ),
-                    inline=False
-                )
-                await loading_message.edit(embed=error_embed)
+                message = f"❌ **Target Not Found**\nCould not find nation: **{display_name}**\n\n"
+                message += "**Try:**\n"
+                message += "- Check the spelling of the nation name\n"
+                message += "- Check the spelling of the leader name\n"
+                message += "- Verify the nation link or ID is correct\n"
+                message += "- Check if the nation exists"
+                await loading_message.edit(content=message)
                 return
+            
+            # Fetch Discord username for target nation
+            try:
+                await self.query_instance._fetch_discord_usernames([target_nation], self.bot)
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch Discord username for target: {e}")
             
             # Update loading message
-            loading_embed.title = "⚔️ Finding Optimal Attackers..."
-            loading_embed.description = (
-                f"Target: **{target_nation.get('nation_name', 'Unknown')}**\n"
-                "Searching for optimal attacker groups..."
-            )
-            await loading_message.edit(embed=loading_embed)
+            await loading_message.edit(content=f"⚔️ **Finding Optimal Attackers...**\nTarget: **{target_nation.get('nation_name', 'Unknown')}**\nSearching for optimal attacker groups...")
             
-            # Find optimal attackers
-            optimal_attackers = await self.find_optimal_attackers(target_nation, max_groups=10)
+            # Find optimal attackers with alliance filter and optional exclusions
+            optimal_attackers = await self.find_optimal_attackers(
+                target_nation,
+                max_groups=10,
+                alliance_filter=alliance_filter,
+                exclude_inactive_7d_plus=exclude_inactive_7d_plus,
+                exclude_weak=exclude_weak,
+                exclude_high_infra=exclude_high_infra,
+            )
             
             if 'error' in optimal_attackers:
-                error_embed = discord.Embed(
-                    title="❌ Error Finding Attackers",
-                    description=optimal_attackers['error'],
-                    color=discord.Color.red()
-                )
-                await loading_message.edit(embed=error_embed)
+                await loading_message.edit(content=f"❌ **Error Finding Attackers**\n{optimal_attackers['error']}")
                 return
             
-            if not optimal_attackers.get('optimal_groups'):
-                error_embed = discord.Embed(
-                    title="❌ No Attackers Found",
-                    description="Could not find any valid attacker groups for this target.",
-                    color=discord.Color.red()
-                )
-                error_embed.add_field(
-                    name="Possible Reasons:",
-                    value=(
-                        "- Target is too strong for available alliance members\n"
-                        "- Not enough active alliance members\n"
-                        "- Alliance members don't meet unit coverage requirements"
-                    ),
-                    inline=False
-                )
-                await loading_message.edit(embed=error_embed)
+            # Build attacker list (all in-range attackers sorted, or fallback to groups)
+            attackers_list = optimal_attackers.get('all_attackers') or []
+            if not attackers_list:
+                # Fallback to flatten groups if provided
+                for group in optimal_attackers.get('optimal_groups', []):
+                    if group and group.get('attackers'):
+                        attackers_list.extend(group['attackers'])
+            
+            # If no attackers at all, inform user and stop
+            if not attackers_list:
+                message = "❌ **No Attackers Found In Range**\nCould not find any alliance members within war range for this target.\n\n"
+                message += "**Possible Reasons:**\n"
+                message += "- No one in range!\n"
+                await loading_message.edit(content=message)
                 return
             
-            # Create the interactive view
-            view = self.create_optimal_attackers_view(ctx, target_nation, optimal_attackers)
+            # Fetch Discord usernames for attackers
+            try:
+                await self.query_instance._fetch_discord_usernames(attackers_list, self.bot)
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch Discord usernames for attackers: {e}")
+            
+            # Build attacker display without interactive buttons
+            view = self.create_optimal_attackers_view(interaction, target_nation, optimal_attackers)
             
             if not view:
-                error_embed = discord.Embed(
-                    title="❌ Error Creating View",
-                    description="Failed to create the interactive attacker display.",
-                    color=discord.Color.red()
-                )
-                await loading_message.edit(embed=error_embed)
+                await loading_message.edit(content="❌ **Error Creating View**\nFailed to build the attacker display.")
                 return
             
-            # Get the initial embed (target information)
-            initial_embed = view.create_target_embed()
+            # Build the target summary
+            target_message = view.create_target_message()
             
-            # Update the message with the interactive view
-            await loading_message.edit(embed=initial_embed, view=view)
+            # Delete the loading message
+            try:
+                await loading_message.delete()
+            except:
+                pass
+            
+            # Send the target message first (no buttons) and suppress link previews
+            try:
+                sent_target = await interaction.followup.send(target_message)
+                try:
+                    await sent_target.suppress_embeds()
+                except Exception:
+                    # If suppression isn't supported or fails, continue without blocking
+                    pass
+            except Exception:
+                await interaction.followup.send(target_message)
+            
+            # Send all attacker pages as plain messages (no buttons/pagination)
+            if view.attacker_pages:
+                for idx, page in enumerate(view.attacker_pages):
+                    attacker_message = view.create_attacker_page_message(page, idx)
+                    try:
+                        sent_attacker = await interaction.followup.send(attacker_message)
+                        try:
+                            await sent_attacker.suppress_embeds()
+                        except Exception:
+                            # If suppression isn't supported or fails, continue without blocking
+                            pass
+                    except Exception:
+                        await interaction.followup.send(attacker_message)
+            else:
+                # If no attacker pages, send a message indicating no attackers found
+                await interaction.followup.send("❌ **No Attackers Found**\nCould not find any optimal attackers for this target.")
             
             self.logger.info(
-                f"Destroy command completed successfully for target: {target_nation.get('nation_name', 'Unknown')} "
-                f"by user {ctx.author.name}#{ctx.author.discriminator}"
+                f"Destroy slash command completed successfully for target: {target_nation.get('nation_name', 'Unknown')} "
+                f"by user {interaction.user.name}#{interaction.user.discriminator}"
             )
             
         except Exception as e:
-            self._log_error(f"Error in destroy command: {str(e)}", e, "destroy")
-            error_embed = discord.Embed(
-                title="❌ Command Error",
-                description="An unexpected error occurred while processing the destroy command.",
-                color=discord.Color.red()
-            )
-            error_embed.add_field(name="Error", value=str(e), inline=False)
+            self._log_error(f"Error in destroy slash command: {str(e)}", e, "destroy")
+            error_message = "❌ **Command Error**\nAn unexpected error occurred while processing the destroy command.\n\n"
+            error_message += f"**Error:** {str(e)}"
             
             try:
-                if 'loading_message' in locals():
-                    await loading_message.edit(embed=error_embed)
-                else:
-                    await ctx.send(embed=error_embed)
+                await interaction.followup.send(error_message)
             except:
-                await ctx.send(embed=error_embed)
+                # If followup fails, try to send a new message
+                try:
+                    await interaction.channel.send(error_message)
+                except:
+                    pass
 
-class OptimalAttackersView(discord.ui.View):
-    """Interactive view for displaying optimal attacker groups with pagination."""
+class OptimalAttackersView:
+    """Formatter for displaying target and attacker information as plain text messages."""
     
-    def __init__(self, ctx: commands.Context, target_nation: Dict[str, Any], optimal_groups: List[Dict[str, Any]], cog: DestroyCog):
-        super().__init__(timeout=300)  # 5 minute timeout
+    def __init__(self, interaction: discord.Interaction, target_nation: Dict[str, Any], optimal_groups: List[Dict[str, Any]], cog: DestroyCog):
         try:
-            self.ctx = ctx
+            self.interaction = interaction
             self.target_nation = target_nation or {}
             self.cog = cog
             self.current_page = 0
-            self.back_button = None
-            self.main_button = None
-            self.next_button = None
             
-            # Flatten all attackers and split into groups of 3
+            # Build attacker list: either a flat list of attackers or flattened groups
             all_attackers = []
-            for group in (optimal_groups or []):
-                if group and group.get('attackers'):
-                    all_attackers.extend(group['attackers'])
+            if optimal_groups and isinstance(optimal_groups, list) and len(optimal_groups) > 0 and isinstance(optimal_groups[0], dict) and 'attackers' in optimal_groups[0]:
+                # Provided as groups; flatten attackers
+                for group in (optimal_groups or []):
+                    if group and group.get('attackers'):
+                        all_attackers.extend(group['attackers'])
+            else:
+                # Provided directly as a list of attackers
+                all_attackers = optimal_groups or []
             
-            # Split attackers into groups of 3
+            # Sort attackers by activity recency, warchest level, then total units
+            def _sort_key(n: Dict[str, Any]):
+                if not isinstance(n, dict):
+                    return (float('inf'), 0, 0)
+                # Activity: prefer most recent (fewest seconds since last active)
+                secs = n.get('last_active_seconds')
+                if secs is None and hasattr(self.cog, '_seconds_since_last_active'):
+                    secs = self.cog._seconds_since_last_active(n)
+                if secs is None:
+                    secs = float('inf')
+                # Warchest level: prefer higher
+                wl = n.get('warchest_level')
+                if wl is None and hasattr(self.cog, '_warchest_level'):
+                    wl = self.cog._warchest_level(n)
+                wl = wl or 0
+                # Total units: prefer higher
+                units = n.get('total_units')
+                if units is None:
+                    units = ((n.get('soldiers', 0) or 0) + (n.get('tanks', 0) or 0) + (n.get('aircraft', 0) or 0) + (n.get('ships', 0) or 0))
+                return (secs, -wl, -units)
+            all_attackers.sort(key=_sort_key)
+            
+            # Dynamically chunk attackers to fit Discord's 2000-char limit
             self.attacker_pages = []
-            for i in range(0, len(all_attackers), 3):
-                group_attackers = all_attackers[i:i+3]
-                if group_attackers:
-                    # Create a simple group structure for display
-                    page_data = {
-                        'attackers': group_attackers,
-                        'page_num': (i // 3) + 1
-                    }
-                    self.attacker_pages.append(page_data)
+            DISCORD_LIMIT = 2000
+            SAFETY_MARGIN = 25  # small buffer to avoid hitting hard limit
+            current_chunk: List[Dict[str, Any]] = []
+            current_length = 0
+
+            for attacker in all_attackers:
+                try:
+                    block = self._format_attacker_block(attacker)
+                except Exception:
+                    block = ""
+                if not block:
+                    continue
+                # Blocks include their own trailing newlines; no extra separator needed
+                additional_len = len(block)
+                if current_length + additional_len <= (DISCORD_LIMIT - SAFETY_MARGIN):
+                    current_chunk.append(attacker)
+                    current_length += additional_len
+                else:
+                    if current_chunk:
+                        self.attacker_pages.append({
+                            'attackers': current_chunk,
+                            'page_num': len(self.attacker_pages) + 1
+                        })
+                    # Start a new chunk with the current attacker
+                    current_chunk = [attacker]
+                    current_length = len(block)
+
+            # Append any remaining attackers
+            if current_chunk:
+                self.attacker_pages.append({
+                    'attackers': current_chunk,
+                    'page_num': len(self.attacker_pages) + 1
+                })
             
-            self._create_buttons()
-            self.update_buttons()
         except Exception as e:
             if cog and hasattr(cog, '_log_error'):
                 cog._log_error(f"Error initializing OptimalAttackersView: {e}", e, "OptimalAttackersView.__init__")
             else:
                 logging.error(f"Error initializing OptimalAttackersView: {e}")
-            self.ctx = ctx
+            self.interaction = interaction
             self.cog = cog
             self.target_nation = {}
             self.attacker_pages = []
@@ -1372,327 +1447,246 @@ class OptimalAttackersView(discord.ui.View):
             self.back_button = None
             self.main_button = None
             self.next_button = None
-    
-    def _create_buttons(self):
-        """Create and store button references."""
-        try:
-            self.clear_items()
-            back_btn = discord.ui.Button(label="⬅️ Back", style=discord.ButtonStyle.secondary, row=0)
-            back_btn.callback = self._back_callback
-            self.back_button = back_btn           
-            main_btn = discord.ui.Button(label="📋 Target Info", style=discord.ButtonStyle.primary, row=0)
-            main_btn.callback = self._main_callback
-            self.main_button = main_btn          
-            next_btn = discord.ui.Button(label="➡️ Next", style=discord.ButtonStyle.secondary, row=0)
-            next_btn.callback = self._next_callback
-            self.next_button = next_btn
-            self.add_item(back_btn)
-            self.add_item(main_btn)
-            self.add_item(next_btn)            
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error creating buttons: {e}", e, "OptimalAttackersView._create_buttons")
-            else:
-                logging.error(f"Error creating buttons: {e}")
-    
-    async def _back_callback(self, interaction: discord.Interaction):
-        """Navigate to previous page."""
-        try:
-            if self.current_page > 0:
-                self.current_page -= 1
-                if self.current_page == 0:
-                    embed = self.create_target_embed()
-                else:
-                    page_index = self.current_page - 1
-                    embed = self.create_attacker_page_embed(self.attacker_pages[page_index], page_index)  
-                self.update_buttons()
-                await interaction.response.edit_message(embed=embed, view=self)
-            else:
-                await interaction.response.send_message("You're already at the first page!")
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error in _back_callback: {e}", e, "OptimalAttackersView._back_callback")
-            else:
-                logging.error(f"Error in _back_callback: {e}")
-            await interaction.response.send_message("An error occurred while navigating. Please try again.")
-    
-    async def _main_callback(self, interaction: discord.Interaction):
-        """Show target information page."""
-        try:
-            self.current_page = 0
-            embed = self.create_target_embed()
-            self.update_buttons()
-            await interaction.response.edit_message(embed=embed, view=self)
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error in _main_callback: {e}", e, "OptimalAttackersView._main_callback")
-            else:
-                logging.error(f"Error in _main_callback: {e}")
-            await interaction.response.send_message("An error occurred while loading the target info. Please try again.")
-    
-    async def _next_callback(self, interaction: discord.Interaction):
-        """Navigate to next page."""
-        try:
-            max_pages = len(self.attacker_pages) + 1
-            if self.current_page < max_pages - 1:
-                self.current_page += 1               
-                if self.current_page == 0:
-                    embed = self.create_target_embed()
-                else:
-                    page_index = self.current_page - 1
-                    embed = self.create_attacker_page_embed(self.attacker_pages[page_index], page_index)                
-                self.update_buttons()
-                await interaction.response.edit_message(embed=embed, view=self)
-            else:
-                await interaction.response.send_message("You're already at the last page!")
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error in _next_callback: {e}", e, "OptimalAttackersView._next_callback")
-            else:
-                logging.error(f"Error in _next_callback: {e}")
-            await interaction.response.send_message("An error occurred while navigating. Please try again.")
-    
-    def update_buttons(self):
-        """Update button states based on current page."""
-        try:
-            self.back_button.disabled = self.current_page <= 0
-            max_pages = max(1, len(self.attacker_pages) + 1)
-            self.next_button.disabled = self.current_page >= max_pages - 1
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error updating buttons: {e}", e, "OptimalAttackersView.update_buttons")
-            else:
-                logging.error(f"Error updating buttons: {e}")
-            self.back_button.disabled = True
-            self.next_button.disabled = True
-    
-    def create_target_embed(self) -> discord.Embed:
-        """Create embed for target nation information."""
+
+    def create_target_message(self) -> str:
+        """Create text message for target nation information with enhanced query data utilization."""
         try:
             if not self.target_nation:
-                return discord.Embed(
-                    title="❌ Error",
-                    description="No target nation data available",
-                    color=discord.Color.red()
-                )
+                return "❌ **Error**\nNo target nation data available"
             
-            # Safe military extraction
             safe_soldiers = self.target_nation.get('soldiers', 0) or 0
             safe_tanks = self.target_nation.get('tanks', 0) or 0
             safe_aircraft = self.target_nation.get('aircraft', 0) or 0
             safe_ships = self.target_nation.get('ships', 0) or 0
-            safe_missiles = self.target_nation.get('missiles', 0) or 0
-            safe_nukes = self.target_nation.get('nukes', 0) or 0
-            
-            # Safe basic info extraction
+            safe_spies = self.target_nation.get('spies', 0) or 0
             nation_name = self.target_nation.get('nation_name', 'Unknown')
-            leader_name = self.target_nation.get('leader_name', 'Unknown')
-            nation_score = self.target_nation.get('score', 0) or 0
             num_cities = self.target_nation.get('num_cities', 0) or 0
-            
-            # Calculate infrastructure and land from cities data
+            espionage_available = self.target_nation.get('espionage_available', False)
             cities = self.target_nation.get('cities', [])
             total_infra = 0
-            total_land = 0
             if cities:
                 total_infra = sum((city.get('infrastructure', 0) or 0) for city in cities if isinstance(city, dict))
-                total_land = sum((city.get('land', 0) or 0) for city in cities if isinstance(city, dict))
-            infrastructure = total_infra
-            
-            # Calculate averages per city
             avg_infra_per_city = total_infra / num_cities if num_cities > 0 else 0
-            avg_land_per_city = total_land / num_cities if num_cities > 0 else 0
-            
-            # Get purchase limits
             try:
-                purchase_limits = self.cog.calculate_target_purchase_limits(self.target_nation)
+                full_purchase_limits = self.cog.calculator.calculate_military_purchase_limits(self.target_nation)
             except Exception:
-                purchase_limits = {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
-            
-            embed = discord.Embed(
-                title=f"🎯 Target: {nation_name}",
-                description=f"**Leader:** {leader_name}",
-                color=discord.Color.red()
-            )
-            
-            # Purchase Limits section (replacing Current Resources)
-            purchase_limits_info = (
-                f"**Soldiers:** {purchase_limits.get('soldiers', 0):,}\n"
-                f"**Tanks:** {purchase_limits.get('tanks', 0):,}\n"
-                f"**Aircraft:** {purchase_limits.get('aircraft', 0):,}\n"
-                f"**Ships:** {purchase_limits.get('ships', 0):,}"
-            )
-            embed.add_field(name="Purchase Limits", value=purchase_limits_info, inline=False)
-            
-            # Calculate MMR using calculator
+                full_purchase_limits = {
+                    'soldiers_daily': 0, 'tanks_daily': 0, 'aircraft_daily': 0, 'ships_daily': 0,
+                    'missiles': 0, 'nukes': 0,
+                    'soldiers_max': 0, 'tanks_max': 0, 'aircraft_max': 0, 'ships_max': 0
+                }
             try:
                 building_ratios = self.cog.calculator.calculate_building_ratios(self.target_nation)
                 mmr_string = building_ratios.get('mmr_string', '0/0/0/0')
             except Exception:
                 mmr_string = '0/0/0/0'
-            
-            # Get nation specialty
             try:
-                specialty = self.cog.calculator.get_nation_specialty(self.target_nation)
+                _mmr_parts = [p.strip() for p in str(mmr_string).split('/')]
+                mmr_1dp = '/'.join(f"{float(p):.1f}" for p in _mmr_parts if p != '') if _mmr_parts else '0.0/0.0/0.0/0.0'
             except Exception:
-                specialty = 'Unknown'
-            
-            # Basic info field from blitz.py lines 767-784 format
-            field_value = (
-                f"**Score:** {nation_score:,}\n"
-                f"**MMR:** {mmr_string}\n"
-                f"**Specialty:** {specialty}\n"
-                f"**Cities:** {num_cities:,}\n"
-                f"**Avg Infra/City:** {avg_infra_per_city:,.0f}\n"
-                f"**Avg Land/City:** {avg_land_per_city:,.0f}\n"
-                f"**Total Infrastructure:** {infrastructure:,.0f}\n"
-                f"**Strategic:** {'Missile' if safe_missiles > 0 else ''}{' Nuke' if safe_nukes > 0 else ''}\n"
-                f"**Units (Current):**\n"
-                f"👥 {safe_soldiers:,}\n"
-                f"🚗 {safe_tanks:,}\n"
-                f"✈️ {safe_aircraft:,}\n"
-                f"🚢 {safe_ships:,}"
+                mmr_1dp = '0.0/0.0/0.0/0.0'
+
+            projects_info = []
+            has_missile_launch = self.cog.has_project(self.target_nation, 'Missile Launch Pad')
+            has_nuke_research = self.cog.has_project(self.target_nation, 'Nuclear Research Facility')
+            has_iron_dome = self.cog.has_project(self.target_nation, 'Iron Dome')
+            has_vital_defense = self.cog.has_project(self.target_nation, 'Vital Defense System')            
+            if has_missile_launch:
+                projects_info.append("🚀 Missile Launch Pad")
+            if has_nuke_research:
+                projects_info.append("☢️ Nuclear Research Facility")
+            if has_iron_dome:
+                projects_info.append("🛡️ Iron Dome")
+            if has_vital_defense:
+                projects_info.append("🔒 Vital Defense System")            
+            projects_text = "\n".join(projects_info) if projects_info else "No strategic projects"
+            nation_id = self.target_nation.get('nation_id') or self.target_nation.get('id')
+            nation_url = f"https://politicsandwar.com/nation/id={nation_id}" if nation_id else None
+            header_name = f"[{nation_name}]({nation_url})" if nation_url else nation_name
+            discord_username = self.target_nation.get('discord_username')
+            discord_display_name = self.target_nation.get('discord_display_name')
+            if discord_display_name and discord_username and discord_display_name != discord_username:
+                discord_text = f"{discord_display_name} (@{discord_username})"
+            elif discord_username:
+                discord_text = f"@{discord_username}"
+            elif discord_display_name:
+                discord_text = f"{discord_display_name}"
+            else:
+                discord_text = None
+            message = f"{header_name}" + (f" ({discord_text})" if discord_text else "") + "\n"
+            message += f"**c{num_cities:,}** with **{avg_infra_per_city:,.0f}** Infra on **{mmr_1dp}**\n"
+            message += f"Can be Spied: {'✅' if espionage_available else '❌'}\n"
+            strategic_flags = ""
+            if has_missile_launch:
+                strategic_flags += "🚀"
+            if has_nuke_research:
+                strategic_flags += "☢️"
+            if has_iron_dome:
+                strategic_flags += " **ID**"
+            if has_vital_defense:
+                strategic_flags += " **VDS**"
+            message += f"Projects: {strategic_flags.strip() or 'None'}\n"
+            message += f"**🕵️ Spies:** {safe_spies:,}\n"
+            message += "**Units (Current/Max):**\n"
+            message += (
+                f"🪖{safe_soldiers:,}/{full_purchase_limits.get('soldiers_max', 0):,}  "
+                f"🚙{safe_tanks:,}/{full_purchase_limits.get('tanks_max', 0):,}  "
+                f"🛩️{safe_aircraft:,}/{full_purchase_limits.get('aircraft_max', 0):,}  "
+                f"⚓{safe_ships:,}/{full_purchase_limits.get('ships_max', 0):,}\n"
             )
-            embed.add_field(name="1. Target Info", value=field_value, inline=True)
-            
-            embed.set_footer(text=f"Page 1/{len(self.attacker_pages) + 1} - Target Information")
-            return embed
+            message += "**Daily Purchase Limits**\n"
+            message += (
+                f"🪖{full_purchase_limits.get('soldiers_daily', 0):,}/day  "
+                f"🚙{full_purchase_limits.get('tanks_daily', 0):,}/day  "
+                f"🛩️{full_purchase_limits.get('aircraft_daily', 0):,}/day  "
+                f"⚓{full_purchase_limits.get('ships_daily', 0):,}/day\n"
+            )
+            return message
             
         except Exception as e:
             if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error creating target embed: {e}", e, "OptimalAttackersView.create_target_embed")
+                self.cog._log_error(f"Error creating target message: {e}", e, "OptimalAttackersView.create_target_message")
             else:
-                logging.error(f"Error creating target embed: {e}")
-            return discord.Embed(
-                title="❌ Error",
-                description="Failed to create target embed",
-                color=discord.Color.red()
-            )
+                logging.error(f"Error creating target message: {e}")
+            return "❌ **Error**\nFailed to create target message"
     
-    def create_attacker_page_embed(self, page_data: Dict[str, Any], page_index: int) -> discord.Embed:
-        """Create embed for an attacker page showing up to 3 attackers."""
+    def create_attacker_page_message(self, page_data: Dict[str, Any], page_index: int) -> str:
+        """Create text message for an attacker page showing up to 3 attackers."""
         try:
             if not page_data or not page_data.get('attackers'):
-                return discord.Embed(
-                    title="❌ Error",
-                    description="No attacker data available",
-                    color=discord.Color.red()
-                )
+                return "❌ **Error**\nNo attacker data available"
             
             attackers = page_data['attackers']
-            page_num = page_data['page_num']
-            
-            embed = discord.Embed(
-                title=f"⚔️ Optimal Attackers (Page {page_num})",
-                description=f"Showing {len(attackers)} attacker(s)",
-                color=discord.Color.green()
-            )
-            
-            # Individual attacker details - each nation gets its own field like blitz.py format
-            for i, attacker in enumerate(attackers):
-                if attacker and isinstance(attacker, dict):
-                    nation_name = attacker.get('nation_name', 'Unknown')
-                    leader_name = attacker.get('leader_name', 'Unknown')
-                    score = attacker.get('score', 0) or 0
-                    infrastructure = attacker.get('infrastructure', 0) or 0
-                    
-                    # Military units
-                    soldiers = attacker.get('soldiers', 0) or 0
-                    tanks = attacker.get('tanks', 0) or 0
-                    aircraft = attacker.get('aircraft', 0) or 0
-                    ships = attacker.get('ships', 0) or 0
-                    
-                    # Strategic weapons
-                    missiles = attacker.get('missiles', 0) or 0
-                    nukes = attacker.get('nukes', 0) or 0
-                    
-                    # Calculate MMR and specialty for attacker
-                    try:
-                        building_ratios = self.cog.calculator.calculate_building_ratios(attacker)
-                        mmr_string = building_ratios.get('mmr_string', '0/0/0/0')
-                    except Exception:
-                        mmr_string = '0/0/0/0'
-                    
-                    try:
-                        specialty = self.cog.calculator.get_nation_specialty(attacker)
-                    except Exception:
-                        specialty = 'Unknown'
-                    
-                    # Calculate warchest status
-                    gasoline = attacker.get('gasoline', 0) or 0
-                    munitions = attacker.get('munitions', 0) or 0
-                    aluminum = attacker.get('aluminum', 0) or 0
-                    steel = attacker.get('steel', 0) or 0
-                    
-                    # Determine warchest level (6 levels with moon emojis + stacked)
-                    warchest_resources = [gasoline, munitions, aluminum, steel]
-                    min_resource = min(warchest_resources) if warchest_resources else 0
-
-                    if min_resource >= 10000:
-                        warchest_emoji = "🤑"  
-                        warchest_status = "Stacked"                    
-                    elif min_resource >= 5000:
-                        warchest_emoji = "🌝" 
-                        warchest_status = "Full"
-                    elif min_resource >= 3750:
-                        warchest_emoji = "🌖" 
-                        warchest_status = "3/4"
-                    elif min_resource >= 2500:
-                        warchest_emoji = "🌗"  
-                        warchest_status = "1/2"
-                    elif min_resource >= 1250:
-                        warchest_emoji = "🌘" 
-                        warchest_status = "1/4"
-                    else:
-                        warchest_emoji = "🌚" 
-                        warchest_status = "No"
-                    
-                    field_value = (
-                        f"**Leader:** {leader_name}\n"
-                        f"**Score:** {score:,}\n"
-                        f"**MMR:** {mmr_string}\n"
-                        f"**Specialty:** {specialty}\n"
-                        f"**Infrastructure:** {infrastructure:,.0f}\n"
-                        f"**Has Warchest:** {warchest_emoji} ({warchest_status})\n"
-                        f"**Strategic:** {'Missile' if missiles > 0 else ''}{' Nuke' if nukes > 0 else ''}\n"
-                        f"**Units (Current):**\n"
-                        f"👥 {soldiers:,}\n"
-                        f"🚗 {tanks:,}\n"
-                        f"✈️ {aircraft:,}\n"
-                        f"🚢 {ships:,}"
-                    )
-                    
-                    embed.add_field(name=f"{i+1}. {nation_name}", value=field_value, inline=True)
-            
-            embed.set_footer(text=f"Page {page_num + 1}/{len(self.attacker_pages) + 1} - Optimal Attackers")
-            return embed
+            # Assemble message from pre-formatted attacker blocks
+            message_blocks = [self._format_attacker_block(a) for a in attackers if isinstance(a, dict)]
+            return "".join(message_blocks)
             
         except Exception as e:
             if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error creating attacker page embed: {e}", e, "OptimalAttackersView.create_attacker_page_embed")
+                self.cog._log_error(f"Error creating attacker page: {e}", e, "OptimalAttackersView.create_attacker_page_message")
             else:
-                logging.error(f"Error creating attacker page embed: {e}")
-            return discord.Embed(
-                title="❌ Error",
-                description="Failed to create attacker page embed",
-                color=discord.Color.red()
-            )
-    
+                logging.error(f"Error creating attacker page: {e}")
+            return "❌ **Error**\nFailed to create attacker page"
 
-    
-    async def on_timeout(self) -> None:
-        """Disable buttons when view times out."""
+    def _format_attacker_block(self, attacker: Dict[str, Any]) -> str:
+        """Format a single attacker into a text block without Score, MMR, Specialty, Total Infra."""
         try:
-            for item in self.children:
-                if hasattr(item, 'disabled'):
-                    item.disabled = True
-        except Exception as e:
-            if self.cog and hasattr(self.cog, '_log_error'):
-                self.cog._log_error(f"Error in on_timeout: {e}", e, "OptimalAttackersView.on_timeout")
+            nation_name = attacker.get('nation_name', 'Unknown')
+            leader_name = attacker.get('leader_name', 'Unknown')
+            attacker_cities = attacker.get('cities', [])
+            total_infra = 0
+            if attacker_cities:
+                total_infra = sum((city.get('infrastructure', 0) or 0) for city in attacker_cities if isinstance(city, dict))
+            num_cities = len(attacker_cities) if attacker_cities else 0
+            avg_infra_per_city = total_infra / num_cities if num_cities > 0 else 0
+            soldiers = attacker.get('soldiers', 0) or 0
+            tanks = attacker.get('tanks', 0) or 0
+            aircraft = attacker.get('aircraft', 0) or 0
+            ships = attacker.get('ships', 0) or 0
+            has_missile_launch = self.cog.has_project(attacker, 'Missile Launch Pad')
+            has_nuke_research = self.cog.has_project(attacker, 'Nuclear Research Facility')
+
+            # Warchest status (gasoline + munitions only)
+            gasoline = attacker.get('gasoline', 0) or 0
+            munitions = attacker.get('munitions', 0) or 0
+            min_resource = min([gasoline, munitions])
+            if min_resource >= 10000:
+                warchest_emoji, warchest_status = "🤑", "Stacked"
+            elif min_resource >= 5000:
+                warchest_emoji, warchest_status = "🌝", "Full"
+            elif min_resource >= 3750:
+                warchest_emoji, warchest_status = "🌖", "3/4"
+            elif min_resource >= 2500:
+                warchest_emoji, warchest_status = "🌗", "1/2"
+            elif min_resource >= 1250:
+                warchest_emoji, warchest_status = "🌘", "1/4"
             else:
-                logging.error(f"Error in on_timeout: {e}")
+                warchest_emoji, warchest_status = "🌚", "No"
 
+            # Purchase limits
+            try:
+                full_purchase_limits = self.cog.calculator.calculate_military_purchase_limits(attacker)
+            except Exception:
+                full_purchase_limits = {
+                    'soldiers_daily': 0, 'tanks_daily': 0, 'aircraft_daily': 0, 'ships_daily': 0,
+                    'soldiers_max': 0, 'tanks_max': 0, 'aircraft_max': 0, 'ships_max': 0
+                }
 
+            # Header: Nation Name (masked link) with Discord in parentheses
+            nation_id = attacker.get('nation_id') or attacker.get('id')
+            nation_url = f"https://politicsandwar.com/nation/id={nation_id}" if nation_id else None
+            header_name = f"[{nation_name}]({nation_url})" if nation_url else nation_name
+            discord_username = attacker.get('discord_username')
+            discord_display_name = attacker.get('discord_display_name')
+            discord_text = None
+            if discord_display_name and discord_username and discord_display_name != discord_username:
+                discord_text = f"{discord_display_name} (@{discord_username})"
+            elif discord_username:
+                discord_text = f"@{discord_username}"
+            elif discord_display_name:
+                discord_text = f"{discord_display_name}"
+            header_line = f"{header_name}" + (f" ({discord_text})" if discord_text else "")
+            field_value = ""
+
+            # Last login
+            last_active = attacker.get('last_active', 0)
+            if last_active:
+                from datetime import datetime
+                dt = None
+                try:
+                    if isinstance(last_active, (int, float)):
+                        dt = datetime.fromtimestamp(last_active)
+                    elif isinstance(last_active, str):
+                        s = last_active.strip()
+                        if s.isdigit():
+                            dt = datetime.fromtimestamp(int(s))
+                        else:
+                            try:
+                                dt = datetime.fromtimestamp(float(s))
+                            except Exception:
+                                try:
+                                    dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+                                except Exception:
+                                    dt = None
+                except Exception:
+                    dt = None
+                if dt:
+                    try:
+                        now = datetime.utcnow() if dt.tzinfo is None else datetime.now(dt.tzinfo)
+                        delta = now - dt
+                        secs = max(0, int(delta.total_seconds()))
+                        if secs < 60:
+                            rel = "just now"
+                        elif secs < 3600:
+                            m = secs // 60
+                            rel = f"{m}m ago"
+                        elif secs < 86400:
+                            h = secs // 3600
+                            m = (secs % 3600) // 60
+                            rel = f"{h}h {m}m ago"
+                        else:
+                            d = secs // 86400
+                            h = (secs % 86400) // 3600
+                            rel = f"{d}d {h}h ago"
+                        field_value += f"**Last Login:** {rel}\n"
+                    except Exception:
+                        field_value += f"**Last Login:** unknown\n"
+
+            # Required fields only (removed Score, MMR, Specialty, Total Infra)
+            field_value += (
+                f"**Avg Infra/City:** {avg_infra_per_city:,.0f}\n"
+                f"**Has Warchest:** {warchest_emoji} ({warchest_status})\n"
+                f"**Strategic:** {'🚀' if has_missile_launch else ''}{'☢️' if has_nuke_research else ''}\n"
+                f"**Units (Current/Max):**\n"
+                f"🪖{soldiers:,}/{full_purchase_limits.get('soldiers_max', 0):,}  🚙{tanks:,}/{full_purchase_limits.get('tanks_max', 0):,}  🛩️{aircraft:,}/{full_purchase_limits.get('aircraft_max', 0):,}  ⚓{ships:,}/{full_purchase_limits.get('ships_max', 0):,}\n"
+                f"**Daily Purchase Limits**\n"
+                f"🪖{full_purchase_limits.get('soldiers_daily', 0):,}/day  🚙{full_purchase_limits.get('tanks_daily', 0):,}/day  🛩️{full_purchase_limits.get('aircraft_daily', 0):,}/day  ⚓{full_purchase_limits.get('ships_daily', 0):,}/day"
+            )
+
+            return f"{header_line}\n{field_value}\n\n"
+        except Exception:
+            return "👤 Unknown (Unknown)\n**Leader:** Unknown"
+    
 async def setup(bot):
     """
     Setup function to add the cog to the bot.
@@ -1702,6 +1696,20 @@ async def setup(bot):
     """
     try:
         await bot.add_cog(DestroyCog(bot))
+        
+        # Avoid duplicate registration of hybrid slash command
+        cog = bot.get_cog("DestroyCog")
+        if cog and hasattr(cog, 'destroy'):
+            try:
+                existing_cmd = bot.tree.get_command('destroy')
+            except Exception:
+                existing_cmd = None
+            if existing_cmd is None:
+                bot.tree.add_command(cog.destroy)
+                logging.info("Destroy slash command added to tree")
+            else:
+                logging.info("Destroy slash command already registered; skipping manual add")
+        
         logging.info("DestroyCog loaded successfully")
     except Exception as e:
         logging.error(f"Error loading DestroyCog: {e}")

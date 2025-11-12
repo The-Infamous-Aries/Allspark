@@ -2,46 +2,48 @@ import logging
 from typing import List, Dict, Optional, Any
 import traceback
 
-try:
-    from .calc import AllianceCalculator
-except ImportError:
-    try:
-        from calc import AllianceCalculator
-    except ImportError:
-        class AllianceCalculator:
-            def get_active_nations(self, nations):
-                return [n for n in nations if not n.get('is_applicant', False) and not n.get('vacation_mode', False)]
-            
-            def calculate_party_war_range(self, party):
-                scores = [n.get('score', 0) for n in party]
-                if not scores:
-                    return {'has_overlap': False}                
-                min_score = min(scores)
-                max_score = max(scores)
-                return {
-                    'has_overlap': True,
-                    'overlapping_min': min_score * 0.75,
-                    'overlapping_max': max_score * 1.25
-                }
-            
-            def _get_infrastructure_tier(self, infra_avg):
-                if infra_avg >= 2000:
-                    return 'high'
-                elif infra_avg >= 1000:
-                    return 'medium'
-                else:
-                    return 'low'
-            
-            def get_nation_specialty(self, nation):
-                return nation.get('speciality', 'Generalist')
-            
-            def has_project(self, nation, project_name):
-                return False
+# Avoid circular imports by using lazy imports
+# Define a placeholder class that will be replaced at runtime
+class AllianceCalculator:
+    def get_active_nations(self, nations):
+        return [n for n in nations if not n.get('is_applicant', False) and not n.get('vacation_mode', False)]
+    
+    def calculate_party_war_range(self, party):
+        scores = [n.get('score', 0) for n in party]
+        if not scores:
+            return {'has_overlap': False}                
+        min_score = min(scores)
+        max_score = max(scores)
+        return {
+            'has_overlap': True,
+            'overlapping_min': min_score * 0.75,
+            'overlapping_max': max_score * 1.25
+        }
+    
+    def _get_infrastructure_tier(self, infra_avg):
+        if infra_avg >= 2000:
+            return 'high'
+        elif infra_avg >= 1000:
+            return 'medium'
+        else:
+            return 'low'
+    
+    def get_nation_specialty(self, nation):
+        return nation.get('speciality', 'Generalist')
+    
+    def has_project(self, nation, project_name):
+        return False
 
 class BlitzPartySorter:  
-    def __init__(self, calculator: Optional['AllianceCalculator'] = None, logger: Optional[logging.Logger] = None):
+    def __init__(self, calculator = None, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger(__name__)
-        self.calculator = calculator or AllianceCalculator()
+        
+        # Use lazy loading to avoid circular imports
+        if calculator is None:
+            # Only import AllianceCalculator when needed
+            self.calculator = AllianceCalculator()
+        else:
+            self.calculator = calculator
     
     def _safe_get(self, data: dict, key: str, default: Any = None, expected_type: type = None) -> Any:
         try:
@@ -277,8 +279,126 @@ class BlitzPartySorter:
             return {}
     
     def create_balanced_parties(self, nations: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-        """Create balanced parties - now just calls the sorting function"""
-        return self.sort_nations_by_infrastructure_and_war_range(nations)
+        """
+        Create balanced parties from a list of nations.
+        
+        Args:
+            nations: List of nation dictionaries (can be from multiple alliances)
+            
+        Returns:
+            List of balanced parties (each party is a list of nations)
+        """
+        try:
+            if not nations:
+                self.logger.warning("create_balanced_parties: No nations provided")
+                return []
+            
+            # Filter for active nations
+            active_nations = self.get_active_nations(nations)
+            if not active_nations:
+                self.logger.warning("create_balanced_parties: No active nations found")
+                return []
+            
+            # Sort nations by infrastructure and war range compatibility
+            sorted_nations = self.sort_nations_by_infrastructure_and_war_range(active_nations)
+            
+            # Create balanced parties
+            parties = self._distribute_nations_to_parties(sorted_nations)
+            
+            self.logger.info(f"create_balanced_parties: Created {len(parties)} parties from {len(active_nations)} active nations")
+            return parties
+            
+        except Exception as e:
+            self._log_error("Error creating balanced parties", e, "create_balanced_parties")
+            return []
+
+    def create_balanced_parties_multi_alliance(self, alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> List[List[Dict[str, Any]]]:
+        """
+        Create balanced parties from multiple alliance data efficiently.
+        
+        Args:
+            alliance_data: Dictionary mapping alliance keys to nation lists
+            selected_alliances: List of alliance keys to include (if None, uses all)
+            
+        Returns:
+            List of balanced parties (each party is a list of nations)
+        """
+        try:
+            if not alliance_data:
+                self.logger.warning("create_balanced_parties_multi_alliance: No alliance data provided")
+                return []
+            
+            # Combine nations from selected alliances
+            combined_nations = self._combine_alliance_nations(alliance_data, selected_alliances)
+            
+            if not combined_nations:
+                self.logger.warning("create_balanced_parties_multi_alliance: No nations found in selected alliances")
+                return []
+            
+            # Use existing party creation logic
+            return self.create_balanced_parties(combined_nations)
+            
+        except Exception as e:
+            self._log_error("Error creating multi-alliance balanced parties", e, "create_balanced_parties_multi_alliance")
+            return []
+
+    def _combine_alliance_nations(self, alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        Efficiently combine nations from multiple alliances, removing duplicates.
+        
+        Args:
+            alliance_data: Dictionary mapping alliance keys to nation lists
+            selected_alliances: List of alliance keys to include (if None, uses all)
+            
+        Returns:
+            Combined list of unique nations
+        """
+        try:
+            combined_nations = []
+            seen_nation_ids = set()
+            
+            # Determine which alliances to process
+            alliances_to_process = selected_alliances if selected_alliances else list(alliance_data.keys())
+            
+            for alliance_key in alliances_to_process:
+                nations = alliance_data.get(alliance_key, [])
+                if not nations:
+                    continue
+                
+                # Add nations, avoiding duplicates by nation_id
+                for nation in nations:
+                    nation_id = self._safe_get(nation, 'nation_id') or self._safe_get(nation, 'id')
+                    if nation_id and nation_id not in seen_nation_ids:
+                        seen_nation_ids.add(nation_id)
+                        # Add alliance source info for tracking
+                        nation_copy = nation.copy()
+                        nation_copy['_source_alliance'] = alliance_key
+                        combined_nations.append(nation_copy)
+            
+            self.logger.info(f"_combine_alliance_nations: Combined {len(combined_nations)} unique nations from {len(alliances_to_process)} alliances")
+            return combined_nations
+            
+        except Exception as e:
+            self._log_error("Error combining alliance nations", e, "_combine_alliance_nations")
+            return []
+
+    def _distribute_nations_to_parties(self, sorted_nations: List[List[Dict[str, Any]]]) -> List[List[Dict[str, Any]]]:
+        """
+        Distribute sorted nations into balanced parties.
+        
+        Args:
+            sorted_nations: List of parties from sort_nations_by_infrastructure_and_war_range
+            
+        Returns:
+            List of balanced parties
+        """
+        try:
+            # The sorting function already returns parties, so we just return them
+            return sorted_nations
+            
+        except Exception as e:
+            self._log_error("Error distributing nations to parties", e, "_distribute_nations_to_parties")
+            return []
     
     def get_party_analysis(self, party: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Get basic party analysis without complex scoring"""

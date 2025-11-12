@@ -12,6 +12,7 @@ from config import ARIES_NATION_ID, CARNAGE_NATION_ID, PRIMAL_NATION_ID
 class AllianceCalculator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self._debug_project_logging = False  # Disable verbose project logging by default
 
     def _log_error(self, error_msg: str, exception: Exception = None, context: str = ""):
         if exception:
@@ -40,7 +41,8 @@ class AllianceCalculator:
              
     async def calculate_improvements_data(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
         try:
-            active_nations = self.get_active_nations(nations)
+            # Filter only VM/APPLICANT, include 14+ inactive
+            active_nations = [n for n in nations if (self._safe_get(n, 'vacation_mode_turns', 0, int) == 0 and self._safe_get(n, 'alliance_position', '', str).upper() != 'APPLICANT')]
             improvements = {
                 'coalpower': 0,
                 'oilpower': 0,
@@ -136,6 +138,145 @@ class AllianceCalculator:
                 'barracks': 0, 'hangar': 0, 'drydock': 0,
                 'total_power': 0, 'total_improvements': 0, 'total_cities': 0, 'avg_per_city': 0, 'active_nations': 0
             }
+
+    async def calculate_improvements_data_multi_alliance(self, alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> Dict[str, Any]:
+        """
+        Calculate comprehensive improvements data for multiple alliances efficiently.
+        
+        Args:
+            alliance_data: Dictionary mapping alliance keys to nation lists
+            selected_alliances: List of alliance keys to include (if None, uses all)
+            
+        Returns:
+            Dictionary containing improvements statistics with alliance breakdown
+        """
+        try:
+            if not alliance_data:
+                self.logger.warning("calculate_improvements_data_multi_alliance: No alliance data provided")
+                return {}
+            
+            # Determine which alliances to process
+            alliances_to_process = selected_alliances if selected_alliances else list(alliance_data.keys())
+            
+            # Initialize total improvements
+            total_improvements = {
+                'coalpower': 0, 'oilpower': 0, 'nuclearpower': 0, 'windpower': 0,
+                'oilwell': 0, 'coalmine': 0, 'uramine': 0, 'ironmine': 0, 'bauxitemine': 0, 'leadmine': 0, 'farm': 0,
+                'gasrefinery': 0, 'steelmill': 0, 'aluminumrefinery': 0, 'munitionsfactory': 0, 'factory': 0,
+                'policestation': 0, 'hospital': 0, 'bank': 0, 'supermarket': 0, 'shopping_mall': 0, 'stadium': 0, 'subway': 0, 'recyclingcenter': 0,
+                'barracks': 0, 'hangar': 0, 'drydock': 0,
+                'total_power': 0, 'total_improvements': 0, 'total_cities': 0, 'avg_per_city': 0, 'active_nations': 0
+            }
+            
+            alliance_breakdown = {}
+            total_nations_processed = 0
+            
+            # Process each alliance
+            for alliance_key in alliances_to_process:
+                nations = alliance_data.get(alliance_key, [])
+                if not nations:
+                    continue
+                
+                # Calculate improvements for this alliance
+                alliance_improvements = await self.calculate_improvements_data(nations)
+                alliance_breakdown[alliance_key] = alliance_improvements
+                
+                # Add to totals (excluding metadata fields)
+                for improvement, count in alliance_improvements.items():
+                    if improvement in total_improvements:
+                        total_improvements[improvement] += count
+                
+                # Count active nations for this alliance
+                total_nations_processed += alliance_improvements.get('active_nations', 0)
+            
+            # Recalculate totals and averages
+            total_improvements['total_power'] = (total_improvements['coalpower'] + total_improvements['oilpower'] + 
+                                               total_improvements['nuclearpower'] + total_improvements['windpower'])
+            total_improvements['total_improvements'] = sum(v for k, v in total_improvements.items() 
+                                                         if k not in ['total_power', 'total_improvements', 'total_cities', 'avg_per_city', 'active_nations'])
+            total_improvements['avg_per_city'] = (total_improvements['total_improvements'] / total_improvements['total_cities'] 
+                                                if total_improvements['total_cities'] > 0 else 0)
+            total_improvements['active_nations'] = total_nations_processed
+            
+            result = {
+                'total': total_improvements,
+                'by_alliance': alliance_breakdown,
+                'alliances_processed': len(alliances_to_process)
+            }
+            
+            self.logger.info(f"calculate_improvements_data_multi_alliance: Processed {total_nations_processed} nations from {len(alliances_to_process)} alliances")
+            return result
+            
+        except Exception as e:
+            self._log_error("Error calculating multi-alliance improvements data", e, "calculate_improvements_data_multi_alliance")
+            return {}
+
+    def calculate_alliance_statistics_multi_alliance(self, alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> Dict[str, Any]:
+        """
+        Calculate comprehensive alliance statistics for multiple alliances efficiently.
+        
+        Args:
+            alliance_data: Dictionary mapping alliance keys to nation lists
+            selected_alliances: List of alliance keys to include (if None, uses all)
+            
+        Returns:
+            Dictionary containing combined alliance statistics
+        """
+        try:
+            if not alliance_data:
+                self.logger.warning("calculate_alliance_statistics_multi_alliance: No alliance data provided")
+                return {}
+            
+            # Combine nations from selected alliances (avoiding duplicates)
+            combined_nations = self._combine_alliance_nations_for_calc(alliance_data, selected_alliances)
+            
+            if not combined_nations:
+                self.logger.warning("calculate_alliance_statistics_multi_alliance: No nations found in selected alliances")
+                return {}
+            
+            # Use existing alliance statistics calculation
+            return self.calculate_alliance_statistics(combined_nations)
+            
+        except Exception as e:
+            self._log_error("Error calculating multi-alliance statistics", e, "calculate_alliance_statistics_multi_alliance")
+            return {}
+
+    def _combine_alliance_nations_for_calc(self, alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        Efficiently combine nations from multiple alliances for calculations, removing duplicates.
+        
+        Args:
+            alliance_data: Dictionary mapping alliance keys to nation lists
+            selected_alliances: List of alliance keys to include (if None, uses all)
+            
+        Returns:
+            Combined list of unique nations
+        """
+        try:
+            combined_nations = []
+            seen_nation_ids = set()
+            
+            # Determine which alliances to process
+            alliances_to_process = selected_alliances if selected_alliances else list(alliance_data.keys())
+            
+            for alliance_key in alliances_to_process:
+                nations = alliance_data.get(alliance_key, [])
+                if not nations:
+                    continue
+                
+                # Add nations, avoiding duplicates by nation_id
+                for nation in nations:
+                    nation_id = self._safe_get(nation, 'nation_id') or self._safe_get(nation, 'id')
+                    if nation_id and nation_id not in seen_nation_ids:
+                        seen_nation_ids.add(nation_id)
+                        combined_nations.append(nation)
+            
+            self.logger.debug(f"_combine_alliance_nations_for_calc: Combined {len(combined_nations)} unique nations from {len(alliances_to_process)} alliances")
+            return combined_nations
+            
+        except Exception as e:
+            self._log_error("Error combining alliance nations for calculation", e, "_combine_alliance_nations_for_calc")
+            return []
     
     def has_project(self, nation: Dict[str, Any], project_name: str) -> bool:
         if not self._validate_input(nation, dict, "nation"):
@@ -193,7 +334,9 @@ class AllianceCalculator:
             field_name = project_field_mapping.get(project_name)
             if field_name:
                 project_value = self._safe_get(nation, field_name, False, bool)
-                self.logger.debug(f"has_project: Project '{project_name}' -> field '{field_name}' = {project_value}")
+                # Only log at debug level if explicitly enabled to prevent log flooding
+                if self.logger.isEnabledFor(logging.DEBUG) and hasattr(self, '_debug_project_logging') and self._debug_project_logging:
+                    self.logger.debug(f"has_project: Project '{project_name}' -> field '{field_name}' = {project_value}")
                 return project_value
             else:
                 self.logger.warning(f"has_project: Unknown project name '{project_name}'")
@@ -221,39 +364,18 @@ class AllianceCalculator:
                         self.logger.warning(f"get_active_nations: Nation at index {i} is not a dictionary, skipping")
                         continue
                     
-                    # Check vacation mode
+                    # Exclude vacation mode and applicants; include others regardless of last_active
                     vacation_turns = self._safe_get(nation, 'vacation_mode_turns', 0, int)
                     if vacation_turns > 0:
                         self.logger.debug(f"get_active_nations: Skipping nation {nation.get('nation_name', 'Unknown')} - in vacation mode ({vacation_turns} turns)")
                         continue
                     
-                    # Check applicant status
                     alliance_position = self._safe_get(nation, 'alliance_position', '', str)
-                    if alliance_position == 'APPLICANT':
+                    if alliance_position.upper() == 'APPLICANT':
                         self.logger.debug(f"get_active_nations: Skipping nation {nation.get('nation_name', 'Unknown')} - applicant status")
                         continue
                     
-                    # Check 14+ days inactive
-                    last_active_str = self._safe_get(nation, 'last_active', '', str)
-                    if last_active_str:
-                        try:
-                            if last_active_str.endswith('+00:00'):
-                                last_active = datetime.fromisoformat(last_active_str.replace('+00:00', '')).replace(tzinfo=timezone.utc)
-                            else:
-                                last_active = datetime.fromisoformat(last_active_str).replace(tzinfo=timezone.utc)
-                            
-                            if last_active < fourteen_days_ago:
-                                self.logger.debug(f"get_active_nations: Skipping nation {nation.get('nation_name', 'Unknown')} - inactive for 14+ days")
-                                continue
-                        except (ValueError, TypeError):
-                            # If we can't parse last_active, skip the nation to be safe
-                            self.logger.debug(f"get_active_nations: Skipping nation {nation.get('nation_name', 'Unknown')} - unable to parse last_active date")
-                            continue
-                    else:
-                        # If last_active is missing or empty, exclude the nation to be safe
-                        self.logger.debug(f"get_active_nations: Skipping nation {nation.get('nation_name', 'Unknown')} - missing last_active date")
-                        continue
-                  
+                    # Treat remaining nations as active (do not require last_active parsing)
                     active_nations.append(nation)
                 except (AttributeError, TypeError) as e:
                     self._log_error(f"Error processing nation at index {i}", e, "get_active_nations")
@@ -305,10 +427,13 @@ class AllianceCalculator:
                             last_active = datetime.fromisoformat(last_active_str).replace(tzinfo=timezone.utc)
                     except (ValueError, TypeError):
                         last_active = None
-                if vacation_turns > 0 and alliance_position.upper() != 'APPLICANT':
-                    vacation_nations += 1
                 if alliance_position.upper() == 'APPLICANT':
                     applicant_nations += 1
+                    continue  # Skip APPs for vacation and inactive counts
+                
+                if vacation_turns > 0:
+                    vacation_nations += 1
+                
                 if is_active and last_active:
                     if last_active < fourteen_days_ago:
                         inactive_14_days += 1
@@ -346,8 +471,8 @@ class AllianceCalculator:
     def calculate_alliance_statistics(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
         stats = {
             'total_nations': len(nations),
-            'total_score': sum(nation.get('score', 0) for nation in nations),
-            'total_cities': sum(nation.get('num_cities', 0) for nation in nations),
+            'total_score': sum(float(nation.get('score', 0) or 0) for nation in nations),
+            'total_cities': sum(int((nation.get('num_cities', nation.get('cities', 0))) or 0) for nation in nations),
             'missile_capable': 0,
             'nuclear_capable': 0,
             'vital_defense_system': 0,
@@ -440,7 +565,8 @@ class AllianceCalculator:
     
     def calculate_full_mill_data(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
         try:
-            active_nations = self.get_active_nations(nations)
+            # Filter only VM/APPLICANT, include 14+ inactive
+            active_nations = [n for n in nations if (self._safe_get(n, 'vacation_mode_turns', 0, int) == 0 and self._safe_get(n, 'alliance_position', '', str).upper() != 'APPLICANT')]
             current_soldiers = 0
             current_tanks = 0
             current_aircraft = 0
@@ -503,10 +629,14 @@ class AllianceCalculator:
                 nation_aircraft_gap = max(0, nation_max_aircraft - nation_current_aircraft)
                 nation_ship_gap = max(0, nation_max_ships - nation_current_ships)
                 
-                nation_soldier_days = nation_soldier_gap / nation_daily_soldiers if nation_daily_soldiers > 0 else 0
-                nation_tank_days = nation_tank_gap / nation_daily_tanks if nation_daily_tanks > 0 else 0
-                nation_aircraft_days = nation_aircraft_gap / nation_daily_aircraft if nation_daily_aircraft > 0 else 0
-                nation_ship_days = nation_ship_gap / nation_daily_ships if nation_daily_ships > 0 else 0
+                # Define a maximum days constant to avoid infinity values
+                MAX_DAYS = 999999  # Use a large number instead of infinity
+                
+                # Calculate days needed, using MAX_DAYS when daily production is zero
+                nation_soldier_days = nation_soldier_gap / nation_daily_soldiers if nation_daily_soldiers > 0 else MAX_DAYS if nation_soldier_gap > 0 else 0
+                nation_tank_days = nation_tank_gap / nation_daily_tanks if nation_daily_tanks > 0 else MAX_DAYS if nation_tank_gap > 0 else 0
+                nation_aircraft_days = nation_aircraft_gap / nation_daily_aircraft if nation_daily_aircraft > 0 else MAX_DAYS if nation_aircraft_gap > 0 else 0
+                nation_ship_days = nation_ship_gap / nation_daily_ships if nation_daily_ships > 0 else MAX_DAYS if nation_ship_gap > 0 else 0
                 
                 # Update maximum days and corresponding nation names
                 if nation_soldier_days > max_soldier_days:
@@ -533,14 +663,18 @@ class AllianceCalculator:
                 max_aircraft += nation_max_aircraft
                 max_ships += nation_max_ships
             
+            # We no longer need to calculate alliance-wide days
+            # Instead, we'll use the max_*_days values calculated per nation
+            # These represent the nation with the longest time for each unit type
+            
+            # Still calculate gaps for reference
             soldier_gap = max(0, max_soldiers - current_soldiers)
             tank_gap = max(0, max_tanks - current_tanks)
             aircraft_gap = max(0, max_aircraft - current_aircraft)
             ship_gap = max(0, max_ships - current_ships)
-            soldier_days = soldier_gap / daily_soldiers if daily_soldiers > 0 else float('inf')
-            tank_days = tank_gap / daily_tanks if daily_tanks > 0 else float('inf')
-            aircraft_days = aircraft_gap / daily_aircraft if daily_aircraft > 0 else float('inf')
-            ship_days = ship_gap / daily_ships if daily_ships > 0 else float('inf')            
+            
+            # Use max days from individual nations instead of calculating alliance-wide days
+            # This ensures we're showing time based on the nation that needs the most time            
             return {
                 'total_nations': len(active_nations),
                 'active_nations': len(active_nations),
@@ -566,10 +700,10 @@ class AllianceCalculator:
                 'tank_gap': tank_gap,
                 'aircraft_gap': aircraft_gap,
                 'ship_gap': ship_gap,
-                'soldier_days': soldier_days,
-                'tank_days': tank_days,
-                'aircraft_days': aircraft_days,
-                'ship_days': ship_days,
+                'soldier_days': max_soldier_days,
+                'tank_days': max_tank_days,
+                'aircraft_days': max_aircraft_days,
+                'ship_days': max_ship_days,
                 # New fields for individual nation maximums
                 'max_soldier_days': max_soldier_days,
                 'max_tank_days': max_tank_days,
@@ -1196,6 +1330,202 @@ class AllianceCalculator:
         except Exception:
             return False
     
+    def calculate_military_analysis(self, nation: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate comprehensive military analysis for a nation.
+        
+        Args:
+            nation: Nation data dictionary
+            
+        Returns:
+            Military analysis dictionary with current military, purchase limits, advantages, etc.
+        """
+        try:
+            # Validate input
+            if not self._validate_input(nation, dict, "nation"):
+                self._log_error("Invalid nation data for military analysis", context="calculate_military_analysis")
+                return self._get_default_military_analysis()
+            
+            # Get basic military data with safe extraction
+            try:
+                current_military = {
+                    'soldiers': max(0, int(self._safe_get(nation, 'soldiers', 0, (int, float)) or 0)),
+                    'tanks': max(0, int(self._safe_get(nation, 'tanks', 0, (int, float)) or 0)),
+                    'aircraft': max(0, int(self._safe_get(nation, 'aircraft', 0, (int, float)) or 0)),
+                    'ships': max(0, int(self._safe_get(nation, 'ships', 0, (int, float)) or 0))
+                }
+            except (ValueError, TypeError) as e:
+                self._log_error("Error extracting military unit data", e, "calculate_military_analysis")
+                current_military = {'soldiers': 0, 'tanks': 0, 'aircraft': 0, 'ships': 0}
+            
+            # Calculate purchase limits
+            purchase_limits = {}
+            try:
+                purchase_limits = self.calculate_military_purchase_limits(nation)
+            except Exception as e:
+                self._log_error("Error calculating purchase limits", e, "calculate_military_analysis")
+                purchase_limits = self._get_default_military_limits()
+            
+            # Calculate theoretical maximum capacities
+            try:
+                num_cities = max(0, int(self._safe_get(nation, 'num_cities', 0, (int, float)) or 0))
+                theoretical_max_soldiers = num_cities * 5 * 3000  # 5 Barracks per city, 3000 soldiers per Barracks
+                theoretical_max_tanks = num_cities * 5 * 250     # 5 Factories per city, 250 tanks per Factory
+                theoretical_max_aircraft = num_cities * 5 * 15   # 5 Hangars per city, 15 aircraft per Hangar
+                theoretical_max_ships = num_cities * 3 * 5       # 3 Harbors per city, 5 ships per Harbor
+            except (ValueError, TypeError, OverflowError) as e:
+                self._log_error("Error calculating theoretical maximum capacities", e, "calculate_military_analysis")
+                num_cities = 0
+                theoretical_max_soldiers = theoretical_max_tanks = theoretical_max_aircraft = theoretical_max_ships = 0
+            
+            # Calculate unit percentages
+            soldier_percentage = (current_military['soldiers'] / theoretical_max_soldiers * 100) if theoretical_max_soldiers > 0 else 0
+            tank_percentage = (current_military['tanks'] / theoretical_max_tanks * 100) if theoretical_max_tanks > 0 else 0
+            aircraft_percentage = (current_military['aircraft'] / theoretical_max_aircraft * 100) if theoretical_max_aircraft > 0 else 0
+            ship_percentage = (current_military['ships'] / theoretical_max_ships * 100) if theoretical_max_ships > 0 else 0
+            
+            # Calculate ground score (tanks weighted twice as much as soldiers)
+            current_ground_score = current_military['soldiers'] + (current_military['tanks'] * 2)
+            theoretical_max_ground_score = theoretical_max_soldiers + (theoretical_max_tanks * 2)
+            ground_percentage = (current_ground_score / theoretical_max_ground_score * 100) if theoretical_max_ground_score > 0 else 0
+            
+            # Determine if "heavy" in each unit type (75% threshold)
+            is_heavy_ground = ground_percentage > 75
+            is_heavy_air = aircraft_percentage > 75
+            is_heavy_naval = ship_percentage > 75
+            
+            # Check for high purchase capacity (minimum thresholds for advantages)
+            high_ground_purchase = (purchase_limits.get('soldiers_max', 0) >= 100000 or purchase_limits.get('tanks_max', 0) >= 4000)
+            high_air_purchase = purchase_limits.get('aircraft_max', 0) >= 250
+            high_naval_purchase = purchase_limits.get('ships_max', 0) >= 40
+            
+            # Determine advantages
+            advantages = []
+            has_ground_advantage = is_heavy_ground and high_ground_purchase
+            has_air_advantage = is_heavy_air and high_air_purchase
+            has_naval_advantage = is_heavy_naval and high_naval_purchase
+            
+            if has_ground_advantage:
+                advantages.append("Ground Advantage")
+            if has_air_advantage:
+                advantages.append("Air Advantage")
+            if has_naval_advantage:
+                advantages.append("Naval Advantage")
+            
+            # Strategic capabilities
+            can_missile = self.has_project(nation, 'Missile Launch Pad')
+            can_nuke = self.has_project(nation, 'Nuclear Research Facility')
+            
+            if can_missile:
+                advantages.append("Missile Capable")
+            if can_nuke:
+                advantages.append("Nuclear Capable")
+            
+            # Calculate attack range
+            attack_range = {}
+            try:
+                nation_score = nation.get('score', 0)
+                if nation_score > 0:
+                    attack_range = {
+                        'min_range': nation_score * 0.75,
+                        'max_range': nation_score * 1.25,
+                        'current_score': nation_score
+                    }
+                else:
+                    attack_range = {'min_range': 0.0, 'max_range': 0.0, 'current_score': 0.0}
+            except Exception as e:
+                self._log_error("Error calculating attack range", e, "calculate_military_analysis")
+                attack_range = {'min_range': 0.0, 'max_range': 0.0, 'current_score': 0.0}
+            
+            return {
+                'advantages': advantages,
+                'purchase_limits': {
+                    'soldiers': purchase_limits.get('soldiers_daily', 0),
+                    'tanks': purchase_limits.get('tanks_daily', 0),
+                    'aircraft': purchase_limits.get('aircraft_daily', 0),
+                    'ships': purchase_limits.get('ships_daily', 0),
+                    'soldiers_max': purchase_limits.get('soldiers_max', 0),
+                    'tanks_max': purchase_limits.get('tanks_max', 0),
+                    'aircraft_max': purchase_limits.get('aircraft_max', 0),
+                    'ships_max': purchase_limits.get('ships_max', 0)
+                },
+                'current_military': current_military,
+                'can_missile': can_missile,
+                'can_nuke': can_nuke,
+                'has_ground_advantage': has_ground_advantage,
+                'has_air_advantage': has_air_advantage,
+                'has_naval_advantage': has_naval_advantage,
+                'attack_range': attack_range,
+                'military_composition': {
+                    'current_soldiers': current_military['soldiers'],
+                    'current_tanks': current_military['tanks'],
+                    'current_aircraft': current_military['aircraft'],
+                    'current_ships': current_military['ships'],
+                    'theoretical_max_soldiers': theoretical_max_soldiers,
+                    'theoretical_max_tanks': theoretical_max_tanks,
+                    'theoretical_max_aircraft': theoretical_max_aircraft,
+                    'theoretical_max_ships': theoretical_max_ships,
+                    'soldier_percentage': soldier_percentage,
+                    'tank_percentage': tank_percentage,
+                    'aircraft_percentage': aircraft_percentage,
+                    'ship_percentage': ship_percentage,
+                    'ground_percentage': ground_percentage,
+                    'current_ground_score': current_ground_score,
+                    'theoretical_max_ground_score': theoretical_max_ground_score,
+                    'is_heavy_ground': is_heavy_ground,
+                    'is_heavy_air': is_heavy_air,
+                    'is_heavy_naval': is_heavy_naval
+                },
+                'strategic_capabilities': {
+                    'missiles': nation.get('missiles', 0) > 0,
+                    'nukes': nation.get('nukes', 0) > 0,
+                    'projects': {
+                        'missile_launch_pad': can_missile,
+                        'nuclear_research_facility': can_nuke,
+                        'iron_dome': self.has_project(nation, 'Iron Dome'),
+                        'vital_defense_system': self.has_project(nation, 'Vital Defense System'),
+                        'propaganda_bureau': self.has_project(nation, 'Propaganda Bureau'),
+                        'military_research_center': self.has_project(nation, 'Military Research Center'),
+                        'space_program': self.has_project(nation, 'Space Program')
+                    }
+                },
+                'military_research': nation.get('military_research', {})
+            }
+            
+        except Exception as e:
+            self._log_error("Unexpected error in military analysis calculation", e, "calculate_military_analysis")
+            return self._get_default_military_analysis()
+    
+    def _get_default_military_analysis(self) -> Dict[str, Any]:
+        """Return default military analysis structure for error cases"""
+        return {
+            'advantages': [],
+            'purchase_limits': {
+                'soldiers': 0,
+                'tanks': 0,
+                'aircraft': 0,
+                'ships': 0,
+                'soldiers_max': 0,
+                'tanks_max': 0,
+                'aircraft_max': 0,
+                'ships_max': 0
+            },
+            'current_military': {},
+            'can_missile': False,
+            'can_nuke': False,
+            'has_ground_advantage': False,
+            'has_air_advantage': False,
+            'has_naval_advantage': False,
+            'attack_range': {'min_range': 0.0, 'max_range': 0.0, 'current_score': 0.0},
+            'military_composition': {},
+            'strategic_capabilities': {
+                'missiles': False,
+                'nukes': False,
+                'projects': {}
+            },
+            'military_research': {}
+        }
+
     def _calculate_strategic_value(self, nation: Dict[str, Any]) -> float:
         try:
             score = 0.0
@@ -1398,5 +1728,15 @@ def calculate_strategic_value(nation: Dict[str, Any]) -> float:
 async def calculate_improvements_data(nations: List[Dict[str, Any]]) -> Dict[str, Any]:
     return await calculator.calculate_improvements_data(nations)
 
+async def calculate_improvements_data_multi_alliance(alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> Dict[str, Any]:
+    return await calculator.calculate_improvements_data_multi_alliance(alliance_data, selected_alliances)
+
+def calculate_alliance_statistics_multi_alliance(alliance_data: Dict[str, List[Dict[str, Any]]], selected_alliances: List[str] = None) -> Dict[str, Any]:
+    return calculator.calculate_alliance_statistics_multi_alliance(alliance_data, selected_alliances)
+
 def calculate_building_ratios(nation: Dict[str, Any]) -> str:
     return calculator.calculate_building_ratios(nation)
+
+def calculate_military_analysis(nation: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate comprehensive military analysis for a nation (wrapper function)"""
+    return calculator.calculate_military_analysis(nation)

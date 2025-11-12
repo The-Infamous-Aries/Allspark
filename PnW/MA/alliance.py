@@ -12,6 +12,7 @@ import logging
 import traceback
 import sys
 import time
+from pathlib import Path
 
 # Try to import pnwkit, handle gracefully if not available
 try:
@@ -78,6 +79,25 @@ except ImportError:
     except ImportError:
         create_query_instance = None
 
+# Import Bloc AllianceManager with alias to avoid name clash
+try:
+    from .bloc import AllianceManager as BlocAllianceManager
+except ImportError:
+    try:
+        from Systems.PnW.MA.bloc import AllianceManager as BlocAllianceManager
+    except ImportError:
+        BlocAllianceManager = None
+
+# Import leadership role check from snipe.py
+try:
+    from Systems.PnW.snipe import leadership_role_check
+except Exception:
+    try:
+        from snipe import leadership_role_check
+    except Exception:
+        def leadership_role_check():
+            return commands.check(lambda ctx: True)
+
 class FullMillView(discord.ui.View):
     """View for displaying Full Mill calculations and alliance data."""
     
@@ -103,10 +123,16 @@ class FullMillView(discord.ui.View):
             current_nations = nations or self.current_nations
             
             if not current_nations:
-                # Get combined Cybertron + Prime Banking data
-                cybertron_nations = await self.alliance_cog.get_alliance_nations(CYBERTRON_ALLIANCE_ID)
-                prime_bank_nations = await self.alliance_cog.get_alliance_nations(PRIME_BANK_ALLIANCE_ID)
-                current_nations = (cybertron_nations or []) + (prime_bank_nations or [])
+                # Get alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                guild_nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
+                
+                # Conditionally fetch Prime Bank data if configured and different
+                prime_bank_nations = []
+                if hasattr(self.alliance_cog, 'prime_bank_alliance_id') and self.alliance_cog.prime_bank_alliance_id and self.alliance_cog.prime_bank_alliance_id != guild_alliance_id:
+                    prime_bank_nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.prime_bank_alliance_id)
+                
+                current_nations = (guild_nations or []) + (prime_bank_nations or [])
                 if not current_nations:
                     return discord.Embed(
                         title="❌ No Alliance Data",
@@ -115,18 +141,17 @@ class FullMillView(discord.ui.View):
                     )
                 self.current_nations = current_nations
             
-            # Use only active members (exclude Applicants & Vacation Mode) but show total count
+            # Use ALL − Vacation Mode − APPLICANT for totals
             total_nations = len(current_nations)
-            active_nations = get_active_nations(current_nations)
+            non_vm_non_app = [n for n in current_nations if (((n.get('vacation_mode_turns', 0) or 0) == 0) and ((n.get('alliance_position','') or '').strip().upper() != 'APPLICANT'))]
             
-            # Calculate full mill data for active members only
-            full_mill_data = await self.alliance_cog.calculate_full_mill_data(active_nations)
-            nation_stats = calculate_nation_statistics(active_nations)
+            # Calculate full mill data for ALL − VM − APPS
+            full_mill_data = self.alliance_cog.calculate_full_mill_data(non_vm_non_app)
             
             # Create Full Mill embed
             embed = discord.Embed(
                 title="🏭 Cybertr0n Military Analysis",
-                description="Alliance military capacity and production analysis (active members only)",
+                description="Alliance military capacity and production analysis (ALL − Vacation Mode − APPS)",
                 color=discord.Color.from_rgb(255, 140, 0)
             )
             
@@ -135,7 +160,7 @@ class FullMillView(discord.ui.View):
                 name="📊 Overall Statistics",
                 value=(
                     f"**Total Nations:** {total_nations}\n"
-                    f"**Active Nations:** {nation_stats['active_nations']}\n"
+                    f"**Active Nations:** {full_mill_data['active_nations']}\n"
                     f"**Total Cities:** {full_mill_data['total_cities']:,}\n"
                     f"**Total Score:** {full_mill_data['total_score']:,}"
                 ),
@@ -147,9 +172,9 @@ class FullMillView(discord.ui.View):
                 name="⚔️ Military Units",
                 value=(
                     f"🪖 **Soldiers:** {full_mill_data['current_soldiers']:,}/{full_mill_data['max_soldiers']:,}\n"
-                    f"🛡️ **Tanks:** {full_mill_data['current_tanks']:,}/{full_mill_data['max_tanks']:,}\n"
-                    f"✈️ **Aircraft:** {full_mill_data['current_aircraft']:,}/{full_mill_data['max_aircraft']:,}\n"
-                    f"🚢 **Ships:** {full_mill_data['current_ships']:,}/{full_mill_data['max_ships']:,}"
+                    f"🚙 **Tanks:** {full_mill_data['current_tanks']:,}/{full_mill_data['max_tanks']:,}\n"
+                    f"🛩️ **Aircraft:** {full_mill_data['current_aircraft']:,}/{full_mill_data['max_aircraft']:,}\n"
+                    f"⚓ **Ships:** {full_mill_data['current_ships']:,}/{full_mill_data['max_ships']:,}"
                 ),
                 inline=False
             )
@@ -159,9 +184,9 @@ class FullMillView(discord.ui.View):
                 name="🏭 Daily Production",
                 value=(
                     f"🪖 **Soldiers:** {full_mill_data['daily_soldiers']:,}/day\n"
-                    f"🛡️ **Tanks:** {full_mill_data['daily_tanks']:,}/day\n"
-                    f"✈️ **Aircraft:** {full_mill_data['daily_aircraft']:,}/day\n"
-                    f"🚢 **Ships:** {full_mill_data['daily_ships']:,}/day\n"
+                    f"🚙 **Tanks:** {full_mill_data['daily_tanks']:,}/day\n"
+                    f"🛩️ **Aircraft:** {full_mill_data['daily_aircraft']:,}/day\n"
+                    f"⚓ **Ships:** {full_mill_data['daily_ships']:,}/day\n"
                     f"🚀 **Missiles:** {full_mill_data['daily_missiles']:,}/day\n"
                     f"☢️ **Nukes:** {full_mill_data['daily_nukes']:,}/day"
                 ),
@@ -173,9 +198,9 @@ class FullMillView(discord.ui.View):
                 name="⚔️ Units Needed",
                 value=(
                     f"🪖 **Soldiers:** {full_mill_data['soldier_gap']:,}\n"
-                    f"🛡️ **Tanks:** {full_mill_data['tank_gap']:,}\n"
-                    f"✈️ **Aircraft:** {full_mill_data['aircraft_gap']:,}\n"
-                    f"🚢 **Ships:** {full_mill_data['ship_gap']:,}"
+                    f"🚙 **Tanks:** {full_mill_data['tank_gap']:,}\n"
+                    f"🛩️ **Aircraft:** {full_mill_data['aircraft_gap']:,}\n"
+                    f"⚓ **Ships:** {full_mill_data['ship_gap']:,}"
                 ),
                 inline=False
             )
@@ -185,9 +210,9 @@ class FullMillView(discord.ui.View):
                 name="⏱️ Time to Max",
                 value=(
                     f"🪖 **Soldiers:** {math.ceil(full_mill_data['max_soldier_days'])} days ({full_mill_data['max_soldier_nation']})\n"
-                    f"🛡️ **Tanks:** {math.ceil(full_mill_data['max_tank_days'])} days ({full_mill_data['max_tank_nation']})\n"
-                    f"✈️ **Aircraft:** {math.ceil(full_mill_data['max_aircraft_days'])} days ({full_mill_data['max_aircraft_nation']})\n"
-                    f"🚢 **Ships:** {math.ceil(full_mill_data['max_ship_days'])} days ({full_mill_data['max_ship_nation']})"
+                    f"🚙 **Tanks:** {math.ceil(full_mill_data['max_tank_days'])} days ({full_mill_data['max_tank_nation']})\n"
+                    f"🛩️ **Aircraft:** {math.ceil(full_mill_data['max_aircraft_days'])} days ({full_mill_data['max_aircraft_nation']})\n"
+                    f"⚓ **Ships:** {math.ceil(full_mill_data['max_ship_days'])} days ({full_mill_data['max_ship_nation']})"
                 ),
                 inline=False
             )
@@ -211,8 +236,9 @@ class FullMillView(discord.ui.View):
             await interaction.response.defer()
             
             if not self.current_nations:
-                # Fetch alliance data if not already loaded
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -250,7 +276,9 @@ class FullMillView(discord.ui.View):
             await interaction.response.defer()
 
             if not self.current_nations:
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -280,8 +308,9 @@ class FullMillView(discord.ui.View):
             await interaction.response.defer()
             
             if not self.current_nations:
-                # Fetch alliance data if not already loaded
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -321,6 +350,8 @@ class AllianceTotalsView(discord.ui.View):
         self.bot = bot
         self.alliance_cog = alliance_cog
         self.current_nations = nations
+        # Ensure compatibility with bloc-level components that may access bloc_data
+        self.bloc_data = {}
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Check if the interaction is from the command author."""
@@ -334,10 +365,16 @@ class AllianceTotalsView(discord.ui.View):
         try:
             current_nations = nations or self.current_nations
             if not current_nations:
-                # Get combined Cybertron + Prime Banking data
-                cybertron_nations = await self.alliance_cog.get_alliance_nations(CYBERTRON_ALLIANCE_ID)
-                prime_bank_nations = await self.alliance_cog.get_alliance_nations(PRIME_BANK_ALLIANCE_ID)
-                current_nations = (cybertron_nations or []) + (prime_bank_nations or [])
+                # Get alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                guild_nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
+                
+                # Conditionally fetch Prime Bank data if configured and different
+                prime_bank_nations = []
+                if hasattr(self.alliance_cog, 'prime_bank_alliance_id') and self.alliance_cog.prime_bank_alliance_id and self.alliance_cog.prime_bank_alliance_id != guild_alliance_id:
+                    prime_bank_nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.prime_bank_alliance_id)
+                
+                current_nations = (guild_nations or []) + (prime_bank_nations or [])
                 if not current_nations:
                     return discord.Embed(
                         title="❌ No Alliance Data",
@@ -348,14 +385,17 @@ class AllianceTotalsView(discord.ui.View):
             
             # Get active nations for statistics
             active_nations = self.alliance_cog.get_active_nations(current_nations)
-            stats = self.alliance_cog.calculate_alliance_statistics(active_nations)
+            # Build simplified active set: ALL - Vacation Mode - APPLICANT
+            apps = [n for n in current_nations if ((n.get('alliance_position','') or '').strip().upper() == 'APPLICANT')]
+            non_vm_non_app = [n for n in current_nations if (((n.get('vacation_mode_turns', 0) or 0) == 0) and ((n.get('alliance_position','') or '').strip().upper() != 'APPLICANT'))]
+            stats_simple = self.alliance_cog.calculate_alliance_statistics(non_vm_non_app)
             
             # Calculate nation statistics for all nations (including inactive)
             nation_stats = self.alliance_cog.calculate_nation_statistics(current_nations)
             
-            # Calculate averages manually since they're not in stats
-            avg_score = stats['total_score'] / stats['total_nations'] if stats['total_nations'] > 0 else 0
-            avg_cities = stats['total_cities'] / stats['total_nations'] if stats['total_nations'] > 0 else 0
+            # Calculate averages manually based on simplified active set
+            avg_score = stats_simple['total_score'] / stats_simple['total_nations'] if stats_simple['total_nations'] > 0 else 0
+            avg_cities = stats_simple['total_cities'] / stats_simple['total_nations'] if stats_simple['total_nations'] > 0 else 0
             
             # Create comprehensive statistics embed
             embed = discord.Embed(
@@ -367,12 +407,12 @@ class AllianceTotalsView(discord.ui.View):
             embed.add_field(
                 name="📊 Nation Counts",
                 value=(
-                    f"📇 **Total:** {nation_stats['total_nations']}\n"
-                    f"✅ **Active:** {nation_stats['active_nations']}\n"
-                    f"📝 **Applicants:** {nation_stats['applicant_nations']}\n"
-                    f"🧮 **Total Score:** {stats['total_score']:,}\n"
+                    f"📇 **Total:** {len(current_nations)}\n"
+                    f"✅ **Active:** {len(non_vm_non_app)}\n"
+                    f"📝 **Applicants:** {len(apps)}\n"
+                    f"🧮 **Total Score:** {stats_simple['total_score']:,}\n"
                     f"⚖️ **Average Score:** {avg_score:,.0f}\n"
-                    f"🌇 **Total Cities:** {stats['total_cities']:,}\n"
+                    f"🌇 **Total Cities:** {stats_simple['total_cities']:,}\n"
                     f"🌆 **Average Cities:** {avg_cities:.1f}"
                 ),
                 inline=False
@@ -477,7 +517,7 @@ class AllianceTotalsView(discord.ui.View):
 
             seven_to_thirteen = []
             fourteen_plus = []
-            for n in active_nations:
+            for n in non_vm_non_app:
                 d = _days_inactive(n)
                 if isinstance(d, int):
                     if 7 <= d < 14:
@@ -485,6 +525,7 @@ class AllianceTotalsView(discord.ui.View):
                     elif d >= 14:
                         fourteen_plus.append(n)
 
+            non_applicants = [n for n in current_nations if ((n.get('alliance_position','') or '').strip().upper() != 'APPLICANT')]
             embed.add_field(name=f"⏲️ GREY Nations - Total: {len(grey)}", value=_make_links(grey), inline=False)
             embed.add_field(name=f"🩼 BEIGE Nations - Total: {len(beige)}", value=_make_links(beige), inline=False)
             embed.add_field(name=f"🏖️ Vacation Mode - Total: {len(vm)}", value=_make_links(vm), inline=False)
@@ -510,8 +551,9 @@ class AllianceTotalsView(discord.ui.View):
             await interaction.response.defer()
             
             if not self.current_nations:
-                # Fetch alliance data if not already loaded
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -549,8 +591,9 @@ class AllianceTotalsView(discord.ui.View):
             await interaction.response.defer()
             
             if not self.current_nations:
-                # Fetch alliance data if not already loaded
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -588,7 +631,9 @@ class AllianceTotalsView(discord.ui.View):
             await interaction.response.defer()
 
             if not self.current_nations:
-                nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.cybertron_alliance_id)
+                # Fetch alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
                 if not nations:
                     embed = discord.Embed(
                         title="❌ No Alliance Data",
@@ -635,10 +680,16 @@ class ImprovementsView(discord.ui.View):
         try:
             current_nations = nations or self.current_nations
             if not current_nations:
-                # Get combined Cybertron + Prime Banking data
-                cybertron_nations = await self.alliance_cog.get_alliance_nations(CYBERTRON_ALLIANCE_ID)
-                prime_bank_nations = await self.alliance_cog.get_alliance_nations(PRIME_BANK_ALLIANCE_ID)
-                current_nations = (cybertron_nations or []) + (prime_bank_nations or [])
+                # Get alliance data based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild)
+                guild_nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
+                
+                # Conditionally fetch Prime Bank data if configured and different
+                prime_bank_nations = []
+                if hasattr(self.alliance_cog, 'prime_bank_alliance_id') and self.alliance_cog.prime_bank_alliance_id and self.alliance_cog.prime_bank_alliance_id != guild_alliance_id:
+                    prime_bank_nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.prime_bank_alliance_id)
+                
+                current_nations = (guild_nations or []) + (prime_bank_nations or [])
                 if not current_nations:
                     return discord.Embed(
                         title="❌ No Alliance Data",
@@ -647,16 +698,16 @@ class ImprovementsView(discord.ui.View):
                     )
                 self.current_nations = current_nations
             
-            # Use only active members (exclude Applicants & Vacation Mode)
-            active_nations = self.alliance_cog.get_active_nations(current_nations)
+            # Use ALL − Vacation Mode − APPLICANT for totals
+            active_nations = [n for n in current_nations if (((n.get('vacation_mode_turns', 0) or 0) == 0) and ((n.get('alliance_position','') or '').strip().upper() != 'APPLICANT'))]
 
-            # Calculate improvements data for active members only
+            # Calculate improvements data for ALL − VM − APPS
             improvements_data = await self.alliance_cog.calculate_improvements_data(active_nations)
             
             # Create Improvements Breakdown embed
             embed = discord.Embed(
                 title="🏗️ Cybertr0n Improvements Breakdown",
-                description="Total improvements across active alliance members (excludes Applicants & VM)",
+                description="Total improvements across ALL − Vacation Mode − APPS",
                 color=discord.Color.from_rgb(34, 139, 34)
             )
             
@@ -888,10 +939,25 @@ class ProjectTotalsView(discord.ui.View):
         try:
             current_nations = nations or self.current_nations
             if not current_nations:
-                # Get combined Cybertron + Prime Banking data
-                cybertron_nations = await self.alliance_cog.get_alliance_nations(CYBERTRON_ALLIANCE_ID)
-                prime_bank_nations = await self.alliance_cog.get_alliance_nations(PRIME_BANK_ALLIANCE_ID)
-                current_nations = (cybertron_nations or []) + (prime_bank_nations or [])
+                # Get alliance data dynamically based on guild
+                guild_alliance_id = await self.alliance_cog.get_alliance_id_for_guild(self.guild_id)
+                if not guild_alliance_id:
+                    return discord.Embed(
+                        title="❌ No Alliance Data",
+                        description="Failed to determine alliance ID for this guild.",
+                        color=discord.Color.red()
+                    )
+                
+                # Get main alliance nations
+                current_nations = await self.alliance_cog.get_alliance_nations(guild_alliance_id)
+                current_nations = current_nations or []
+                
+                # Conditionally add Prime Bank nations if configured and different
+                if hasattr(self.alliance_cog, 'prime_bank_alliance_id') and self.alliance_cog.prime_bank_alliance_id and self.alliance_cog.prime_bank_alliance_id != guild_alliance_id:
+                    prime_bank_nations = await self.alliance_cog.get_alliance_nations(self.alliance_cog.prime_bank_alliance_id)
+                    if prime_bank_nations:
+                        current_nations.extend(prime_bank_nations)
+                
                 if not current_nations:
                     return discord.Embed(
                         title="❌ No Alliance Data",
@@ -900,8 +966,8 @@ class ProjectTotalsView(discord.ui.View):
                     )
                 self.current_nations = current_nations
 
-            # Count total nations for project totals (no breakdown needed)
-            total_nations = current_nations
+            # Count nations for project totals using ALL − Vacation Mode − APPLICANT
+            total_nations = [n for n in current_nations if (((n.get('vacation_mode_turns', 0) or 0) == 0) and ((n.get('alliance_position','') or '').strip().upper() != 'APPLICANT'))]
 
             def count_project(field: str, group: List[Dict[str, Any]]) -> int:
                 try:
@@ -960,7 +1026,7 @@ class ProjectTotalsView(discord.ui.View):
 
             embed = discord.Embed(
                 title="🧩 Cybertr0n Project Totals",
-                description="Total projects across all alliance nations",
+                description="Total projects across ALL − Vacation Mode − APPS",
                 color=discord.Color.from_rgb(100, 181, 246)
             )
 
@@ -1196,22 +1262,21 @@ class AllianceManager(commands.Cog):
                     self.logger.info(f"get_alliance_nations: Loaded {len(nations)} nations from alliance file {alliance_file_key}")
                     return nations
             
-            # If individual file not found, try loading from all alliance files
+            # If individual file not found, try loading the specific alliance file from Bloc directory
             bloc_dir = Path(__file__).parent.parent.parent / 'Data' / 'Bloc'
             if bloc_dir.exists():
-                all_nations = []
-                for alliance_file in bloc_dir.glob('alliance_*.json'):
+                # Look for the specific alliance file
+                specific_file = bloc_dir / f'alliance_{alliance_id}.json'
+                if specific_file.exists():
                     try:
-                        file_data = await user_data_manager.get_json_data(alliance_file.stem, {})
+                        file_data = await user_data_manager.get_json_data(f'alliance_{alliance_id}', {})
                         if isinstance(file_data, dict) and 'nations' in file_data:
-                            all_nations.extend(file_data['nations'])
+                            nations = file_data['nations']
+                            self.logger.info(f"get_alliance_nations: Loaded {len(nations)} nations from specific alliance file {specific_file.name}")
+                            return nations
                     except Exception as e:
-                        self.logger.warning(f"Error loading {alliance_file.name}: {e}")
-                        continue
-                
-                if all_nations:
-                    self.logger.info(f"get_alliance_nations: Loaded {len(all_nations)} total nations from all alliance files")
-                    return all_nations
+                        self.logger.warning(f"Error loading specific alliance file {specific_file.name}: {e}")
+                        return None
             
             # Fallback to API if files not available
             if self.query_system:
@@ -1239,7 +1304,7 @@ class AllianceManager(commands.Cog):
         """Calculate alliance statistics using centralized logic."""
         return calculate_alliance_statistics(nations)
 
-    async def calculate_full_mill_data(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def calculate_full_mill_data(self, nations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate full mill data using centralized logic."""
         return calculate_full_mill_data(nations)
 
@@ -1263,9 +1328,10 @@ class AllianceManager(commands.Cog):
         """Calculate improvements data using centralized logic."""
         return await calculate_improvements_data(nations)
 
-    @commands.command(name='testalliance')
+    @commands.hybrid_command(name='testalliance', description='Test alliance UI and dropdown functionality')
+    @commands.guild_only()
     async def test_alliance_command(self, ctx: commands.Context):
-        """Test command to verify alliance dropdown functionality."""
+        """Test command to verify alliance dropdown functionality (slash-enabled)."""
         try:
             # Create AllianceTotalsView with combined Cybertron + Prime Banking data
             view = AllianceTotalsView(ctx.author.id, self.bot, self, None)
@@ -1276,6 +1342,188 @@ class AllianceManager(commands.Cog):
         except Exception as e:
             self._log_error(f"Error in test_alliance_command: {e}", e, "test_alliance_command")
             await ctx.send(f"❌ Test command failed: {str(e)}")
+
+    @commands.hybrid_command(name='alliance', description='Display alliance overview with navigation')
+    @commands.guild_only()
+    async def alliance(self, ctx: commands.Context):
+        """Show alliance overview with interactive UI and working buttons."""
+        try:
+            # Send initial loading message to be edited later
+            initial_msg = await ctx.send("🔄 Loading Alliance Data...")
+
+            # Refresh bloc data to ensure freshest alliance files
+            try:
+                if BlocAllianceManager:
+                    bloc_manager = BlocAllianceManager(self.bot)
+                    await bloc_manager.refresh_bloc_data()
+                else:
+                    self._log_error("BlocAllianceManager import unavailable", None, "alliance.refresh_bloc")
+            except Exception as e:
+                self._log_error(f"Failed to refresh bloc data: {e}", e, "alliance.refresh_bloc")
+
+            # Force refresh Cybertr0n alliance data (equivalent to running refresh_alliance)
+            try:
+                if hasattr(self, 'query_system') and self.query_system:
+                    await self.query_system.get_alliance_nations(
+                        self.cybertron_alliance_id,
+                        bot=self.bot,
+                        force_refresh=True
+                    )
+            except Exception as e:
+                self._log_error(f"Failed to refresh Cybertr0n alliance data: {e}", e, "alliance.refresh_cybertron")
+
+            # Fetch nations for Cybertr0n and optionally Prime Bank, then combine
+            nations: List[Dict] = []
+
+            try:
+                main_nations = await self.get_alliance_nations(self.cybertron_alliance_id)
+                if isinstance(main_nations, list):
+                    nations.extend(main_nations)
+            except Exception as e:
+                self._log_error(f"Failed to load Cybertr0n nations: {e}", e, "alliance.load_main")
+
+            # Include Prime Bank if configured and different from main
+            try:
+                if PRIME_BANK_ALLIANCE_ID and PRIME_BANK_ALLIANCE_ID != self.cybertron_alliance_id:
+                    prime_nations = await self.get_alliance_nations(PRIME_BANK_ALLIANCE_ID)
+                    if isinstance(prime_nations, list):
+                        nations.extend(prime_nations)
+            except Exception as e:
+                self._log_error(f"Failed to load Prime Bank nations: {e}", e, "alliance.load_prime")
+
+            if not nations:
+                await initial_msg.edit(content="❌ No alliance data available.")
+                return
+
+            # Build initial view and embed for Alliance Totals
+            view = AllianceTotalsView(
+                author_id=ctx.author.id,
+                bot=self.bot,
+                alliance_cog=self,
+                nations=nations
+            )
+            embed = await view.generate_alliance_totals_embed(nations)
+
+            # Edit the initial message to display the embed and attach the interactive view
+            await initial_msg.edit(content=None, embed=embed, view=view)
+        
+        except Exception as e:
+            self._log_error(f"Error in alliance command: {e}", e, "AllianceManager.alliance")
+            await ctx.send(f"❌ An error occurred: {str(e)}")
+
+    @commands.hybrid_command(name='refresh_alliance', description='Refresh Cybertr0n alliance data')
+    @commands.guild_only()
+    @leadership_role_check()
+    async def refresh_alliance_command(self, ctx: commands.Context):
+        """Refresh only the Cybertr0n alliance data."""
+        try:
+            # Prepare initial response for slash vs prefix invocation
+            refresh_msg = None
+            is_slash = hasattr(ctx, 'interaction') and getattr(ctx, 'interaction', None)
+
+            if is_slash:
+                try:
+                    if not ctx.interaction.response.is_done():
+                        await ctx.interaction.response.send_message("🔄 Refreshing Cybertr0n alliance data…")
+                except Exception:
+                    # If already responded or failed, fall back to a follow-up
+                    try:
+                        await ctx.interaction.followup.send("🔄 Refreshing Cybertr0n alliance data…")
+                    except Exception:
+                        pass
+            else:
+                refresh_msg = await ctx.send("🔄 Refreshing Cybertr0n alliance data…")
+            
+            # Use the query system to refresh Cybertr0n alliance data
+            if self.query_system:
+                try:
+                    # Force refresh the Cybertr0n alliance data
+                    nations = await self.query_system.get_alliance_nations(
+                        self.cybertron_alliance_id, 
+                        bot=self.bot, 
+                        force_refresh=True
+                    )
+                    
+                    if nations:
+                        # Count active nations (exclude applicants and vacation mode)
+                        active_nations = [
+                            nation for nation in nations 
+                            if (nation.get('alliance_position') != 'APPLICANT' and 
+                                not nation.get('vacation_mode', False))
+                        ]
+                        content = (
+                            f"✅ **Cybertr0n alliance data refreshed!**\n"
+                            f"📊 Total nations: {len(nations)}\n"
+                            f"⚔️ Active nations: {len(active_nations)}"
+                        )
+                    else:
+                        content = "❌ Failed to refresh alliance data - no nations returned."
+
+                    # Deliver the content using appropriate edit method
+                    try:
+                        if is_slash:
+                            await ctx.interaction.edit_original_response(content=content)
+                        elif refresh_msg is not None:
+                            await refresh_msg.edit(content=content)
+                        else:
+                            await ctx.send(content)
+                    except Exception:
+                        # Fallback if edit fails (e.g., original message deleted)
+                        try:
+                            if is_slash:
+                                await ctx.interaction.followup.send(content)
+                            else:
+                                await ctx.send(content)
+                        except Exception:
+                            pass
+                        
+                except Exception as e:
+                    self._log_error(f"Error refreshing alliance data: {e}", e, "refresh_alliance.query")
+                    # Attempt to report the error safely
+                    error_content = f"❌ Error refreshing alliance data: {str(e)}"
+                    try:
+                        if is_slash:
+                            await ctx.interaction.edit_original_response(content=error_content)
+                        elif refresh_msg is not None:
+                            await refresh_msg.edit(content=error_content)
+                        else:
+                            await ctx.send(error_content)
+                    except Exception:
+                        try:
+                            if is_slash:
+                                await ctx.interaction.followup.send(error_content)
+                            else:
+                                await ctx.send(error_content)
+                        except Exception:
+                            pass
+            else:
+                # Query system not available; report using appropriate method
+                no_qs = "❌ Query system not available for refreshing data."
+                try:
+                    if is_slash:
+                        await ctx.interaction.edit_original_response(content=no_qs)
+                    elif refresh_msg is not None:
+                        await refresh_msg.edit(content=no_qs)
+                    else:
+                        await ctx.send(no_qs)
+                except Exception:
+                    try:
+                        if is_slash:
+                            await ctx.interaction.followup.send(no_qs)
+                        else:
+                            await ctx.send(no_qs)
+                    except Exception:
+                        pass
+                
+        except Exception as e:
+            self._log_error(f"Error in refresh_alliance command: {e}", e, "AllianceManager.refresh_alliance")
+            try:
+                if hasattr(ctx, 'interaction') and getattr(ctx, 'interaction', None):
+                    await ctx.interaction.followup.send(f"❌ An error occurred: {str(e)}")
+                else:
+                    await ctx.send(f"❌ An error occurred: {str(e)}")
+            except Exception:
+                pass
 
     async def generate_alliance_totals_embed(self, nations: List[Dict[str, Any]]) -> discord.Embed:
         """Generate the alliance totals embed."""
