@@ -1,0 +1,2230 @@
+{
+  "rarity_colors": {
+    "common": "#808080",
+    "uncommon": "#00FF00",
+    "rare": "#0000FF",
+    "epic": "#800080",
+    "legendary": "#FFA500",
+    "mythic": "#FF0000"
+  },
+  "chassis_plating": {
+    "name": "Chassis Plating",
+    "description": "Reinforced armor plating that provides defense against enemy attacks",
+    "icon": "🛡️",
+    "primary_stat": "defense",
+    "equipment": {
+      "common": {
+        "basic_plating": {
+          "id": "basic_plating",
+          "name": "Basic Chassis Plating",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Simple steel plating providing basic protection",
+          "stat_bonus": {
+            "defense": 5
+          },
+          "unlock_message": "Basic plating installed! Your pet gains +5 defense."
+        },
+        "reinforced_sheet": {
+          "id": "reinforced_sheet",
+          "name": "Reinforced Steel Sheet",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Thicker steel sheet with improved durability",
+          "stat_bonus": {
+            "defense": 8
+          },
+          "unlock_message": "Reinforced sheet applied! Defense increased by +8."
+        },
+        "alloy_coating": {
+          "id": "alloy_coating",
+          "name": "Basic Alloy Coating",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Lightweight alloy coating for basic protection",
+          "stat_bonus": {
+            "defense": 6
+          },
+          "unlock_message": "Alloy coating applied! Your pet gains +6 defense."
+        },
+        "composite_layer": {
+          "id": "composite_layer",
+          "name": "Composite Material Layer",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Layer of composite materials for balanced defense",
+          "stat_bonus": {
+            "defense": 7
+          },
+          "unlock_message": "Composite layer installed! Defense boosted by +7."
+        },
+        "carbon_plate": {
+          "id": "carbon_plate",
+          "name": "Carbon Steel Plate",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Standard carbon steel defensive plate",
+          "stat_bonus": {
+            "defense": 5
+          },
+          "unlock_message": "Carbon plate equipped! Your pet now has +5 defense."
+        },
+        "titanium_sheet": {
+          "id": "titanium_sheet",
+          "name": "Titanium Alloy Sheet",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Lightweight titanium sheet for reliable protection",
+          "stat_bonus": {
+            "defense": 8
+          },
+          "unlock_message": "Titanium sheet installed! Defense increased by +8."
+        },
+        "defensive_coating": {
+          "id": "defensive_coating",
+          "name": "Basic Defensive Coating",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Simple protective coating against minor impacts",
+          "stat_bonus": {
+            "defense": 6
+          },
+          "unlock_message": "Defensive coating applied! Your pet gains +6 defense."
+        },
+        "armor_fragment": {
+          "id": "armor_fragment",
+          "name": "Armor Fragment",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Small fragment of standard armor material",
+          "stat_bonus": {
+            "defense": 7
+          },
+          "unlock_message": "Armor fragment attached! Defense boosted by +7."
+        },
+        "steel_reinforcement": {
+          "id": "steel_reinforcement",
+          "name": "Steel Reinforcement Bar",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Reinforcement bar for structural integrity",
+          "stat_bonus": {
+            "defense": 5
+          },
+          "unlock_message": "Steel reinforcement installed! Your pet gains +5 defense."
+        },
+        "protective_shell": {
+          "id": "protective_shell",
+          "name": "Protective Shell Fragment",
+          "type": "chassis_plating",
+          "rarity": "common",
+          "description": "Fragment of a protective shell for basic defense",
+          "stat_bonus": {
+            "defense": 8
+          },
+          "unlock_message": "Protective shell fragment equipped! Defense increased by +8."
+        }
+      },
+      "uncommon": {
+        "hardened_plating": {
+          "id": "hardened_plating",
+          "name": "Hardened Steel Plating",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Heat-treated steel plating for improved defense",
+          "stat_bonus": {
+            "defense": 12
+          },
+          "unlock_message": "Hardened plating installed! Defense increased by +12."
+        },
+        "ceramic_armor": {
+          "id": "ceramic_armor",
+          "name": "Ceramic Armor Plate",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Advanced ceramic composite for superior protection",
+          "stat_bonus": {
+            "defense": 15
+          },
+          "unlock_message": "Ceramic armor equipped! Your pet gains +15 defense."
+        },
+        "tungsten_layer": {
+          "id": "tungsten_layer",
+          "name": "Tungsten Reinforced Layer",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Heavy tungsten reinforcement for maximum durability",
+          "stat_bonus": {
+            "defense": 18
+          },
+          "unlock_message": "Tungsten layer applied! Defense boosted by +18."
+        },
+        "durasteel_plating": {
+          "id": "durasteel_plating",
+          "name": "Durasteel Protective Plate",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Reinforced durasteel for enhanced protection",
+          "stat_bonus": {
+            "defense": 13
+          },
+          "unlock_message": "Durasteel plating installed! Defense increased by +13."
+        },
+        "composite_armor": {
+          "id": "composite_armor",
+          "name": "Advanced Composite Armor",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Multi-layer composite armor for balanced defense",
+          "stat_bonus": {
+            "defense": 14
+          },
+          "unlock_message": "Composite armor equipped! Your pet gains +14 defense."
+        },
+        "reactive_plating": {
+          "id": "reactive_plating",
+          "name": "Reactive Armor Plating",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Reactive plating that responds to impacts",
+          "stat_bonus": {
+            "defense": 16
+          },
+          "unlock_message": "Reactive plating installed! Defense boosted by +16."
+        },
+        "magnesium_alloy": {
+          "id": "magnesium_alloy",
+          "name": "Magnesium Alloy Plate",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Lightweight magnesium alloy for mobile defense",
+          "stat_bonus": {
+            "defense": 12
+          },
+          "unlock_message": "Magnesium alloy equipped! Your pet gains +12 defense."
+        },
+        "plasma_coating": {
+          "id": "plasma_coating",
+          "name": "Plasma Hardened Coating",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Plasma-hardened surface for extreme durability",
+          "stat_bonus": {
+            "defense": 15
+          },
+          "unlock_message": "Plasma coating applied! Defense increased by +15."
+        },
+        "neosteel_plate": {
+          "id": "neosteel_plate",
+          "name": "Neosteel Armor Plate",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Next-generation neosteel for superior protection",
+          "stat_bonus": {
+            "defense": 17
+          },
+          "unlock_message": "Neosteel plate installed! Defense boosted by +17."
+        },
+        "crystalline_layer": {
+          "id": "crystalline_layer",
+          "name": "Crystalline Armor Layer",
+          "type": "chassis_plating",
+          "rarity": "uncommon",
+          "description": "Crystalline structure for energy dissipation",
+          "stat_bonus": {
+            "defense": 14
+          },
+          "unlock_message": "Crystalline layer equipped! Your pet gains +14 defense."
+        }
+      },
+      "rare": {
+        "titanium_carbide": {
+          "id": "titanium_carbide",
+          "name": "Titanium Carbide Plating",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Ultra-hard titanium carbide for exceptional defense",
+          "stat_bonus": {
+            "defense": 25
+          },
+          "unlock_message": "Titanium carbide plating installed! Defense increased by +25."
+        },
+        "nanocomposite_armor": {
+          "id": "nanocomposite_armor",
+          "name": "Nanocomposite Armor",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Molecular-level nanocomposite for maximum protection",
+          "stat_bonus": {
+            "defense": 30
+          },
+          "unlock_message": "Nanocomposite armor equipped! Your pet gains +30 defense."
+        },
+        "adamantium_plate": {
+          "id": "adamantium_plate",
+          "name": "Adamantium Armor Plate",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Nearly indestructible adamantium plating",
+          "stat_bonus": {
+            "defense": 35
+          },
+          "unlock_message": "Adamantium plate installed! Defense boosted by +35."
+        },
+        "vibranium_coating": {
+          "id": "vibranium_coating",
+          "name": "Vibranium Defensive Coating",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Vibranium-infused coating that absorbs impacts",
+          "stat_bonus": {
+            "defense": 40
+          },
+          "unlock_message": "Vibranium coating applied! Defense increased by +40."
+        },
+        "quantum_plating": {
+          "id": "quantum_plating",
+          "name": "Quantum Stabilized Plating",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Quantum-stabilized armor for dimensional protection",
+          "stat_bonus": {
+            "defense": 28
+          },
+          "unlock_message": "Quantum plating installed! Your pet gains +28 defense."
+        },
+        "forged_alloy": {
+          "id": "forged_alloy",
+          "name": "Forged Protective Alloy",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Master-crafted alloy for superior defense",
+          "stat_bonus": {
+            "defense": 32
+          },
+          "unlock_message": "Forged alloy equipped! Defense boosted by +32."
+        },
+        "energy_shielding": {
+          "id": "energy_shielding",
+          "name": "Energy Shielding Plate",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Integrated energy shielding for dual-layer defense",
+          "stat_bonus": {
+            "defense": 38
+          },
+          "unlock_message": "Energy shielding activated! Defense increased by +38."
+        },
+        "cryosteel_plating": {
+          "id": "cryosteel_plating",
+          "name": "Cryosteel Armor Plating",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Cryogenically hardened steel for extreme durability",
+          "stat_bonus": {
+            "defense": 26
+          },
+          "unlock_message": "Cryosteel plating installed! Your pet gains +26 defense."
+        },
+        "metamaterial_armor": {
+          "id": "metamaterial_armor",
+          "name": "Metamaterial Armor Layer",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Engineered metamaterial for advanced protection",
+          "stat_bonus": {
+            "defense": 33
+          },
+          "unlock_message": "Metamaterial armor equipped! Defense boosted by +33."
+        },
+        "phase_plating": {
+          "id": "phase_plating",
+          "name": "Phase-Shift Plating",
+          "type": "chassis_plating",
+          "rarity": "rare",
+          "description": "Phase-shifting armor that deflects attacks",
+          "stat_bonus": {
+            "defense": 37
+          },
+          "unlock_message": "Phase plating activated! Defense increased by +37."
+        }
+      },
+      "epic": {
+        "legendary_plating": {
+          "id": "legendary_plating",
+          "name": "Legendary Adamantine Plating",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Forged from legendary adamantine for epic defense",
+          "stat_bonus": {
+            "defense": 55
+          },
+          "unlock_message": "Legendary plating installed! Defense increased by +55."
+        },
+        "mythril_armor": {
+          "id": "mythril_armor",
+          "name": "Mythril Composite Armor",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Enchanted mythril for superior magical protection",
+          "stat_bonus": {
+            "defense": 60
+          },
+          "unlock_message": "Mythril armor equipped! Your pet gains +60 defense."
+        },
+        "dragonscale_plating": {
+          "id": "dragonscale_plating",
+          "name": "Dragonscale Armor Plating",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Forged from ancient dragon scales for ultimate defense",
+          "stat_bonus": {
+            "defense": 65
+          },
+          "unlock_message": "Dragonscale plating installed! Defense boosted by +65."
+        },
+        "celestial_armor": {
+          "id": "celestial_armor",
+          "name": "Celestial Armor Plate",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Blessed by celestial beings for divine protection",
+          "stat_bonus": {
+            "defense": 70
+          },
+          "unlock_message": "Celestial armor equipped! Defense increased by +70."
+        },
+        "void_plating": {
+          "id": "void_plating",
+          "name": "Void-Touched Plating",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Armor imbued with void energy for dark protection",
+          "stat_bonus": {
+            "defense": 58
+          },
+          "unlock_message": "Void plating installed! Your pet gains +58 defense."
+        },
+        "aegis_shielding": {
+          "id": "aegis_shielding",
+          "name": "Aegis Protective Shielding",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Legendary shielding that grants near-invulnerability",
+          "stat_bonus": {
+            "defense": 68
+          },
+          "unlock_message": "Aegis shielding activated! Defense boosted by +68."
+        },
+        "runic_plating": {
+          "id": "runic_plating",
+          "name": "Runic Armor Plating",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Ancient runic engravings provide mystical protection",
+          "stat_bonus": {
+            "defense": 72
+          },
+          "unlock_message": "Runic plating installed! Defense increased by +72."
+        },
+        "elemental_armor": {
+          "id": "elemental_armor",
+          "name": "Elemental Resistance Armor",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Armor resistant to all elemental damage types",
+          "stat_bonus": {
+            "defense": 62
+          },
+          "unlock_message": "Elemental armor equipped! Your pet gains +62 defense."
+        },
+        "divine_plating": {
+          "id": "divine_plating",
+          "name": "Divine Protection Plating",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Blessed plating that channels divine protection",
+          "stat_bonus": {
+            "defense": 66
+          },
+          "unlock_message": "Divine plating activated! Defense boosted by +66."
+        },
+        "spectral_armor": {
+          "id": "spectral_armor",
+          "name": "Spectral Defense Armor",
+          "type": "chassis_plating",
+          "rarity": "epic",
+          "description": "Ghostly armor that phases through attacks",
+          "stat_bonus": {
+            "defense": 75
+          },
+          "unlock_message": "Spectral armor equipped! Defense increased by +75."
+        }
+      },
+      "legendary": {
+        "godforged_plating": {
+          "id": "godforged_plating",
+          "name": "Godforged Aegis Plating",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Forged by ancient gods themselves for ultimate defense against titans",
+          "stat_bonus": {
+            "defense": 120
+          },
+          "unlock_message": "Godforged plating installed! Defense increased by +120."
+        },
+        "primordial_armor": {
+          "id": "primordial_armor",
+          "name": "Primordial Armor Plate",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Armor from the dawn of creation itself, capable of withstanding titan assaults",
+          "stat_bonus": {
+            "defense": 125
+          },
+          "unlock_message": "Primordial armor equipped! Your pet gains +125 defense."
+        },
+        "eternium_plating": {
+          "id": "eternium_plating",
+          "name": "Eternium Defense Plating",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Forged from eternium, the unbreakable metal that can deflect titan attacks",
+          "stat_bonus": {
+            "defense": 130
+          },
+          "unlock_message": "Eternium plating installed! Defense boosted by +130."
+        },
+        "cosmic_armor": {
+          "id": "cosmic_armor",
+          "name": "Cosmic Guardian Armor",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Armor blessed by cosmic entities for stellar protection against legendary titans",
+          "stat_bonus": {
+            "defense": 135
+          },
+          "unlock_message": "Cosmic armor equipped! Defense increased by +135."
+        },
+        "infinity_plating": {
+          "id": "infinity_plating",
+          "name": "Infinity Defense Plating",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Armor that draws power from the infinite cosmos to resist titan devastation",
+          "stat_bonus": {
+            "defense": 140
+          },
+          "unlock_message": "Infinity plating activated! Defense boosted by +140."
+        },
+        "transcendent_armor": {
+          "id": "transcendent_armor",
+          "name": "Transcendent Protection Armor",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Armor that transcends mortal understanding, forged to battle titans",
+          "stat_bonus": {
+            "defense": 145
+          },
+          "unlock_message": "Transcendent armor equipped! Defense increased by +145."
+        },
+        "ascendant_plating": {
+          "id": "ascendant_plating",
+          "name": "Ascendant Guardian Plating",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Armor of ascended beings for divine protection against titan wrath",
+          "stat_bonus": {
+            "defense": 150
+          },
+          "unlock_message": "Ascendant plating installed! Defense boosted by +150."
+        },
+        "omega_armor": {
+          "id": "omega_armor",
+          "name": "Omega Defense Armor",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "The ultimate defensive armor of mythical power, designed for titan warfare",
+          "stat_bonus": {
+            "defense": 155
+          },
+          "unlock_message": "Omega armor activated! Defense increased by +155."
+        },
+        "celestial_guardian": {
+          "id": "celestial_guardian",
+          "name": "Celestial Guardian Plating",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "Blessed by celestial guardians for ultimate protection against legendary titans",
+          "stat_bonus": {
+            "defense": 140
+          },
+          "unlock_message": "Celestial guardian plating installed! Defense boosted by +140."
+        },
+        "mythical_aegis": {
+          "id": "mythical_aegis",
+          "name": "Mythical Aegis Armor",
+          "type": "chassis_plating",
+          "rarity": "legendary",
+          "description": "The legendary aegis itself, reborn as armor to face titans",
+          "stat_bonus": {
+            "defense": 145
+          },
+          "unlock_message": "Mythical aegis equipped! Defense increased by +145."
+        }
+      },
+      "mythic": {
+        "omnipotent_plating": {
+          "id": "omnipotent_plating",
+          "name": "Omnipotent Defense Plating",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor of omnipotent beings, beyond mortal comprehension, forged to withstand mythic titans",
+          "stat_bonus": {
+            "defense": 200
+          },
+          "unlock_message": "Omnipotent plating installed! Defense increased by +200."
+        },
+        "universal_armor": {
+          "id": "universal_armor",
+          "name": "Universal Protection Armor",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor that protects against all forms of damage, including mythic titan assaults",
+          "stat_bonus": {
+            "defense": 210
+          },
+          "unlock_message": "Universal armor equipped! Your pet gains +210 defense."
+        },
+        "existential_plating": {
+          "id": "existential_plating",
+          "name": "Existential Defense Plating",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor that defies the very laws of existence, capable of surviving mythic titan encounters",
+          "stat_bonus": {
+            "defense": 220
+          },
+          "unlock_message": "Existential plating activated! Defense boosted by +220."
+        },
+        "absolute_armor": {
+          "id": "absolute_armor",
+          "name": "Absolute Protection Armor",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "The absolute pinnacle of defensive capability, engineered for mythic titan warfare",
+          "stat_bonus": {
+            "defense": 230
+          },
+          "unlock_message": "Absolute armor equipped! Defense increased by +230."
+        },
+        "divine_aegis": {
+          "id": "divine_aegis",
+          "name": "Divine Aegis Supreme",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "The divine aegis itself, ultimate protection blessed to face mythic titans",
+          "stat_bonus": {
+            "defense": 210
+          },
+          "unlock_message": "Divine aegis installed! Defense boosted by +210."
+        },
+        "eternal_armor": {
+          "id": "eternal_armor",
+          "name": "Eternal Defense Armor",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor that will protect for all eternity, enduring through mythic titan battles",
+          "stat_bonus": {
+            "defense": 220
+          },
+          "unlock_message": "Eternal armor activated! Defense increased by +220."
+        },
+        "transcendent_plating": {
+          "id": "transcendent_plating",
+          "name": "Transcendent Defense Plating",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor that transcends all known defensive limits, ascending beyond mythic titan power",
+          "stat_bonus": {
+            "defense": 230
+          },
+          "unlock_message": "Transcendent plating installed! Defense boosted by +230."
+        },
+        "primordial_guardian": {
+          "id": "primordial_guardian",
+          "name": "Primordial Guardian Armor",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor of the first guardian, from the beginning of time, forged to battle mythic titans",
+          "stat_bonus": {
+            "defense": 200
+          },
+          "unlock_message": "Primordial guardian armor equipped! Defense increased by +200."
+        },
+        "cosmic_defender": {
+          "id": "cosmic_defender",
+          "name": "Cosmic Defender Plating",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor of the cosmic defender, protector of galaxies against mythic titan threats",
+          "stat_bonus": {
+            "defense": 210
+          },
+          "unlock_message": "Cosmic defender plating installed! Defense boosted by +210."
+        },
+        "infinity_guardian": {
+          "id": "infinity_guardian",
+          "name": "Infinity Guardian Armor",
+          "type": "chassis_plating",
+          "rarity": "mythic",
+          "description": "Armor that guards the infinite realms, standing eternal against mythic titans",
+          "stat_bonus": {
+            "defense": 220
+          },
+          "unlock_message": "Infinity guardian armor activated! Defense increased by +220."
+        }
+      }
+    }
+  },
+  "energy_cores": {
+    "name": "Energy Cores",
+    "description": "Advanced power cores that enhance your pet's energy capacity and attack power",
+    "icon": "⚡",
+    "primary_stat": "energy",
+    "equipment": {
+      "common": {
+        "basic_energy_cell": {
+          "id": "basic_energy_cell",
+          "name": "Basic Energy Cell",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Simple energy cell providing basic power",
+          "stat_bonus": {
+            "max_energy": 50,
+            "attack": 3
+          },
+          "unlock_message": "Basic energy cell installed! Energy +50, Attack +3"
+        },
+        "power_capacitor": {
+          "id": "power_capacitor",
+          "name": "Power Capacitor",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Energy capacitor for stable power output",
+          "stat_bonus": {
+            "max_energy": 60,
+            "attack": 4
+          },
+          "unlock_message": "Power capacitor equipped! Energy +60, Attack +4"
+        },
+        "energy_storage": {
+          "id": "energy_storage",
+          "name": "Energy Storage Unit",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Basic energy storage for sustained power",
+          "stat_bonus": {
+            "max_energy": 70,
+            "attack": 3
+          },
+          "unlock_message": "Energy storage installed! Energy +70, Attack +3"
+        },
+        "fusion_cell": {
+          "id": "fusion_cell",
+          "name": "Micro Fusion Cell",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Small fusion reactor for reliable energy",
+          "stat_bonus": {
+            "max_energy": 80,
+            "attack": 5
+          },
+          "unlock_message": "Fusion cell activated! Energy +80, Attack +5"
+        },
+        "power_cell": {
+          "id": "power_cell",
+          "name": "Standard Power Cell",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Standard power cell for consistent energy",
+          "stat_bonus": {
+            "max_energy": 65,
+            "attack": 4
+          },
+          "unlock_message": "Power cell equipped! Energy +65, Attack +4"
+        },
+        "energy_module": {
+          "id": "energy_module",
+          "name": "Basic Energy Module",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Modular energy system for flexible power",
+          "stat_bonus": {
+            "max_energy": 75,
+            "attack": 4
+          },
+          "unlock_message": "Energy module installed! Energy +75, Attack +4"
+        },
+        "battery_pack": {
+          "id": "battery_pack",
+          "name": "High-Capacity Battery",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Enhanced battery pack for extended power",
+          "stat_bonus": {
+            "max_energy": 85,
+            "attack": 5
+          },
+          "unlock_message": "Battery pack equipped! Energy +85, Attack +5"
+        },
+        "energy_core_basic": {
+          "id": "energy_core_basic",
+          "name": "Basic Energy Core",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Fundamental energy core for basic operations",
+          "stat_bonus": {
+            "max_energy": 90,
+            "attack": 3
+          },
+          "unlock_message": "Basic energy core installed! Energy +90, Attack +3"
+        },
+        "capacitor_bank": {
+          "id": "capacitor_bank",
+          "name": "Capacitor Bank",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Bank of capacitors for rapid energy discharge",
+          "stat_bonus": {
+            "max_energy": 95,
+            "attack": 4
+          },
+          "unlock_message": "Capacitor bank activated! Energy +95, Attack +4"
+        },
+        "power_supply": {
+          "id": "power_supply",
+          "name": "Standard Power Supply",
+          "type": "energy_cores",
+          "rarity": "common",
+          "description": "Reliable power supply for steady energy output",
+          "stat_bonus": {
+            "max_energy": 55,
+            "attack": 5
+          },
+          "unlock_message": "Power supply equipped! Energy +55, Attack +5"
+        }
+      },
+      "uncommon": {
+        "enhanced_core": {
+          "id": "enhanced_core",
+          "name": "Enhanced Energy Core",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Improved energy core with better efficiency",
+          "stat_bonus": {
+            "max_energy": 120,
+            "attack": 8
+          },
+          "unlock_message": "Enhanced core installed! Energy +120, Attack +8"
+        },
+        "amplifier_unit": {
+          "id": "amplifier_unit",
+          "name": "Energy Amplifier Unit",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Amplifies energy output for increased power",
+          "stat_bonus": {
+            "max_energy": 140,
+            "attack": 9
+          },
+          "unlock_message": "Amplifier unit activated! Energy +140, Attack +9"
+        },
+        "turbo_cell": {
+          "id": "turbo_cell",
+          "name": "Turbo Energy Cell",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "High-performance cell for rapid energy release",
+          "stat_bonus": {
+            "max_energy": 160,
+            "attack": 10
+          },
+          "unlock_message": "Turbo cell equipped! Energy +160, Attack +10"
+        },
+        "power_booster": {
+          "id": "power_booster",
+          "name": "Power Booster Core",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Boosts power output significantly",
+          "stat_bonus": {
+            "max_energy": 130,
+            "attack": 11
+          },
+          "unlock_message": "Power booster installed! Energy +130, Attack +11"
+        },
+        "fusion_core": {
+          "id": "fusion_core",
+          "name": "Advanced Fusion Core",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Advanced fusion technology for superior energy",
+          "stat_bonus": {
+            "max_energy": 180,
+            "attack": 12
+          },
+          "unlock_message": "Fusion core activated! Energy +180, Attack +12"
+        },
+        "energy_amplifier": {
+          "id": "energy_amplifier",
+          "name": "Enhanced Energy Amplifier",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Significantly amplifies energy capacity and output",
+          "stat_bonus": {
+            "max_energy": 150,
+            "attack": 9
+          },
+          "unlock_message": "Energy amplifier installed! Energy +150, Attack +9"
+        },
+        "quantum_cell": {
+          "id": "quantum_cell",
+          "name": "Quantum Energy Cell",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Quantum-tuned energy cell for maximum efficiency",
+          "stat_bonus": {
+            "max_energy": 170,
+            "attack": 8
+          },
+          "unlock_message": "Quantum cell equipped! Energy +170, Attack +8"
+        },
+        "overcharge_unit": {
+          "id": "overcharge_unit",
+          "name": "Overcharge Power Unit",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Unit designed for maximum power overcharge",
+          "stat_bonus": {
+            "max_energy": 135,
+            "attack": 11
+          },
+          "unlock_message": "Overcharge unit activated! Energy +135, Attack +11"
+        },
+        "plasma_core": {
+          "id": "plasma_core",
+          "name": "Plasma Energy Core",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Contains superheated plasma for intense power",
+          "stat_bonus": {
+            "max_energy": 165,
+            "attack": 10
+          },
+          "unlock_message": "Plasma core installed! Energy +165, Attack +10"
+        },
+        "supercell": {
+          "id": "supercell",
+          "name": "Super Energy Cell",
+          "type": "energy_cores",
+          "rarity": "uncommon",
+          "description": "Supercharged cell for exceptional energy capacity",
+          "stat_bonus": {
+            "max_energy": 175,
+            "attack": 9
+          },
+          "unlock_message": "Supercell activated! Energy +175, Attack +9"
+        }
+      },
+      "rare": {
+        "cryo_reactor": {
+          "id": "cryo_reactor",
+          "name": "Cryogenic Reactor Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Cryo-cooled reactor for massive energy output",
+          "stat_bonus": {
+            "max_energy": 400,
+            "attack": 30
+          },
+          "unlock_message": "Cryo reactor installed! Energy +400, Attack +30"
+        },
+        "neutron_core": {
+          "id": "neutron_core",
+          "name": "Neutron Star Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Contains energy from a neutron star fragment",
+          "stat_bonus": {
+            "max_energy": 350,
+            "attack": 25
+          },
+          "unlock_message": "Neutron core activated! Energy +350, Attack +25"
+        },
+        "zero_point": {
+          "id": "zero_point",
+          "name": "Zero-Point Energy Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Harnesses zero-point energy from quantum vacuum",
+          "stat_bonus": {
+            "max_energy": 360,
+            "attack": 28
+          },
+          "unlock_message": "Zero-point core installed! Energy +360, Attack +28"
+        },
+        "antimatter_cell": {
+          "id": "antimatter_cell",
+          "name": "Antimatter Containment Cell",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Contains stabilized antimatter for massive power",
+          "stat_bonus": {
+            "max_energy": 370,
+            "attack": 32
+          },
+          "unlock_message": "Antimatter cell activated! Energy +370, Attack +32"
+        },
+        "dark_energy": {
+          "id": "dark_energy",
+          "name": "Dark Energy Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Harnesses the power of dark energy itself",
+          "stat_bonus": {
+            "max_energy": 380,
+            "attack": 35
+          },
+          "unlock_message": "Dark energy core installed! Energy +380, Attack +35"
+        },
+        "singularity": {
+          "id": "singularity",
+          "name": "Micro Singularity Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Contains a controlled micro singularity",
+          "stat_bonus": {
+            "max_energy": 390,
+            "attack": 38
+          },
+          "unlock_message": "Singularity core activated! Energy +390, Attack +38"
+        },
+        "quantum_reactor": {
+          "id": "quantum_reactor",
+          "name": "Quantum Reactor Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Reactor that taps into quantum energy fields",
+          "stat_bonus": {
+            "max_energy": 385,
+            "attack": 33
+          },
+          "unlock_message": "Quantum reactor installed! Energy +385, Attack +33"
+        },
+        "fusion_matrix": {
+          "id": "fusion_matrix",
+          "name": "Fusion Matrix Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Matrix of fusion cells for incredible power",
+          "stat_bonus": {
+            "max_energy": 395,
+            "attack": 36
+          },
+          "unlock_message": "Fusion matrix activated! Energy +395, Attack +36"
+        },
+        "hypercore": {
+          "id": "hypercore",
+          "name": "Hyper Energy Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Hyper-dimensional energy core for massive capacity",
+          "stat_bonus": {
+            "max_energy": 375,
+            "attack": 31
+          },
+          "unlock_message": "Hypercore installed! Energy +375, Attack +31"
+        },
+        "exotic_matter": {
+          "id": "exotic_matter",
+          "name": "Exotic Matter Core",
+          "type": "energy_cores",
+          "rarity": "rare",
+          "description": "Contains exotic matter for unprecedented power",
+          "stat_bonus": {
+            "max_energy": 365,
+            "attack": 29
+          },
+          "unlock_message": "Exotic matter core activated! Energy +365, Attack +29"
+        }
+      },
+      "epic": {
+        "dimensional_core": {
+          "id": "dimensional_core",
+          "name": "Dimensional Energy Core",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Taps into energy from parallel dimensions",
+          "stat_bonus": {
+            "max_energy": 550,
+            "attack": 50
+          },
+          "unlock_message": "Dimensional core installed! Energy +550, Attack +50"
+        },
+        "cosmic_reactor": {
+          "id": "cosmic_reactor",
+          "name": "Cosmic Energy Reactor",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Reactor that harnesses cosmic energy",
+          "stat_bonus": {
+            "max_energy": 580,
+            "attack": 55
+          },
+          "unlock_message": "Cosmic reactor activated! Energy +580, Attack +55"
+        },
+        "void_core": {
+          "id": "void_core",
+          "name": "Void Energy Core",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Contains the power of the cosmic void",
+          "stat_bonus": {
+            "max_energy": 600,
+            "attack": 58
+          },
+          "unlock_message": "Void core installed! Energy +600, Attack +58"
+        },
+        "stellar_reactor": {
+          "id": "stellar_reactor",
+          "name": "Stellar Fusion Reactor",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Miniature stellar reactor with star-level power",
+          "stat_bonus": {
+            "max_energy": 620,
+            "attack": 62
+          },
+          "unlock_message": "Stellar reactor activated! Energy +620, Attack +62"
+        },
+        "celestial_core": {
+          "id": "celestial_core",
+          "name": "Celestial Energy Core",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Contains the blessing of celestial beings",
+          "stat_bonus": {
+            "max_energy": 640,
+            "attack": 65
+          },
+          "unlock_message": "Celestial core installed! Energy +640, Attack +65"
+        },
+        "divine_reactor": {
+          "id": "divine_reactor",
+          "name": "Divine Energy Reactor",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Reactor blessed by divine entities for holy power",
+          "stat_bonus": {
+            "max_energy": 660,
+            "attack": 68
+          },
+          "unlock_message": "Divine reactor activated! Energy +660, Attack +68"
+        },
+        "arcane_matrix": {
+          "id": "arcane_matrix",
+          "name": "Arcane Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Matrix of arcane energy for mystical power",
+          "stat_bonus": {
+            "max_energy": 680,
+            "attack": 72
+          },
+          "unlock_message": "Arcane matrix installed! Energy +680, Attack +72"
+        },
+        "mythical_core": {
+          "id": "mythical_core",
+          "name": "Mythical Energy Core",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Core containing mythical creature essence",
+          "stat_bonus": {
+            "max_energy": 700,
+            "attack": 75
+          },
+          "unlock_message": "Mythical core activated! Energy +700, Attack +75"
+        },
+        "legendary_reactor": {
+          "id": "legendary_reactor",
+          "name": "Legendary Energy Reactor",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Reactor of legendary power and capability",
+          "stat_bonus": {
+            "max_energy": 650,
+            "attack": 60
+          },
+          "unlock_message": "Legendary reactor installed! Energy +650, Attack +60"
+        },
+        "phantom_core": {
+          "id": "phantom_core",
+          "name": "Phantom Energy Core",
+          "type": "energy_cores",
+          "rarity": "epic",
+          "description": "Ethereal core that phases between dimensions",
+          "stat_bonus": {
+            "max_energy": 720,
+            "attack": 78
+          },
+          "unlock_message": "Phantom core activated! Energy +720, Attack +78"
+        }
+      },
+      "legendary": {
+        "eternal_flame": {
+          "id": "eternal_flame",
+          "name": "Eternal Flame Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Contains the eternal flame of creation itself, burning with titan-slaying power",
+          "stat_bonus": {
+            "max_energy": 1200,
+            "attack": 180
+          },
+          "unlock_message": "Eternal flame core installed! Energy +1200, Attack +180"
+        },
+        "infinity_matrix": {
+          "id": "infinity_matrix",
+          "name": "Infinity Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Matrix that contains infinite energy potential for titan warfare",
+          "stat_bonus": {
+            "max_energy": 1250,
+            "attack": 185
+          },
+          "unlock_message": "Infinity matrix activated! Energy +1250, Attack +185"
+        },
+        "god_core": {
+          "id": "god_core",
+          "name": "Godlike Energy Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Core containing the power of deities, forged to battle titans",
+          "stat_bonus": {
+            "max_energy": 1300,
+            "attack": 190
+          },
+          "unlock_message": "God core installed! Energy +1300, Attack +190"
+        },
+        "universal_constant": {
+          "id": "universal_constant",
+          "name": "Universal Constant Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Core that embodies universal constants, stable enough to face titans",
+          "stat_bonus": {
+            "max_energy": 1350,
+            "attack": 195
+          },
+          "unlock_message": "Universal constant core activated! Energy +1350, Attack +195"
+        },
+        "primordial_flame": {
+          "id": "primordial_flame",
+          "name": "Primordial Flame Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Contains the first flame from creation, capable of burning titans",
+          "stat_bonus": {
+            "max_energy": 1400,
+            "attack": 200
+          },
+          "unlock_message": "Primordial flame core installed! Energy +1400, Attack +200"
+        },
+        "cosmic_heart": {
+          "id": "cosmic_heart",
+          "name": "Cosmic Heart Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "The living heart of a cosmic entity, pulsing with titan-conquering power",
+          "stat_bonus": {
+            "max_energy": 1450,
+            "attack": 205
+          },
+          "unlock_message": "Cosmic heart core activated! Energy +1450, Attack +205"
+        },
+        "divine_flame": {
+          "id": "divine_flame",
+          "name": "Divine Flame Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Holy flame that burns with divine power, sanctified for titan battles",
+          "stat_bonus": {
+            "max_energy": 1500,
+            "attack": 210
+          },
+          "unlock_message": "Divine flame core installed! Energy +1500, Attack +210"
+        },
+        "ascendant_matrix": {
+          "id": "ascendant_matrix",
+          "name": "Ascendant Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Matrix of ascended beings for transcendent power against titans",
+          "stat_bonus": {
+            "max_energy": 1550,
+            "attack": 215
+          },
+          "unlock_message": "Ascendant matrix activated! Energy +1550, Attack +215"
+        },
+        "omega_core": {
+          "id": "omega_core",
+          "name": "Omega Energy Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "The ultimate energy core of legendary power, designed for titan warfare",
+          "stat_bonus": {
+            "max_energy": 1600,
+            "attack": 220
+          },
+          "unlock_message": "Omega core activated! Energy +1600, Attack +220"
+        },
+        "transcendent_flame": {
+          "id": "transcendent_flame",
+          "name": "Transcendent Flame Core",
+          "type": "energy_cores",
+          "rarity": "legendary",
+          "description": "Flame that transcends mortal understanding, burning beyond titan defenses",
+          "stat_bonus": {
+            "max_energy": 1450,
+            "attack": 205
+          },
+          "unlock_message": "Transcendent flame core activated! Energy +1450, Attack +205"
+        }
+      },
+      "mythic": {
+        "existential_flame": {
+          "id": "existential_flame",
+          "name": "Existential Flame Core",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Flame that exists beyond reality itself, burning with power to destroy mythic titans",
+          "stat_bonus": {
+            "max_energy": 2000,
+            "attack": 300
+          },
+          "unlock_message": "Existential flame core installed! Energy +2000, Attack +300"
+        },
+        "omnipotent_matrix": {
+          "id": "omnipotent_matrix",
+          "name": "Omnipotent Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Matrix containing omnipotent cosmic power, capable of overwhelming mythic titans",
+          "stat_bonus": {
+            "max_energy": 2100,
+            "attack": 310
+          },
+          "unlock_message": "Omnipotent matrix activated! Energy +2100, Attack +310"
+        },
+        "universal_flame": {
+          "id": "universal_flame",
+          "name": "Universal Flame Core",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Flame that burns across all universes simultaneously, scorching mythic titans",
+          "stat_bonus": {
+            "max_energy": 2200,
+            "attack": 320
+          },
+          "unlock_message": "Universal flame core installed! Energy +2200, Attack +320"
+        },
+        "absolute_matrix": {
+          "id": "absolute_matrix",
+          "name": "Absolute Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Matrix embodying absolute power and energy, transcending mythic titan defenses",
+          "stat_bonus": {
+            "max_energy": 2300,
+            "attack": 330
+          },
+          "unlock_message": "Absolute matrix activated! Energy +2300, Attack +330"
+        },
+        "void_flame": {
+          "id": "void_flame",
+          "name": "Void Flame Core",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Flame from the primordial void before creation, consuming mythic titans",
+          "stat_bonus": {
+            "max_energy": 2400,
+            "attack": 340
+          },
+          "unlock_message": "Void flame core installed! Energy +2400, Attack +340"
+        },
+        "creation_matrix": {
+          "id": "creation_matrix",
+          "name": "Creation Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Matrix containing the power of universal creation, forging victory against mythic titans",
+          "stat_bonus": {
+            "max_energy": 2500,
+            "attack": 350
+          },
+          "unlock_message": "Creation matrix activated! Energy +2500, Attack +350"
+        },
+        "destruction_flame": {
+          "id": "destruction_flame",
+          "name": "Destruction Flame Core",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Flame that embodies the power of universal destruction, annihilating mythic titans",
+          "stat_bonus": {
+            "max_energy": 2300,
+            "attack": 330
+          },
+          "unlock_message": "Destruction flame core installed! Energy +2300, Attack +330"
+        },
+        "infinity_flame": {
+          "id": "infinity_flame",
+          "name": "Infinity Flame Core",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Flame that burns with infinite cosmic energy, endless power against mythic titans",
+          "stat_bonus": {
+            "max_energy": 2600,
+            "attack": 360
+          },
+          "unlock_message": "Infinity flame core activated! Energy +2600, Attack +360"
+        },
+        "primordial_matrix": {
+          "id": "primordial_matrix",
+          "name": "Primordial Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Matrix from the first moments of existence, primeval power to defeat mythic titans",
+          "stat_bonus": {
+            "max_energy": 2400,
+            "attack": 340
+          },
+          "unlock_message": "Primordial matrix activated! Energy +2400, Attack +340"
+        },
+        "eternal_matrix": {
+          "id": "eternal_matrix",
+          "name": "Eternal Energy Matrix",
+          "type": "energy_cores",
+          "rarity": "mythic",
+          "description": "Matrix that exists eternally across all timelines, eternal strength against mythic titans",
+          "stat_bonus": {
+            "max_energy": 2500,
+            "attack": 350
+          },
+          "unlock_message": "Eternal matrix activated! Energy +2500, Attack +350"
+        }
+      }
+    }
+  },
+  "utility_modules": {
+    "name": "Utility Modules",
+    "description": "Specialized modules that enhance your pet's happiness and reduce maintenance requirements",
+    "icon": "🔧",
+    "primary_stat": "happiness",
+    "equipment": {
+      "common": {
+        "basic_happiness_chip": {
+          "id": "basic_happiness_chip",
+          "name": "Basic Happiness Chip",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Simple chip that enhances your pet's mood",
+          "stat_bonus": {
+            "max_happiness": 50,
+            "max_maintenance": 50
+          },
+          "unlock_message": "Happiness chip installed! Your pet's mood is noticeably improved."
+        },
+        "comfort_module": {
+          "id": "comfort_module",
+          "name": "Comfort Enhancement Module",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Module that increases your pet's comfort and reduces stress",
+          "stat_bonus": {
+            "max_happiness": 60,
+            "max_maintenance": 55
+          },
+          "unlock_message": "Comfort module activated! Your pet feels more relaxed and content."
+        },
+        "mood_stabilizer": {
+          "id": "mood_stabilizer",
+          "name": "Mood Stabilizer Unit",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Keeps your pet's emotions balanced and stable",
+          "stat_bonus": {
+            "max_happiness": 70,
+            "max_maintenance": 60
+          },
+          "unlock_message": "Mood stabilizer online! Your pet's emotions remain perfectly balanced."
+        },
+        "stress_reducer": {
+          "id": "stress_reducer",
+          "name": "Stress Reduction Module",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Reduces your pet's stress levels significantly",
+          "stat_bonus": {
+            "max_happiness": 80,
+            "max_maintenance": 65
+          },
+          "unlock_message": "Stress reducer deployed! Your pet feels calm and relaxed."
+        },
+        "joy_enhancer": {
+          "id": "joy_enhancer",
+          "name": "Joy Enhancement System",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "System designed to boost your pet's happiness levels",
+          "stat_bonus": {
+            "max_happiness": 85,
+            "max_maintenance": 70
+          },
+          "unlock_message": "Joy enhancer activated! Your pet radiates happiness and contentment."
+        },
+        "maintenance_optimiser": {
+          "id": "maintenance_optimiser",
+          "name": "Basic Maintenance Optimizer",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Reduces maintenance requirements through basic optimization",
+          "stat_bonus": {
+            "max_happiness": 55,
+            "max_maintenance": 75
+          },
+          "unlock_message": "Maintenance optimizer installed! Basic efficiency improvements reduce upkeep needs."
+        },
+        "happiness_booster": {
+          "id": "happiness_booster",
+          "name": "Happiness Booster Unit",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Simple unit that boosts your pet's overall happiness",
+          "stat_bonus": {
+            "max_happiness": 75,
+            "max_maintenance": 65
+          },
+          "unlock_message": "Happiness booster engaged! Your pet's spirits are noticeably lifted."
+        },
+        "contentment_module": {
+          "id": "contentment_module",
+          "name": "Contentment Module",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Ensures your pet remains content and satisfied",
+          "stat_bonus": {
+            "max_happiness": 65,
+            "max_maintenance": 60
+          },
+          "unlock_message": "Contentment module active! Your pet maintains a satisfied state."
+        },
+        "efficiency_chip": {
+          "id": "efficiency_chip",
+          "name": "Efficiency Enhancement Chip",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Improves overall system efficiency reducing maintenance needs",
+          "stat_bonus": {
+            "max_happiness": 55,
+            "max_maintenance": 80
+          },
+          "unlock_message": "Efficiency chip installed! System improvements reduce maintenance requirements."
+        },
+        "wellbeing_monitor": {
+          "id": "wellbeing_monitor",
+          "name": "Wellbeing Monitor",
+          "type": "utility_modules",
+          "rarity": "common",
+          "description": "Monitors and maintains your pet's overall wellbeing",
+          "stat_bonus": {
+            "max_happiness": 90,
+            "max_maintenance": 75
+          },
+          "unlock_message": "Wellbeing monitor active! Your pet's health and happiness are continuously maintained."
+        }
+      },
+      "uncommon": {
+        "enhanced_happiness_module": {
+          "id": "enhanced_happiness_module",
+          "name": "Enhanced Happiness Module",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Significantly improves your pet's mood and emotional state",
+          "stat_bonus": {
+            "max_happiness": 140,
+            "max_maintenance": 120
+          },
+          "unlock_message": "Enhanced happiness module installed! Your pet's mood is significantly improved."
+        },
+        "advanced_comfort_system": {
+          "id": "advanced_comfort_system",
+          "name": "Advanced Comfort System",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Advanced system providing superior comfort and stress reduction",
+          "stat_bonus": {
+            "max_happiness": 150,
+            "max_maintenance": 130
+          },
+          "unlock_message": "Advanced comfort system engaged! Superior comfort reduces all stress."
+        },
+        "mood_enhancer": {
+          "id": "mood_enhancer",
+          "name": "Advanced Mood Enhancer",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Significantly boosts your pet's overall mood and happiness",
+          "stat_bonus": {
+            "max_happiness": 160,
+            "max_maintenance": 140
+          },
+          "unlock_message": "Advanced mood enhancer activated! Your pet radiates joy and contentment."
+        },
+        "stress_eliminator": {
+          "id": "stress_eliminator",
+          "name": "Stress Elimination Unit",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Completely eliminates stress and anxiety from your pet",
+          "stat_bonus": {
+            "max_happiness": 170,
+            "max_maintenance": 150
+          },
+          "unlock_message": "Stress elimination unit deployed! Your pet is completely free from stress."
+        },
+        "bliss_generator": {
+          "id": "bliss_generator",
+          "name": "Bliss Generation System",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Generates pure bliss and happiness for your pet",
+          "stat_bonus": {
+            "max_happiness": 180,
+            "max_maintenance": 160
+          },
+          "unlock_message": "Bliss generator activated! Your pet experiences pure happiness."
+        },
+        "maintenance_reducer": {
+          "id": "maintenance_reducer",
+          "name": "Advanced Maintenance Reducer",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Significantly reduces maintenance requirements through advanced optimization",
+          "stat_bonus": {
+            "max_happiness": 130,
+            "max_maintenance": 170
+          },
+          "unlock_message": "Maintenance reducer installed! Advanced optimization greatly reduces upkeep needs."
+        },
+        "happiness_maximizer": {
+          "id": "happiness_maximizer",
+          "name": "Happiness Maximizer",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Maximizes your pet's happiness to peak levels",
+          "stat_bonus": {
+            "max_happiness": 190,
+            "max_maintenance": 140
+          },
+          "unlock_message": "Happiness maximizer activated! Your pet's happiness reaches its peak."
+        },
+        "serenity_module": {
+          "id": "serenity_module",
+          "name": "Serenity Module",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Creates an aura of perfect peace around your pet",
+          "stat_bonus": {
+            "max_happiness": 175,
+            "max_maintenance": 165
+          },
+          "unlock_message": "Serenity module activated! Your pet exists in perfect tranquility."
+        },
+        "vitality_chip": {
+          "id": "vitality_chip",
+          "name": "Vitality Enhancement Chip",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Boosts your pet's life energy and overall wellbeing",
+          "stat_bonus": {
+            "max_happiness": 185,
+            "max_maintenance": 155
+          },
+          "unlock_message": "Vitality chip installed! Your pet overflows with vibrant energy."
+        },
+        "harmony_system": {
+          "id": "harmony_system",
+          "name": "Harmony Balance System",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Maintains perfect balance between happiness and maintenance",
+          "stat_bonus": {
+            "max_happiness": 165,
+            "max_maintenance": 165
+          },
+          "unlock_message": "Harmony system engaged! Perfect equilibrium achieved for your pet."
+        },
+        "euphoria_unit": {
+          "id": "euphoria_unit",
+          "name": "Euphoria Induction Unit",
+          "type": "utility_modules",
+          "rarity": "uncommon",
+          "description": "Induces states of pure euphoria and joy",
+          "stat_bonus": {
+            "max_happiness": 195,
+            "max_maintenance": 145
+          },
+          "unlock_message": "Euphoria unit activated! Your pet experiences waves of pure joy."
+        }
+      },
+      "rare": {
+        "enhanced_comfort_system": {
+          "id": "enhanced_comfort_system",
+          "name": "Enhanced Comfort System",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Significantly improves the comfort and stress reduction of your pet",
+          "stat_bonus": {
+            "max_happiness": 320,
+            "max_maintenance": 340
+          },
+          "unlock_message": "Enhanced comfort system installed! Superior comfort and stress reduction."
+        },
+        "bliss_generator": {
+          "id": "bliss_generator",
+          "name": "Bliss Generation System",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Generates pure bliss and happiness for your pet",
+          "stat_bonus": {
+            "max_happiness": 350,
+            "max_maintenance": 330
+          },
+          "unlock_message": "Bliss generator activated! Your pet experiences pure bliss."
+        },
+        "happiness_maximizer": {
+          "id": "happiness_maximizer",
+          "name": "Happiness Maximizer",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Maximizes your pet's happiness to peak levels",
+          "stat_bonus": {
+            "max_happiness": 380,
+            "max_maintenance": 320
+          },
+          "unlock_message": "Happiness maximizer activated! Your pet's happiness reaches its peak."
+        },
+        "tranquility_core": {
+          "id": "tranquility_core",
+          "name": "Tranquility Core",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Core system that radiates absolute calm and peace",
+          "stat_bonus": {
+            "max_happiness": 340,
+            "max_maintenance": 360
+          },
+          "unlock_message": "Tranquility core activated! Your pet exists in perfect peace."
+        },
+        "jubilation_matrix": {
+          "id": "jubilation_matrix",
+          "name": "Jubilation Matrix",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Matrix that amplifies joy to extraordinary levels",
+          "stat_bonus": {
+            "max_happiness": 400,
+            "max_maintenance": 310
+          },
+          "unlock_message": "Jubilation matrix online! Your pet radiates overwhelming joy."
+        },
+        "zen_processor": {
+          "id": "zen_processor",
+          "name": "Zen State Processor",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Processes and maintains optimal mental states",
+          "stat_bonus": {
+            "max_happiness": 330,
+            "max_maintenance": 370
+          },
+          "unlock_message": "Zen processor engaged! Your pet achieves perfect mental clarity."
+        },
+        "delight_engine": {
+          "id": "delight_engine",
+          "name": "Delight Engine",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Engine that continuously generates delight and satisfaction",
+          "stat_bonus": {
+            "max_happiness": 410,
+            "max_maintenance": 300
+          },
+          "unlock_message": "Delight engine humming! Your pet overflows with continuous delight."
+        },
+        "paradise_module": {
+          "id": "paradise_module",
+          "name": "Paradise Simulation Module",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Simulates perfect paradise conditions for your pet",
+          "stat_bonus": {
+            "max_happiness": 420,
+            "max_maintenance": 315
+          },
+          "unlock_message": "Paradise module active! Your pet experiences utopian bliss."
+        },
+        "grace_regulator": {
+          "id": "grace_regulator",
+          "name": "Grace Regulator",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Regulates your pet's state with elegant precision",
+          "stat_bonus": {
+            "max_happiness": 360,
+            "max_maintenance": 380
+          },
+          "unlock_message": "Grace regulator calibrated! Your pet moves with perfect grace."
+        },
+        "rapture_inducer": {
+          "id": "rapture_inducer",
+          "name": "Rapture Inducer",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Induces states of absolute rapture and ecstasy",
+          "stat_bonus": {
+            "max_happiness": 430,
+            "max_maintenance": 325
+          },
+          "unlock_message": "Rapture inducer charged! Your pet experiences divine ecstasy."
+        },
+        "wonder_generator": {
+          "id": "wonder_generator",
+          "name": "Wonder Generation Unit",
+          "type": "utility_modules",
+          "rarity": "rare",
+          "description": "Generates constant sense of wonder and amazement",
+          "stat_bonus": {
+            "max_happiness": 390,
+            "max_maintenance": 350
+          },
+          "unlock_message": "Wonder generator spinning! Your pet sees magic in everything."
+        }
+      }, 
+      "epic": {
+        "supreme_comfort_matrix": {
+          "id": "supreme_comfort_matrix",
+          "name": "Supreme Comfort Matrix",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Ultimate matrix that provides supreme comfort and happiness",
+          "stat_bonus": {
+            "max_happiness": 600,
+            "max_maintenance": 650
+          },
+          "unlock_message": "Supreme comfort matrix installed! Ultimate comfort achieved."
+        },
+        "euphoria_injector": {
+          "id": "euphoria_injector",
+          "name": "Euphoria Injector",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Injects pure euphoria directly into your pet's system",
+          "stat_bonus": {
+            "max_happiness": 680,
+            "max_maintenance": 620
+          },
+          "unlock_message": "Euphoria injector activated! Pure euphoria achieved."
+        },
+        "paradise_simulator": {
+          "id": "paradise_simulator",
+          "name": "Paradise Simulator",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Simulates a perfect paradise environment for your pet",
+          "stat_bonus": {
+            "max_happiness": 720,
+            "max_maintenance": 680
+          },
+          "unlock_message": "Paradise simulator online! Your pet lives in paradise."
+        },
+        "bliss_field_emitter": {
+          "id": "bliss_field_emitter",
+          "name": "Bliss Field Emitter",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Emits a field of pure bliss that envelops your pet",
+          "stat_bonus": {
+            "max_happiness": 750,
+            "max_maintenance": 640
+          },
+          "unlock_message": "Bliss field emitter activated! Your pet is surrounded by pure bliss."
+        },
+        "serenity_overlord": {
+          "id": "serenity_overlord",
+          "name": "Serenity Overlord System",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Oversees and maintains ultimate serenity states",
+          "stat_bonus": {
+            "max_happiness": 660,
+            "max_maintenance": 720
+          },
+          "unlock_message": "Serenity overlord system engaged! Absolute tranquility achieved."
+        },
+        "ecstasy_generator": {
+          "id": "ecstasy_generator",
+          "name": "Ecstasy Generator",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Generates waves of pure ecstasy and joy",
+          "stat_bonus": {
+            "max_happiness": 780,
+            "max_maintenance": 600
+          },
+          "unlock_message": "Ecstasy generator spinning! Your pet experiences divine ecstasy."
+        },
+        "harmony_conductor": {
+          "id": "harmony_conductor",
+          "name": "Harmony Conductor",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Conducts perfect harmony between mind and body",
+          "stat_bonus": {
+            "max_happiness": 700,
+            "max_maintenance": 740
+          },
+          "unlock_message": "Harmony conductor calibrated! Perfect balance achieved."
+        },
+        "jubilation_array": {
+          "id": "jubilation_array",
+          "name": "Jubilation Array",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Array that amplifies jubilation to cosmic levels",
+          "stat_bonus": {
+            "max_happiness": 820,
+            "max_maintenance": 580
+          },
+          "unlock_message": "Jubilation array activated! Cosmic joy floods your pet's being."
+        },
+        "paradise_controller": {
+          "id": "paradise_controller",
+          "name": "Paradise Controller",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Controls and maintains perfect paradise conditions",
+          "stat_bonus": {
+            "max_happiness": 850,
+            "max_maintenance": 560
+          },
+          "unlock_message": "Paradise controller online! Your pet rules over their personal paradise."
+        },
+        "delight_overseer": {
+          "id": "delight_overseer",
+          "name": "Delight Overseer",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Oversees all delight systems for maximum effect",
+          "stat_bonus": {
+            "max_happiness": 760,
+            "max_maintenance": 760
+          },
+          "unlock_message": "Delight overseer deployed! Maximum delight protocols engaged."
+        },
+        "wonder_architect": {
+          "id": "wonder_architect",
+          "name": "Wonder Architect",
+          "type": "utility_modules",
+          "rarity": "epic",
+          "description": "Architects wonders and amazement into your pet's reality",
+          "stat_bonus": {
+            "max_happiness": 800,
+            "max_maintenance": 700
+          },
+          "unlock_message": "Wonder architect deployed! Your pet's world becomes magical."
+        }
+      },
+      "legendary": {
+        "celestial_comfort_array": {
+          "id": "celestial_comfort_array",
+          "name": "Celestial Comfort Array",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Celestial array that provides transcendent comfort and joy for titan battles",
+          "stat_bonus": {
+            "max_happiness": 1200,
+            "max_maintenance": 1200
+          },
+          "unlock_message": "Celestial comfort array activated! Transcendent comfort achieved."
+        },
+        "divine_euphoria_core": {
+          "id": "divine_euphoria_core",
+          "name": "Divine Euphoria Core",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Divine core that generates pure euphoria beyond mortal comprehension, sustaining pets through titan warfare",
+          "stat_bonus": {
+            "max_happiness": 1250,
+            "max_maintenance": 1250
+          },
+          "unlock_message": "Divine euphoria core ignited! Your pet experiences divine bliss."
+        },
+        "transcendent_paradise_engine": {
+          "id": "transcendent_paradise_engine",
+          "name": "Transcendent Paradise Engine",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Engine that creates a transcendent paradise beyond imagination, perfect for enduring titan battles",
+          "stat_bonus": {
+            "max_happiness": 1300,
+            "max_maintenance": 1300
+          },
+          "unlock_message": "Transcendent paradise engine online! Your pet exists in pure paradise."
+        },
+        "ethereal_bliss_matrix": {
+          "id": "ethereal_bliss_matrix",
+          "name": "Ethereal Bliss Matrix",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Ethereal matrix that generates bliss of the highest order, maintaining morale against titans",
+          "stat_bonus": {
+            "max_happiness": 1275,
+            "max_maintenance": 1325
+          },
+          "unlock_message": "Ethereal bliss matrix deployed! Your pet bathes in ethereal joy."
+        },
+        "sublime_serenity_array": {
+          "id": "sublime_serenity_array",
+          "name": "Sublime Serenity Array",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Array that generates sublime serenity and perfect peace, essential for titan battle endurance",
+          "stat_bonus": {
+            "max_happiness": 1225,
+            "max_maintenance": 1350
+          },
+          "unlock_message": "Sublime serenity array activated! Your pet knows perfect peace."
+        },
+        "cosmic_jubilation_engine": {
+          "id": "cosmic_jubilation_engine",
+          "name": "Cosmic Jubilation Engine",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Engine that generates cosmic levels of jubilation and celebration, boosting morale for titan warfare",
+          "stat_bonus": {
+            "max_happiness": 1325,
+            "max_maintenance": 1275
+          },
+          "unlock_message": "Cosmic jubilation engine engaged! Your pet celebrates existence itself."
+        },
+        "perfect_harmony_conductor": {
+          "id": "perfect_harmony_conductor",
+          "name": "Perfect Harmony Conductor",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Conductor that achieves perfect harmony across all dimensions, balancing pets for titan combat",
+          "stat_bonus": {
+            "max_happiness": 1300,
+            "max_maintenance": 1350
+          },
+          "unlock_message": "Perfect harmony conductor synchronized! Your pet exists in perfect balance."
+        },
+        "infinite_delight_generator": {
+          "id": "infinite_delight_generator",
+          "name": "Infinite Delight Generator",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Generator that produces infinite delight without end, sustaining pets through endless titan battles",
+          "stat_bonus": {
+            "max_happiness": 1350,
+            "max_maintenance": 1300
+          },
+          "unlock_message": "Infinite delight generator humming! Your pet overflows with endless delight."
+        },
+        "celestial_wonder_architect": {
+          "id": "celestial_wonder_architect",
+          "name": "Celestial Wonder Architect",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Architect that designs celestial wonders beyond mortal imagination, inspiring pets for titan warfare",
+          "stat_bonus": {
+            "max_happiness": 1375,
+            "max_maintenance": 1325
+          },
+          "unlock_message": "Celestial wonder architect deployed! Your pet experiences cosmic amazement."
+        },
+        "rapture_transcendence_module": {
+          "id": "rapture_transcendence_module",
+          "name": "Rapture Transcendence Module",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Module that induces transcendent states of rapture and bliss, elevating pets beyond titan fear",
+          "stat_bonus": {
+            "max_happiness": 1400,
+            "max_maintenance": 1375
+          },
+          "unlock_message": "Rapture transcendence module activated! Your pet transcends mortal limitations."
+        },
+        "divine_grace_regulator": {
+          "id": "divine_grace_regulator",
+          "name": "Divine Grace Regulator",
+          "type": "utility_modules",
+          "rarity": "legendary",
+          "description": "Regulates your pet's state with divine grace and perfection, maintaining optimal condition for titan battles",
+          "stat_bonus": {
+            "max_happiness": 1350,
+            "max_maintenance": 1400
+          },
+          "unlock_message": "Divine grace regulator calibrated! Your pet moves with divine perfection."
+        }
+      },
+      "mythic": {
+        "omnipotent_comfort_matrix": {
+          "id": "omnipotent_comfort_matrix",
+          "name": "Omnipotent Comfort Matrix",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Omnipotent matrix that provides infinite comfort and joy, sustaining pets through mythic titan warfare",
+          "stat_bonus": {
+            "max_happiness": 1800,
+            "max_maintenance": 1800
+          },
+          "unlock_message": "Omnipotent comfort matrix activated! Infinite comfort achieved."
+        },
+        "eternal_bliss_generator": {
+          "id": "eternal_bliss_generator",
+          "name": "Eternal Bliss Generator",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Generates eternal bliss that transcends all understanding, perfect for enduring mythic titan battles",
+          "stat_bonus": {
+            "max_happiness": 1900,
+            "max_maintenance": 1900
+          },
+          "unlock_message": "Eternal bliss generator activated! Your pet experiences eternal joy."
+        },
+        "infinite_paradise_engine": {
+          "id": "infinite_paradise_engine",
+          "name": "Infinite Paradise Engine",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Engine that creates infinite paradises across all realities, providing sanctuary from mythic titan terror",
+          "stat_bonus": {
+            "max_happiness": 2000,
+            "max_maintenance": 2000
+          },
+          "unlock_message": "Infinite paradise engine online! Your pet rules infinite realities."
+        },
+        "cosmic_ecstasy_array": {
+          "id": "cosmic_ecstasy_array",
+          "name": "Cosmic Ecstasy Array",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Array that generates cosmic ecstasy beyond mortal comprehension, elevating pets above mythic titan dread",
+          "stat_bonus": {
+            "max_happiness": 2100,
+            "max_maintenance": 1950
+          },
+          "unlock_message": "Cosmic ecstasy array activated! Your pet experiences divine ecstasy."
+        },
+        "omniscient_serenity_core": {
+          "id": "omniscient_serenity_core",
+          "name": "Omniscient Serenity Core",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Core that knows and maintains perfect serenity across all dimensions, unshakeable even against mythic titans",
+          "stat_bonus": {
+            "max_happiness": 1950,
+            "max_maintenance": 2200
+          },
+          "unlock_message": "Omniscient serenity core engaged! Your pet knows absolute peace."
+        },
+        "universal_jubilation_matrix": {
+          "id": "universal_jubilation_matrix",
+          "name": "Universal Jubilation Matrix",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Matrix that generates jubilation across the entire universe, celebrating victory over mythic titans",
+          "stat_bonus": {
+            "max_happiness": 2300,
+            "max_maintenance": 2100
+          },
+          "unlock_message": "Universal jubilation matrix deployed! Your pet celebrates all existence."
+        },
+        "perfect_transcendence_conductor": {
+          "id": "perfect_transcendence_conductor",
+          "name": "Perfect Transcendence Conductor",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Conductor that achieves perfect transcendence beyond all limitations, ascending beyond mythic titan reach",
+          "stat_bonus": {
+            "max_happiness": 2200,
+            "max_maintenance": 2300
+          },
+          "unlock_message": "Perfect transcendence conductor synchronized! Your pet transcends all limits."
+        },
+        "infinite_delight_overseer": {
+          "id": "infinite_delight_overseer",
+          "name": "Infinite Delight Overseer",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Overseer that governs infinite delight across all realities, ruling over mythic titan despair",
+          "stat_bonus": {
+            "max_happiness": 2400,
+            "max_maintenance": 2200
+          },
+          "unlock_message": "Infinite delight overseer deployed! Your pet governs infinite joy."
+        },
+        "primordial_wonder_architect": {
+          "id": "primordial_wonder_architect",
+          "name": "Primordial Wonder Architect",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Architect that designs wonders from the beginning of time itself, crafting marvels that inspire pets against mythic titans",
+          "stat_bonus": {
+            "max_happiness": 2300,
+            "max_maintenance": 2400
+          },
+          "unlock_message": "Primordial wonder architect deployed! Your pet experiences creation's wonders."
+        },
+        "absolute_rapture_module": {
+          "id": "absolute_rapture_module",
+          "name": "Absolute Rapture Module",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Module that induces absolute rapture beyond all understanding, transcending mythic titan terror",
+          "stat_bonus": {
+            "max_happiness": 2500,
+            "max_maintenance": 2500
+          },
+          "unlock_message": "Absolute rapture module activated! Your pet experiences infinite rapture."
+        },
+        "divine_perfection_regulator": {
+          "id": "divine_perfection_regulator",
+          "name": "Divine Perfection Regulator",
+          "type": "utility_modules",
+          "rarity": "mythic",
+          "description": "Regulates your pet's state with divine perfection across all realities, maintaining flawless condition against mythic titans",
+          "stat_bonus": {
+            "max_happiness": 2200,
+            "max_maintenance": 2500
+          },
+          "unlock_message": "Divine perfection regulator calibrated! Your pet achieves divine perfection."
+        }
+      }
+    }
+  }
+}

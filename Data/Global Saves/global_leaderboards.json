@@ -1,0 +1,32 @@
+{
+  "energon": {
+    "daily": [],
+    "weekly": [],
+    "monthly": [],
+    "all_time": [
+      {
+        "user_id": "test_user",
+        "username": "Test User",
+        "score": 1000,
+        "timestamp": "2025-10-05T22:47:43.946932",
+        "test": "data"
+      }
+    ]
+  },
+  "pets": {
+    "level": [],
+    "battles_won": [],
+    "missions_completed": []
+  },
+  "games": {
+    "slot_machine": [],
+    "shooting_range": [],
+    "pvp": []
+  },
+  "general": {
+    "messages_sent": [],
+    "commands_used": [],
+    "time_active": []
+  },
+  "test_timestamp": "2025-10-05T22:47:43.938442"
+}
