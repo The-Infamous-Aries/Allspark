@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from Systems.user_data_manager import user_data_manager
 from Systems.EnergonPets.PetBattles.damage_calculator import DamageCalculator
+from Systems.EnergonPets.PetBattles.npc_brain import NPCBrain
 
 logger = logging.getLogger('battle_system')
 
@@ -219,6 +220,8 @@ class UnifiedBattleView(discord.ui.View):
         
         # Initialize damage calculator
         self.damage_calculator = DamageCalculator()
+        # Initialize NPC brain for monster AI decisions
+        self.npc_brain = NPCBrain()
  
     @classmethod
     async def create_async(cls, ctx, battle_type="solo", participants=None, 
@@ -373,6 +376,8 @@ class UnifiedBattleView(discord.ui.View):
             self.max_monster_hp = self.monster['health']
             self.total_monster_damage_dealt = 0
             self.total_monster_damage_received = 0
+            # Track previous monster HP for NPC brain decisions
+            self.prev_monster_hp = self.monster_hp
   
     def create_hp_bar(self, current: int, max_hp: int, bar_type: str = "default", pet=None) -> str:
         """Create visual HP bar"""
@@ -427,9 +432,27 @@ class UnifiedBattleView(discord.ui.View):
                         action_view = EphemeralActionView(self, user_id)
                         
                         # Create the action embed
+                        last_action = player_data.get('last_action')
+                        last_info = player_data.get('last_action_info', {})
+                        if last_action == 'attack':
+                            tgt = last_info.get('target')
+                            dmg = last_info.get('damage')
+                            parry = last_info.get('parry_damage', 0)
+                            extra = f" | Parry {parry}" if parry else ""
+                            last_line = f"\nLast round: ⚔️ Attack → {dmg} dmg{(' to ' + tgt) if tgt else ''}{extra}"
+                        elif last_action == 'defend':
+                            eff = last_info.get('effectiveness')
+                            parry_dealt = last_info.get('parry_damage_dealt', 0)
+                            extra = f" | Parry dealt {parry_dealt}" if parry_dealt else ""
+                            last_line = f"\nLast round: 🛡️ Defend → {eff:.2f}x{extra}" if eff is not None else "\nLast round: 🛡️ Defend"
+                        elif last_action == 'charge':
+                            mult = last_info.get('multiplier', player_data.get('charge', 1.0))
+                            last_line = f"\nLast round: ⚡ Charge → x{mult}"
+                        else:
+                            last_line = ""
                         embed = discord.Embed(
                             title="⚔️ Battle Action Required",
-                            description=f"**{player_data['pet']['name']}** - Round {self.turn_count + 1}\nChoose your action:",
+                            description=f"**{player_data['pet']['name']}** - Round {self.turn_count + 1}{last_line}\nChoose your action:",
                             color=0x00ff00
                         )
                         
@@ -481,6 +504,10 @@ class UnifiedBattleView(discord.ui.View):
     async def process_combat_round(self, monster_action: str):
         """Process a complete combat round with all player actions and monster action using new roll-based system"""
         
+        # Collect round summary lines to display in spectator embed
+        action_lines = [f"⚔️ Round {self.turn_count + 1} Results"]
+        self.monster_last_action = None
+
         # Initialize defense results storage
         self.defense_results = {}
         
@@ -497,30 +524,61 @@ class UnifiedBattleView(discord.ui.View):
                 # Use new roll-based attack system
                 battle_result = DamageCalculator.calculate_battle_action(
                     attacker_attack=player_data['total_attack'],
-                    target_defense=self.monster['defense'],
+                    # Defense only applies if monster is defending this round
+                    target_defense=self.monster['defense'] if getattr(self, 'monster_defending', False) else 0,
                     charge_multiplier=player_data.get('charge_multiplier', 1.0),
-                    target_charge_multiplier=self.monster_charge_multiplier if self.monster_defending else 1.0,
-                    action_type="attack"
+                    # Charge does not boost defense; keep at 1.0
+                    target_charge_multiplier=1.0,
+                    action_type="attack",
+                    target_action_type=(
+                        "defend" if getattr(self, 'monster_defending', False)
+                        else ("charge" if monster_action == "charge" else "attack")
+                    )
                 )
-                
+
+                # Use calculator's final damage (includes charging vulnerability when applicable)
+                damage_to_monster = battle_result['final_damage']
+                # Calculate roll multiplier for display
+                roll_multiplier = self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll'])
+
                 # Apply damage to monster
-                self.monster_hp = max(0, self.monster_hp - battle_result['final_damage'])
-                self.total_damage_dealt[player_id] += battle_result['final_damage']
-                self.total_monster_damage_received += battle_result['final_damage']
+                self.monster_hp = max(0, self.monster_hp - damage_to_monster)
+                self.total_damage_dealt[player_id] += damage_to_monster
+                self.total_monster_damage_received += damage_to_monster
+
+                # If monster was defending and out-defended the attack, reflect parry damage to the attacker
+                if getattr(self, 'monster_defending', False) and battle_result.get('parry_damage', 0) > 0:
+                    parry = battle_result['parry_damage']
+                    player_data['hp'] = max(0, player_data['hp'] - parry)
+                    self.total_damage_received[player_id] += parry
+                    self.total_monster_damage_dealt += parry
+                    self.battle_log.append(f"🪞 {self.monster['name']} parries {player_name}, reflecting {parry} damage!")
+                    action_lines.append(f"🪞 {self.monster['name']} parries {player_name} for {parry}")
                 
                 # Add roll result to battle log
                 if battle_result['attack_result'] == "miss":
                     self.battle_log.append(f"⚔️ {player_name} attacks but misses completely! (Roll: {battle_result['attack_roll']})")
+                    action_lines.append(f"⚔️ {player_name} attacks but misses! (Roll: {battle_result['attack_roll']})")
                 else:
                     charge_text = f" (Charged x{player_data.get('charge_multiplier', 1.0)}!)" if player_data.get('charge_multiplier', 1.0) > 1.0 else ""
-                    # Calculate roll multiplier based on attack result type
-                    roll_multiplier = self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll'])
                     self.battle_log.append(f"⚔️ {player_name} attacks for {battle_result['final_damage']} damage! (Roll: {battle_result['attack_roll']}, Result: {battle_result['attack_result']}){charge_text}")
+                    action_lines.append(f"⚔️ {player_name} hits for {battle_result['final_damage']} damage (Roll: {battle_result['attack_roll']}, Result: {battle_result['attack_result']}){charge_text}")
                 
                 # Reset charge after attack
                 player_data['charge_multiplier'] = 1.0
                 if 'charge' in player_data:
                     player_data['charge'] = 1.0
+                # Track last action
+                player_data['last_action'] = 'attack'
+                player_data['last_action_info'] = {
+                    'type': 'attack',
+                    'target': self.monster.get('name', 'Enemy'),
+                    'damage': damage_to_monster,
+                    'parry_damage': battle_result.get('parry_damage', 0),
+                    'roll': battle_result.get('attack_roll'),
+                    'multiplier': roll_multiplier,
+                    'result': battle_result.get('attack_result')
+                }
                 
             elif action == "defend":
                 # Use new roll-based defend system
@@ -537,21 +595,34 @@ class UnifiedBattleView(discord.ui.View):
                 self.defending_players.add((player_id, target_id, battle_result['final_damage']))
                 self.guard_relationships[player_id] = target_id
                 self.defense_results[player_id] = battle_result
+                # Mark defender state on player for this round
+                player_data['defending'] = True
                 
                 # Add roll result to battle log
                 target_name = self.player_data[target_id]['user'].display_name if target_id in self.player_data else "themselves"
                 
                 if battle_result['attack_result'] == "miss":
                     self.battle_log.append(f"🛡️ {player_name} tries to defend {target_name} but fails! (Roll: {battle_result['attack_roll']})")
+                    action_lines.append(f"🛡️ {player_name} fails to defend {target_name} (Roll: {battle_result['attack_roll']})")
                 else:
                     charge_text = f" (Charged x{player_data.get('charge_multiplier', 1.0)}!)" if player_data.get('charge_multiplier', 1.0) > 1.0 else ""
                     roll_multiplier = self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll'])
                     self.battle_log.append(f"🛡️ {player_name} defends {target_name} with {roll_multiplier:.2f}x effectiveness! (Roll: {battle_result['attack_roll']}){charge_text}")
+                    action_lines.append(f"🛡️ {player_name} defends {target_name} ({roll_multiplier:.2f}x effectiveness, Roll: {battle_result['attack_roll']}){charge_text}")
                 
                 # Reset charge after defend
                 player_data['charge_multiplier'] = 1.0
                 if 'charge' in player_data:
                     player_data['charge'] = 1.0
+                # Track last action
+                player_data['last_action'] = 'defend'
+                player_data['last_action_info'] = {
+                    'type': 'defend',
+                    'target': target_name,
+                    'effectiveness': roll_multiplier if battle_result['attack_result'] != "miss" else 0.0,
+                    'roll': battle_result.get('attack_roll'),
+                    'result': battle_result.get('attack_result')
+                }
                 
             elif action == "charge":
                 # Use new charge progression system (2-4-8-16)
@@ -565,6 +636,13 @@ class UnifiedBattleView(discord.ui.View):
                 player_data['charging'] = True
                 
                 self.battle_log.append(f"⚡ {player_name} charges up! (Charge: x{next_multiplier})")
+                action_lines.append(f"⚡ {player_name} charges up (x{next_multiplier})")
+                # Track last action
+                player_data['last_action'] = 'charge'
+                player_data['last_action_info'] = {
+                    'type': 'charge',
+                    'multiplier': next_multiplier
+                }
                 
         # Process monster action
         if self.monster_hp > 0:
@@ -574,26 +652,25 @@ class UnifiedBattleView(discord.ui.View):
                 for player_id, player_data in self.player_data.items():
                     if not player_data['alive']:
                         continue
-                        
-                    # Check if this player is being defended
-                    defense_effectiveness = 1.0
-                    charge_multiplier = 1.0
                     
+                    # Check if this player is being defended; defense only mitigates damage if a defender is assigned
+                    assigned_defense = 0
                     for def_id, target_id, _ in self.defending_players:
-                        if target_id == player_id and def_id in self.defense_results:
-                            defense_result = self.defense_results[def_id]
-                            if defense_result['attack_result'] != "miss":
-                                # Use the defender's charge multiplier and effectiveness
-                                charge_multiplier = self.player_data[def_id].get('charge_multiplier', 1.0)
-                                defense_effectiveness = self._get_roll_multiplier_from_result(
-                                    defense_result['attack_result'], 
-                                    defense_result['attack_roll']
-                                )
+                        if target_id == player_id and def_id in self.player_data:
+                            # Use the defender's base defense stat; calculator will roll defense
+                            assigned_defense = self.player_data[def_id].get('total_defense', 0)
                             break
                     
                     player_defenses[player_id] = {
-                        'defense': player_data['total_defense'],
-                        'charge_multiplier': charge_multiplier
+                        'defense': assigned_defense,
+                        # Charge does not boost defense in new rules
+                        'charge_multiplier': 1.0,
+                        # Explicit player state for this round
+                        'defending': assigned_defense > 0,
+                        'charging': player_data.get('charging', False),
+                        'action': ('defend' if assigned_defense > 0 else (
+                            'charge' if player_data.get('charging', False) else 'attack'
+                        ))
                     }
                 
                 # Calculate monster attack against all players
@@ -604,16 +681,23 @@ class UnifiedBattleView(discord.ui.View):
                 )
                 
                 # Apply results to each player
+                total_damage_to_players = 0
+                total_parry_to_monster = 0
+                per_target_summary = {}
                 for player_id, battle_result in battle_results.items():
                     if player_id not in self.player_data or not self.player_data[player_id]['alive']:
                         continue
                         
                     player_data = self.player_data[player_id]
                     
+                    # Use calculator's final damage (already accounts for charging vulnerability)
+                    incoming_damage = battle_result['final_damage']
+
                     # Apply damage to player
-                    player_data['hp'] = max(0, player_data['hp'] - battle_result['final_damage'])
-                    self.total_damage_received[player_id] += battle_result['final_damage']
-                    self.total_monster_damage_dealt += battle_result['final_damage']
+                    player_data['hp'] = max(0, player_data['hp'] - incoming_damage)
+                    self.total_damage_received[player_id] += incoming_damage
+                    self.total_monster_damage_dealt += incoming_damage
+                    total_damage_to_players += incoming_damage
                     
                     # Apply parry damage to monster if defended
                     if battle_result['parry_damage'] > 0:
@@ -622,12 +706,32 @@ class UnifiedBattleView(discord.ui.View):
                         for def_id, target_id, _ in self.defending_players:
                             if target_id == player_id:
                                 self.total_damage_dealt[def_id] += battle_result['parry_damage']
+                                # Also record parry on defender's last_action_info
+                                if def_id in self.player_data:
+                                    info = self.player_data[def_id].setdefault('last_action_info', {'type': 'defend'})
+                                    info['parry_damage_dealt'] = info.get('parry_damage_dealt', 0) + battle_result['parry_damage']
                                 break
                         self.total_monster_damage_received += battle_result['parry_damage']
+                        total_parry_to_monster += battle_result['parry_damage']
+                    per_target_summary[player_id] = {
+                        'damage': incoming_damage,
+                        'parry_damage': battle_result.get('parry_damage', 0),
+                        'roll': battle_result.get('attack_roll'),
+                        'result': battle_result.get('attack_result'),
+                        'defended': player_defenses.get(player_id, {}).get('defending', False)
+                    }
                 
                 # Add monster action to battle log
                 charge_text = f" (Charged x{self.monster_charge_multiplier}!)" if self.monster_charge_multiplier > 1.0 else ""
                 self.battle_log.append(f"The {self.monster['name']} attacks the party!{charge_text}")
+                action_lines.append(f"🤖 {self.monster['name']} attacks the party!{charge_text}")
+                self.monster_last_action = 'attack'
+                self.monster_last_action_info = {
+                    'type': 'attack',
+                    'total_damage': total_damage_to_players,
+                    'total_parry_taken': total_parry_to_monster,
+                    'per_target': per_target_summary
+                }
                 
                 # Add guard information
                 if hasattr(self, 'guard_relationships') and self.guard_relationships:
@@ -648,15 +752,22 @@ class UnifiedBattleView(discord.ui.View):
                     
                     if guard_messages:
                         self.battle_log.append("\n".join(["🛡️ " + msg for msg in guard_messages]))
+                        action_lines.extend(["🛡️ " + msg for msg in guard_messages])
                         
             elif monster_action == "defend":
                 self.monster_defending = True
                 self.battle_log.append(f"🛡️ The {self.monster['name']} takes a defensive stance!")
+                action_lines.append(f"🛡️ {self.monster['name']} takes a defensive stance!")
+                self.monster_last_action = 'defend'
+                self.monster_last_action_info = { 'type': 'defend' }
                 
             elif monster_action == "charge":
                 # Use new charge progression for monster too
                 self.monster_charge_multiplier = DamageCalculator.get_next_charge_multiplier(self.monster_charge_multiplier)
                 self.battle_log.append(f"⚡ The {self.monster['name']} is powering up! (Charge: x{self.monster_charge_multiplier})")
+                action_lines.append(f"⚡ {self.monster['name']} is charging (x{self.monster_charge_multiplier})")
+                self.monster_last_action = 'charge'
+                self.monster_last_action_info = { 'type': 'charge', 'multiplier': self.monster_charge_multiplier }
                 
         # Clear player actions after processing
         self.player_actions.clear()
@@ -670,12 +781,17 @@ class UnifiedBattleView(discord.ui.View):
             
         for player_data in self.player_data.values():
             player_data['charging'] = False
+            player_data['defending'] = False
             
         # Reset monster defense state (charge persists until used in attack)
         self.monster_defending = False
         # Reset monster charge after attack (like players)
         if monster_action == "attack":
             self.monster_charge_multiplier = 1.0
+        # Track previous monster HP for next NPCBrain decision
+        self.prev_monster_hp = self.monster_hp
+        # Track previous monster HP for next NPCBrain decision
+        self.prev_monster_hp = self.monster_hp
             
         # Increment turn counter after processing the round
         self.turn_count += 1
@@ -684,8 +800,8 @@ class UnifiedBattleView(discord.ui.View):
         
         if not self.battle_over:
             # Show battle results with round completion message
-            round_message = f"Round {self.turn_count} completed! Preparing next round..."
-            spectator_embed = self.build_spectator_embed(round_message)
+            action_text = "\n".join(action_lines)
+            spectator_embed = self.build_spectator_embed(action_text)
             try:
                 await self.message.edit(embed=spectator_embed)
                 await self.start_action_collection()
@@ -721,7 +837,15 @@ class UnifiedBattleView(discord.ui.View):
                 # Store defense effectiveness for later use
                 roll_multiplier = self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll'])
                 player_data['defense_effectiveness'] = roll_multiplier if battle_result['attack_result'] != "miss" else 0.0
-                player_data['charging'] = True  # Mark as defending for compatibility
+                player_data['defending'] = True  # Mark as defending for this round
+                # Track last action for UI visibility until next pick
+                player_data['last_action'] = 'defend'
+                player_data['last_action_info'] = {
+                    'type': 'defend',
+                    'effectiveness': player_data['defense_effectiveness'],
+                    'roll': battle_result.get('attack_roll'),
+                    'result': battle_result.get('attack_result')
+                }
                 
                 # Add roll result to action text
                 if battle_result['attack_result'] == "miss":
@@ -749,6 +873,12 @@ class UnifiedBattleView(discord.ui.View):
                 next_multiplier = DamageCalculator.get_next_charge_multiplier(current_multiplier)
                 player_data['charge_multiplier'] = next_multiplier
                 player_data['charge'] = next_multiplier  # Keep both for compatibility
+                # Track last action for UI visibility until next pick
+                player_data['last_action'] = 'charge'
+                player_data['last_action_info'] = {
+                    'type': 'charge',
+                    'multiplier': next_multiplier
+                }
                 
                 action_text += f"⚡ **{player_name}** is charging! (Charge: x{next_multiplier})\n"
         
@@ -765,26 +895,24 @@ class UnifiedBattleView(discord.ui.View):
                 defender_name = defender_data['user'].display_name
                 
                 # Check if defender is defending
-                defender_defending = defender_data.get('charging', False)
-                defense_effectiveness = defender_data.get('defense_effectiveness', 0.0) if defender_defending else 0.0
+                defender_defending = defender_data.get('defending', False)
                 
-                # Use new roll-based attack system
+                # Use unified calculator with defend-only mitigation and built-in parry
                 battle_result = DamageCalculator.calculate_battle_action(
                     attacker_attack=attacker_data['total_attack'],
-                    target_defense=defender_data['total_defense'],
+                    target_defense=defender_data['total_defense'] if defender_defending else 0,
                     charge_multiplier=attacker_data.get('charge_multiplier', 1.0),
-                    target_charge_multiplier=defender_data.get('charge_multiplier', 1.0) if defender_defending else 1.0,
-                    action_type="attack"
+                    target_charge_multiplier=1.0,
+                    action_type="attack",
+                    target_action_type=(
+                        'defend' if defender_defending else (
+                            'charge' if defender_data.get('charging', False) else 'attack'
+                        )
+                    )
                 )
                 
-                # Apply defense effectiveness if defending
                 final_damage = battle_result['final_damage']
-                parry_damage = 0
-                
-                if defender_defending and defense_effectiveness > 0:
-                    # Calculate parry damage based on defense effectiveness
-                    parry_damage = int(final_damage * defense_effectiveness * 0.5)  # 50% of damage as parry
-                    final_damage = max(0, final_damage - int(final_damage * defense_effectiveness))
+                parry_damage = battle_result.get('parry_damage', 0)
                 
                 # Apply damage
                 if parry_damage > 0:
@@ -794,7 +922,7 @@ class UnifiedBattleView(discord.ui.View):
                     
                     roll_multiplier = self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll'])
                     action_text += f"⚔️ **{attacker_name}** attacks **{defender_name}**! (Roll: {battle_result['attack_roll']}, Multiplier: {roll_multiplier:.2f}x)\n"
-                    action_text += f"🛡️ **{defender_name}** parries! Defense effectiveness: {defense_effectiveness:.2f}x\n"
+                    action_text += f"🛡️ **{defender_name}** parries the attack!\n"
                     if final_damage > 0:
                         action_text += f"💥 {final_damage} damage dealt to {defender_name}\n"
                     action_text += f"⚡ {parry_damage} parry damage dealt to {attacker_name}\n"
@@ -810,6 +938,23 @@ class UnifiedBattleView(discord.ui.View):
                         defend_text = f", reduced by defense" if defender_defending else ""
                         action_text += f"⚔️ **{attacker_name}** attacks **{defender_name}**! (Roll: {battle_result['attack_roll']}, Multiplier: {roll_multiplier:.2f}x){charge_text}{defend_text} → {final_damage} damage dealt\n"
                 
+                # Track last action for UI visibility until next pick
+                attacker_data['last_action'] = 'attack'
+                attacker_data['last_action_info'] = {
+                    'type': 'attack',
+                    'target': defender_name,
+                    'damage': final_damage,
+                    'parry_damage': parry_damage,
+                    'roll': battle_result.get('attack_roll'),
+                    'multiplier': self._get_roll_multiplier_from_result(battle_result['attack_result'], battle_result['attack_roll']),
+                    'result': battle_result.get('attack_result')
+                }
+                # If defender blocked/parried, annotate their last action info
+                if defender_defending:
+                    info = defender_data.setdefault('last_action_info', {'type': 'defend'})
+                    info['blocked'] = True
+                    if parry_damage > 0:
+                        info['parry_damage_dealt'] = info.get('parry_damage_dealt', 0) + parry_damage
                 # Reset charge after attack
                 attacker_data['charge_multiplier'] = 1.0
                 if 'charge' in attacker_data:
@@ -822,6 +967,8 @@ class UnifiedBattleView(discord.ui.View):
             player_data['charging'] = False
             if 'defense_effectiveness' in player_data:
                 del player_data['defense_effectiveness']
+            # Reset defending flag at end of PvP round
+            player_data['defending'] = False
         
         self.turn_count += 1
         
@@ -1024,6 +1171,24 @@ class UnifiedBattleView(discord.ui.View):
             charge_info = f" ⚡x{data['charge']:.1f}" if data['charge'] > 1.0 else ""
             charging_info = " 🔋" if data['charging'] else ""
             defending_info = " 🛡️" if user_id in self.defending_players else ""
+            last_action = data.get('last_action')
+            last_info = data.get('last_action_info', {})
+            if last_action == 'attack':
+                tgt = last_info.get('target')
+                dmg = last_info.get('damage')
+                parry = last_info.get('parry_damage', 0)
+                extra = f" | Parry {parry}" if parry else ""
+                last_line = f"\nLast: ⚔️ Attack → {dmg} dmg{(' to ' + tgt) if tgt else ''}{extra}"
+            elif last_action == 'defend':
+                eff = last_info.get('effectiveness')
+                parry_dealt = last_info.get('parry_damage_dealt', 0)
+                extra = f" | Parry dealt {parry_dealt}" if parry_dealt else ""
+                last_line = f"\nLast: 🛡️ Defend → {eff:.2f}x{extra}" if eff is not None else "\nLast: 🛡️ Defend"
+            elif last_action == 'charge':
+                mult = last_info.get('multiplier', data.get('charge', 1.0))
+                last_line = f"\nLast: ⚡ Charge → x{mult}"
+            else:
+                last_line = ""
             
             # Status indicators
             if not data['alive'] or data['hp'] <= 0:
@@ -1037,7 +1202,7 @@ class UnifiedBattleView(discord.ui.View):
                 
             status_lines.append(
                 f"**{user.display_name}** - {pet['name']}\n"
-                f"{hp_bar} {data['hp']}/{data['max_hp']} HP{charge_info}{charging_info}{defending_info}\n"
+                f"{hp_bar} {data['hp']}/{data['max_hp']} HP{charge_info}{charging_info}{defending_info}{last_line}\n"
                 f"Status: {status}"
             )
         
@@ -1052,10 +1217,24 @@ class UnifiedBattleView(discord.ui.View):
             monster_hp_bar = self.create_hp_bar(self.monster_hp, self.max_monster_hp, "monster", self.monster)
             monster_charge_info = f" ⚡x{self.monster_charge_multiplier:.1f}" if self.monster_charge_multiplier > 1.0 else ""
             monster_defense_info = " 🛡️" if self.monster_defending else ""
+            # Enemy last action summary
+            m_last = getattr(self, 'monster_last_action', None)
+            m_info = getattr(self, 'monster_last_action_info', {})
+            if m_last == 'attack':
+                td = m_info.get('total_damage', 0)
+                tp = m_info.get('total_parry_taken', 0)
+                m_last_line = f"\nLast: ⚔️ Attack → {td} total dmg" + (f" | Parried back {tp}" if tp else "")
+            elif m_last == 'defend':
+                m_last_line = "\nLast: 🛡️ Defend"
+            elif m_last == 'charge':
+                mult = m_info.get('multiplier', self.monster_charge_multiplier)
+                m_last_line = f"\nLast: ⚡ Charge → x{mult}"
+            else:
+                m_last_line = ""
             
             embed.add_field(
                 name=f"🤖 {self.monster['name']}",
-                value=f"{monster_hp_bar} {self.monster_hp}/{self.max_monster_hp} HP{monster_charge_info}{monster_defense_info}",
+                value=f"{monster_hp_bar} {self.monster_hp}/{self.max_monster_hp} HP{monster_charge_info}{monster_defense_info}{m_last_line}",
                 inline=False
             )
         
@@ -1203,20 +1382,42 @@ class UnifiedBattleView(discord.ui.View):
         return embed
 
     def get_monster_action(self) -> str:
-        """Determine monster's AI action"""
+        """Determine monster's AI action using NPCBrain across health stages and party sizes"""
         if not self.monster:
             return "attack"
-            
-        monster_hp_percent = (self.monster_hp / self.max_monster_hp) * 100
-        
-        if monster_hp_percent <= 20:
-            choices = ["attack", "attack", "attack", "defend", "defend", "charge"]
-        elif monster_hp_percent <= 50:
-            choices = ["attack", "attack", "defend", "defend", "charge"]
-        else:
-            choices = ["attack", "attack", "attack", "attack", "defend", "charge"]
-            
-        return random.choice(choices)
+
+        # Build monster and players state for the brain
+        monster_state = {
+            'hp': self.monster_hp,
+            'max_hp': self.max_monster_hp,
+            'charge_multiplier': self.monster_charge_multiplier,
+            'defending': getattr(self, 'monster_defending', False),
+            'last_action': getattr(self, 'monster_last_action', None),
+            'prev_hp': getattr(self, 'prev_monster_hp', None),
+            'attack_stat': float(self.monster.get('attack', 1)),
+            'defense_stat': float(self.monster.get('defense', 1))
+        }
+
+        players_state = []
+        for uid, pdata in self.player_data.items():
+            players_state.append({
+                'hp': pdata.get('hp', 0),
+                'max_hp': pdata.get('max_hp', 1),
+                'alive': pdata.get('alive', False),
+                'charging': pdata.get('charging', False)
+            })
+
+        decision = self.npc_brain.decide_action(monster_state, players_state)
+        action = decision.get('action', 'attack')
+        # Optionally log rationale for debugging
+        try:
+            rationale = decision.get('rationale')
+            if rationale:
+                logger.debug(f"NPCBrain decision: {action} ({rationale})")
+        except Exception:
+            pass
+
+        return action
 
     def calculate_equipment_stats(self, equipment):
         """Calculate total stats from equipped items"""
@@ -1281,20 +1482,31 @@ class UnifiedBattleView(discord.ui.View):
         else:
             return 0.10 + (health_percentage - 0.1) * (0.9 / 0.8)
     
-    def determine_loot_rarity(self, enemy_type: str, health_percentage: float) -> str:
-        """Determine loot rarity based on enemy type and health percentage remaining"""
-        if enemy_type == 'monster':
-            # Monster battles: <50% health = common, ≥50% health = uncommon
-            return 'common' if health_percentage < 0.5 else 'uncommon'
-        elif enemy_type == 'boss':
-            # Boss battles: <50% health = rare, ≥50% health = epic
-            return 'rare' if health_percentage < 0.5 else 'epic'
+    def determine_loot_rarity(self, enemy_type: str, enemy_rarity: str, health_percentage: float) -> str:
+        """Determine loot rarity using enemy type, enemy rarity, and remaining health percentage.
+
+        Logic:
+        - Start from the enemy's own rarity tier.
+        - Shift up by +1 for `boss`, +2 for `titan` (clamped to max).
+        - Adjust by health: <50% shift down by -1; >=80% shift up by +1.
+        - Clamp within ['common','uncommon','rare','epic','legendary','mythic'].
+        """
+        tiers = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']
+        try:
+            base_idx = tiers.index((enemy_rarity or 'common').lower())
+        except ValueError:
+            base_idx = 0
+
+        type_shift = 0
+        if enemy_type == 'boss':
+            type_shift = 1
         elif enemy_type == 'titan':
-            # Titan battles: <50% health = legendary, ≥50% health = mythic
-            return 'legendary' if health_percentage < 0.5 else 'mythic'
-        else:
-            # Default fallback
-            return 'common'
+            type_shift = 2
+
+        hp_shift = -1 if health_percentage < 0.5 else (1 if health_percentage >= 0.8 else 0)
+
+        final_idx = max(0, min(len(tiers) - 1, base_idx + type_shift + hp_shift))
+        return tiers[final_idx]
     
     async def get_random_equipment_by_rarity(self, rarity: str, exclude_ids: List[str] = None) -> Optional[Dict[str, Any]]:
         """Get a random piece of equipment from pet_equipment.json by rarity"""
@@ -1408,7 +1620,11 @@ class UnifiedBattleView(discord.ui.View):
                         logger.info(f"User {user_id} ({pet['name']}) - Health: {health_percentage:.2f}, Loot items: {num_loot_items}")
                         
                         for i in range(num_loot_items):
-                            loot_rarity = self.determine_loot_rarity(self.monster.get('type', 'monster'), health_percentage)
+                            loot_rarity = self.determine_loot_rarity(
+                                self.monster.get('type', 'monster'),
+                                self.monster.get('rarity', 'common'),
+                                health_percentage
+                            )
                             loot_item = await self.get_random_equipment_by_rarity(loot_rarity)
                             if loot_item:
                                 looted_equipment.append(loot_item)

@@ -110,17 +110,32 @@ class TournamentBattleView(discord.ui.View):
             level = pet_data.get('level', 1)
             base_attack = 10 + (level * 2)
             base_defense = 5 + level
-            base_hp = 100 + (level * 10)
+            
+            # Get pet stats
+            total_max_energy = pet_data.get('total_max_energy', 100)
+            total_max_maintenance = pet_data.get('total_max_maintenance', 100)
+            total_max_happiness = pet_data.get('total_max_happiness', 100)
+            current_energy = pet_data.get('current_energy', 100)
+            current_maintenance = pet_data.get('current_maintenance', 100)
+            current_happiness = pet_data.get('current_happiness', 100)
             
             # Apply equipment bonuses
             equipment = pet_data.get('equipment', {})
             equipment_stats = self.calculate_equipment_stats(equipment)
             
+            # Calculate max_hp as sum of all stats + equipment bonuses
+            max_hp = total_max_energy + total_max_maintenance + total_max_happiness
+            max_hp += equipment_stats.get('energy', 0) + equipment_stats.get('maintenance', 0) + equipment_stats.get('happiness', 0)
+            
+            # Calculate current_hp as sum of current stats
+            current_hp = current_energy + current_maintenance + current_happiness
+            current_hp += equipment_stats.get('energy', 0) + equipment_stats.get('maintenance', 0) + equipment_stats.get('happiness', 0)
+            
             # Set final stats
             player['attack'] = base_attack + equipment_stats.get('attack', 0)
             player['defense'] = base_defense + equipment_stats.get('defense', 0)
-            player['max_hp'] = base_hp + equipment_stats.get('energy', 0)
-            player['hp'] = player['max_hp']
+            player['max_hp'] = max_hp
+            player['hp'] = current_hp
             
         except Exception as e:
             logger.error(f"Error loading pet data for {player_id}: {e}")
@@ -286,17 +301,19 @@ class TournamentBattleView(discord.ui.View):
         if not attacker or not target or not attacker['alive'] or not target['alive']:
             return
         
-        # Calculate damage using DamageCalculator
-        damage_calc = DamageCalculator()
-        base_damage = damage_calc.calculate_damage(
-            attacker['attack'], 
-            target['defense'], 
-            attacker['charge']
+        # Roll-based damage using unified calculator; no defense unless target is explicitly defending in this mode
+        result = DamageCalculator.calculate_battle_action(
+            attacker_attack=attacker.get('total_attack', attacker.get('attack', 10)),
+            target_defense=0,  # No defense applied during standard attack in tournament rounds
+            charge_multiplier=attacker.get('charge', 1.0),
+            target_charge_multiplier=1.0,
+            action_type="attack"
         )
         
-        # Apply charge multiplier
-        charge_multiplier = min(attacker['charge'], 3.0)
-        final_damage = int(base_damage * charge_multiplier)
+        # Apply charging vulnerability: charging targets take 25% more damage
+        final_damage = result['final_damage']
+        if target.get('charging', False) and final_damage > 0:
+            final_damage = int(final_damage * 1.25)
         
         # Apply damage
         target['hp'] = max(0, target['hp'] - final_damage)

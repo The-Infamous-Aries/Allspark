@@ -110,7 +110,10 @@ class PvPBattleView(discord.ui.View):
                     'charge': 1.0, 'charging': False,
                     'pet': None, 'alive': True,
                     'xp_earned': 0, 'damage_dealt': 0,
-                    'damage_taken': 0, 'kills': 0, 'assists': 0
+                    'damage_taken': 0, 'kills': 0, 'assists': 0,
+                    # Last action tracking for UI parity with battle_system
+                    'last_action': None,
+                    'last_action_info': {}
                 }
                 self.team_assignments[member_id] = team_id
         
@@ -143,6 +146,22 @@ class PvPBattleView(discord.ui.View):
         
         # Start battle initialization
         asyncio.create_task(self.initialize_battle_data())
+
+    def _get_roll_multiplier_from_result(self, result_type: str, roll: int) -> float:
+        """Convert attack/defense result type to roll multiplier for display purposes
+        Mirrored from battle_system.py for UI consistency."""
+        if result_type == "miss":
+            return 0.0
+        elif result_type == "base":
+            return 1.0
+        elif result_type == "low_mult":
+            return roll / 3.0
+        elif result_type == "mid_mult":
+            return (2 * roll) / 3.0
+        elif result_type == "high_mult":
+            return float(roll)
+        else:
+            return 1.0
     
     def get_team_members(self, team_id: str) -> List[dict]:
         """Get all players in a specific team"""
@@ -209,7 +228,7 @@ class PvPBattleView(discord.ui.View):
         """Load pet data for a single player"""
         try:
             username = player_data.get('user', {}).display_name if player_data.get('user') else None
-            user_data = await user_data_manager.get_user_data(int(player_id), username)
+            user_data = await user_data_manager.get_user_data(str(player_id), username)
             if user_data and 'active_pet' in user_data and user_data['active_pet']:
                 pet = user_data['pets'][str(user_data['active_pet'])]
                 
@@ -234,7 +253,9 @@ class PvPBattleView(discord.ui.View):
                 total_max_happiness = base_max_happiness + equipment_stats['happiness']
                 
                 # Calculate HP (current stats for HP, max stats for max_hp)
+                # Include equipment bonuses in current HP calculation
                 current_hp = current_energy + current_maintenance + current_happiness
+                current_hp += equipment_stats['energy'] + equipment_stats['maintenance'] + equipment_stats['happiness']
                 max_hp = total_max_energy + total_max_maintenance + total_max_happiness
                 
                 player_data.update({
@@ -294,6 +315,37 @@ class PvPBattleView(discord.ui.View):
                                 description=f"{player['user'].mention} it's your turn to act! (FFA)",
                                 color=0x00ff00
                             )
+                            # Show this player's last action details (FFA)
+                            pdata = self.players.get(player_id, {})
+                            la = pdata.get('last_action')
+                            info = pdata.get('last_action_info', {})
+                            if la:
+                                if la == 'attack':
+                                    tgt = self.players.get(info.get('target_id'), {}).get('user', None)
+                                    tgt_name = tgt.display_name if tgt else 'Unknown'
+                                    dmg = info.get('damage')
+                                    roll = info.get('roll')
+                                    res = info.get('result')
+                                    eff = info.get('effective_multiplier')
+                                    cm = info.get('charge_multiplier_used')
+                                    text = f"⚔️ You attacked {tgt_name} for {dmg} • roll {roll} {res} x{eff:.1f}"
+                                    if cm and cm != 1.0:
+                                        text += f" • ⚡x{cm:.1f}"
+                                    embed.add_field(name="Last Action", value=text, inline=False)
+                                elif la == 'defend':
+                                    prot = self.players.get(info.get('protected_id'), {}).get('user', None)
+                                    prot_name = prot.display_name if prot else ('yourself' if info.get('protected_id') == player_id else 'Unknown')
+                                    parry = info.get('parry_damage', 0)
+                                    roll = info.get('roll')
+                                    res = info.get('result')
+                                    eff = info.get('defense_effectiveness')
+                                    eff_text = f" x{eff:.1f}" if isinstance(eff, (int, float)) else ""
+                                    text = f"🛡️ You defended {prot_name} • parry {parry} • roll {roll} {res}{eff_text}"
+                                    embed.add_field(name="Last Action", value=text, inline=False)
+                                elif la == 'charge':
+                                    cm = info.get('charge_multiplier')
+                                    text = f"⚡ You charged to x{cm:.1f}"
+                                    embed.add_field(name="Last Action", value=text, inline=False)
                             
                             # Check if we have an existing ephemeral message for this user
                             if player_id in self.action_messages:
@@ -356,6 +408,37 @@ class PvPBattleView(discord.ui.View):
                                     description=f"{member.mention} it's your turn to act!",
                                     color=0x00ff00
                                 )
+                                # Show this player's last action details (Team battles)
+                                pdata = self.players.get(member_id, {})
+                                la = pdata.get('last_action')
+                                info = pdata.get('last_action_info', {})
+                                if la:
+                                    if la == 'attack':
+                                        tgt = self.players.get(info.get('target_id'), {}).get('user', None)
+                                        tgt_name = tgt.display_name if tgt else 'Unknown'
+                                        dmg = info.get('damage')
+                                        roll = info.get('roll')
+                                        res = info.get('result')
+                                        eff = info.get('effective_multiplier')
+                                        cm = info.get('charge_multiplier_used')
+                                        text = f"⚔️ You attacked {tgt_name} for {dmg} • roll {roll} {res} x{eff:.1f}"
+                                        if cm and cm != 1.0:
+                                            text += f" • ⚡x{cm:.1f}"
+                                        embed.add_field(name="Last Action", value=text, inline=False)
+                                    elif la == 'defend':
+                                        prot = self.players.get(info.get('protected_id'), {}).get('user', None)
+                                        prot_name = prot.display_name if prot else ('yourself' if info.get('protected_id') == member_id else 'Unknown')
+                                        parry = info.get('parry_damage', 0)
+                                        roll = info.get('roll')
+                                        res = info.get('result')
+                                        eff = info.get('defense_effectiveness')
+                                        eff_text = f" x{eff:.1f}" if isinstance(eff, (int, float)) else ""
+                                        text = f"🛡️ You defended {prot_name} • parry {parry} • roll {roll} {res}{eff_text}"
+                                        embed.add_field(name="Last Action", value=text, inline=False)
+                                    elif la == 'charge':
+                                        cm = info.get('charge_multiplier')
+                                        text = f"⚡ You charged to x{cm:.1f}"
+                                        embed.add_field(name="Last Action", value=text, inline=False)
                                 
                                 # Check if we have an existing ephemeral message for this user
                                 if member_id in self.action_messages:
@@ -472,7 +555,12 @@ class PvPBattleView(discord.ui.View):
         current_charge = player.get('charge', 1.0)
         new_charge = DamageCalculator.get_next_charge_multiplier(current_charge)
         player['charge'] = new_charge
-        
+        # Track last action for UI
+        player['last_action'] = 'charge'
+        player['last_action_info'] = {
+            'charge_multiplier': new_charge
+        }
+
         self.battle_log.append(
             f"⚡ {player['user'].display_name} charges up! "
             f"(Power: {new_charge:.0f}x)"
@@ -542,12 +630,16 @@ class PvPBattleView(discord.ui.View):
             attacker_attack=attacker.get('total_attack', attacker.get('attack', 10)),
             target_defense=defender.get('total_defense', defender.get('defense', 5)),
             charge_multiplier=attacker.get('charge', 1.0),
-            target_charge_multiplier=defender.get('charge', 1.0),
+            # Charge does not boost defense in new rules
+            target_charge_multiplier=1.0,
             action_type="attack"
         )
         
         # Apply damage and parry
         damage_to_target = result['final_damage']
+        # Apply 25% extra incoming damage if target is charging
+        if target.get('charging', False) and damage_to_target > 0:
+            damage_to_target = int(damage_to_target * 1.25)
         parry_damage = result['parry_damage']
         
         # Apply damage to target
@@ -569,6 +661,30 @@ class PvPBattleView(discord.ui.View):
         # Reset charge multipliers after use
         attacker['charge'] = 1.0
         defender['charge'] = 1.0
+
+        # Track last actions for UI parity
+        attacker_effective = self._get_roll_multiplier_from_result(result.get('attack_result', 'base'), result.get('attack_roll', 0))
+        defender_effective = 0.0
+        if result.get('attack_result') != 'miss':
+            defender_effective = self._get_roll_multiplier_from_result(result.get('defense_result', 'base'), result.get('defense_roll', 0))
+        attacker['last_action'] = 'attack'
+        attacker['last_action_info'] = {
+            'target_id': target_id,
+            'damage': damage_to_target,
+            'parry_taken': parry_damage,
+            'roll': result.get('attack_roll', 0),
+            'result': result.get('attack_result', 'base'),
+            'effective_multiplier': attacker_effective,
+            'charge_multiplier_used': attacker.get('charge', 1.0)
+        }
+        defender['last_action'] = 'defend'
+        defender['last_action_info'] = {
+            'protected_id': target_id,
+            'parry_damage': parry_damage,
+            'roll': result.get('defense_roll', 0),
+            'result': result.get('defense_result', 'base'),
+            'defense_effectiveness': defender_effective
+        }
         
         # Add to battle log
         self.battle_log.append(
@@ -602,8 +718,10 @@ class PvPBattleView(discord.ui.View):
             action_type="attack"
         )
         
-        # Apply full damage
+        # Apply full damage, with charging vulnerability if target is charging
         damage = result['final_damage']
+        if target.get('charging', False) and damage > 0:
+            damage = int(damage * 1.25)
         target['hp'] = max(0, target['hp'] - damage)
         attacker['damage_dealt'] = attacker.get('damage_dealt', 0) + damage
         target['damage_taken'] = target.get('damage_taken', 0) + damage
@@ -613,6 +731,18 @@ class PvPBattleView(discord.ui.View):
         
         # Reset charge multiplier after use
         attacker['charge'] = 1.0
+
+        # Track last action for UI parity
+        effective = self._get_roll_multiplier_from_result(result.get('attack_result', 'base'), result.get('attack_roll', 0))
+        attacker['last_action'] = 'attack'
+        attacker['last_action_info'] = {
+            'target_id': target_id,
+            'damage': damage,
+            'roll': result.get('attack_roll', 0),
+            'result': result.get('attack_result', 'base'),
+            'effective_multiplier': effective,
+            'charge_multiplier_used': attacker.get('charge', 1.0)
+        }
         
         # Add to battle log
         self.battle_log.append(
@@ -650,6 +780,11 @@ class PvPBattleView(discord.ui.View):
         # Apply damage simultaneously
         damage1 = result1['final_damage']
         damage2 = result2['final_damage']
+        # Apply 25% vulnerability if the targets are charging
+        if player2.get('charging', False) and damage1 > 0:
+            damage1 = int(damage1 * 1.25)
+        if player1.get('charging', False) and damage2 > 0:
+            damage2 = int(damage2 * 1.25)
         
         player2['hp'] = max(0, player2['hp'] - damage1)
         player1['hp'] = max(0, player1['hp'] - damage2)
@@ -667,6 +802,28 @@ class PvPBattleView(discord.ui.View):
         # Reset charge multipliers after use
         player1['charge'] = 1.0
         player2['charge'] = 1.0
+
+        # Track last actions for UI
+        eff1 = self._get_roll_multiplier_from_result(result1.get('attack_result', 'base'), result1.get('attack_roll', 0))
+        eff2 = self._get_roll_multiplier_from_result(result2.get('attack_result', 'base'), result2.get('attack_roll', 0))
+        player1['last_action'] = 'attack'
+        player1['last_action_info'] = {
+            'target_id': player2_id,
+            'damage': damage1,
+            'roll': result1.get('attack_roll', 0),
+            'result': result1.get('attack_result', 'base'),
+            'effective_multiplier': eff1,
+            'charge_multiplier_used': player1.get('charge', 1.0)
+        }
+        player2['last_action'] = 'attack'
+        player2['last_action_info'] = {
+            'target_id': player1_id,
+            'damage': damage2,
+            'roll': result2.get('attack_roll', 0),
+            'result': result2.get('attack_result', 'base'),
+            'effective_multiplier': eff2,
+            'charge_multiplier_used': player2.get('charge', 1.0)
+        }
         
         # Add to battle log
         self.battle_log.append(
@@ -718,7 +875,7 @@ class PvPBattleView(discord.ui.View):
                 return
                 
             username = player['user'].display_name
-            user_data = await user_data_manager.get_user_data(int(player_id), username)
+            user_data = await user_data_manager.get_user_data(str(player_id), username)
             if not user_data or 'active_pet' not in user_data or not user_data['active_pet']:
                 return
                 
@@ -735,7 +892,7 @@ class PvPBattleView(discord.ui.View):
             
             # Save updated pet data
             await user_data_manager.update_user_data(
-                int(player_id), 
+                str(player_id), 
                 {"pets": {pet_id: pet}},
                 "pet_data"
             )
@@ -751,7 +908,7 @@ class PvPBattleView(discord.ui.View):
                 return
                 
             username = player['user'].display_name
-            user_data = await user_data_manager.get_user_data(int(player_id), username)
+            user_data = await user_data_manager.get_user_data(str(player_id), username)
             if not user_data or 'active_pet' not in user_data or not user_data['active_pet']:
                 return
                 
@@ -765,7 +922,7 @@ class PvPBattleView(discord.ui.View):
             
             # Save updated pet data
             await user_data_manager.update_user_data(
-                int(player_id), 
+                str(player_id), 
                 {"pets": {pet_id: pet}},
                 "pet_data"
             )
@@ -800,6 +957,16 @@ class PvPBattleView(discord.ui.View):
             
         # Add to defending players set for this turn (double defense)
         self.defending_players.add((defender_id, target_id, 2))  # 2 = double defense level
+
+        # Track last action for UI
+        defender['last_action'] = 'defend'
+        defender['last_action_info'] = {
+            'protected_id': target_id,
+            'parry_damage': 0,
+            'roll': None,
+            'result': 'base',
+            'defense_effectiveness': None
+        }
         
         # Add to battle log
         if target_id == defender_id:
@@ -909,7 +1076,7 @@ class PvPBattleView(discord.ui.View):
             try:
                 player = self.get_player(member_id)
                 username = player['user'].display_name if player else None
-                user_data = await user_data_manager.get_user_data(int(member_id), username)
+                user_data = await user_data_manager.get_user_data(str(member_id), username)
                 if user_data and 'active_pet' in user_data and user_data['active_pet']:
                     pet_id = str(user_data['active_pet'])
                     pet = user_data['pets'][pet_id]
@@ -931,7 +1098,7 @@ class PvPBattleView(discord.ui.View):
                     old_level = pet.get('level', 1)
                     
                     # Get equipment stats for proper level up calculation
-                    equipment_stats = await pets_system.get_equipment_stats(pet, int(member_id))
+                    equipment_stats = self.calculate_equipment_stats(pet.get('equipment', {}))
                     
                     # Use the proper add_experience function from pet_levels
                     from Systems.EnergonPets.pet_levels import add_experience
@@ -943,13 +1110,13 @@ class PvPBattleView(discord.ui.View):
                     
                     # Save updated pet data
                     await user_data_manager.update_user_data(
-                        int(member_id), 
+                        str(member_id), 
                         {"pets": {pet_id: pet}},
                         "pet_data"
                     )
                     
                     # Also update user's energon
-                    user_energon_data = await user_data_manager.get_user_data(int(member_id), username)
+                    user_energon_data = await user_data_manager.get_user_data(str(member_id), username)
                     # Use proper energon tracking method to update total_earned
                     await user_data_manager.add_energon(str(member_id), energon_reward)
                     
@@ -1011,7 +1178,7 @@ class PvPBattleView(discord.ui.View):
             color=discord.Color.blue(),
             description="\n".join(self.battle_log[-5:]) if self.battle_log else "Battle starting..."
         )
-        
+
         # Add team status
         def format_team_status(team_name: str, team: dict):
             lines = []
@@ -1043,13 +1210,41 @@ class PvPBattleView(discord.ui.View):
                 defender_count = sum(1 for _, tid, _ in self.defending_players if tid == member_id)
                 if defender_count > 0:
                     status.append(f"🛡️×{defender_count}")
-                
+
                 line = f"❤️ {hp_bar} {data['hp']}/{data['max_hp']} {data['user'].display_name}"
                 if status:
                     line += f" [{' '.join(status)}]"
-                
+
+                # Append last action summary for parity with battle_system spectator UI
+                la = data.get('last_action')
+                info = data.get('last_action_info', {})
+                if la:
+                    if la == 'attack':
+                        tgt = self.players.get(info.get('target_id'), {}).get('user', None)
+                        tgt_name = tgt.display_name if tgt else 'Unknown'
+                        dmg = info.get('damage')
+                        roll = info.get('roll')
+                        res = info.get('result')
+                        eff = info.get('effective_multiplier')
+                        cm = info.get('charge_multiplier_used')
+                        line += f" \n   ⚔️ Last: {dmg} dmg → {tgt_name} • roll {roll} {res} x{eff:.1f}"
+                        if cm and cm != 1.0:
+                            line += f" • ⚡x{cm:.1f}"
+                    elif la == 'defend':
+                        prot = self.players.get(info.get('protected_id'), {}).get('user', None)
+                        prot_name = prot.display_name if prot else ('self' if info.get('protected_id') == member_id else 'Unknown')
+                        parry = info.get('parry_damage', 0)
+                        roll = info.get('roll')
+                        res = info.get('result')
+                        eff = info.get('defense_effectiveness')
+                        eff_text = f" x{eff:.1f}" if isinstance(eff, (int, float)) else ""
+                        line += f" \n   🛡️ Last: defended {prot_name} • parry {parry} • roll {roll} {res}{eff_text}"
+                    elif la == 'charge':
+                        cm = info.get('charge_multiplier')
+                        line += f" \n   ⚡ Last: charged to x{cm:.1f}"
+
                 lines.append(line)
-            
+
             return "\n".join(lines) if lines else "No players"
         
         embed.add_field(

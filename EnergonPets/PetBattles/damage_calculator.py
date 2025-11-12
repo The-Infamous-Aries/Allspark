@@ -10,16 +10,14 @@ from typing import Dict, Any, Tuple
 
 class DamageCalculator:
     """Unified damage calculation system for all battle types"""
-    
-    # Roll-based damage system constants
-    MISS_RANGE = (1, 4)      # Complete miss
-    BASE_RANGE = (5, 8)      # Base stat only
-    LOW_MULT_RANGE = (9, 12) # Stat * 1/3 * roll
-    MID_MULT_RANGE = (13, 16) # Stat * 2/3 * roll  
-    HIGH_MULT_RANGE = (17, 20) # Stat * full * roll
-    
-    # Charge system - now goes up to 16x (2-4-8-16)
+
+    MISS_RANGE = (1, 4)
+    BASE_RANGE = (5, 8) 
+    LOW_MULT_RANGE = (9, 12)
+    MID_MULT_RANGE = (13, 16)  
+    HIGH_MULT_RANGE = (17, 20) 
     MAX_CHARGE_MULTIPLIER = 16.0
+    VULNERABILITY_WHEN_CHARGING = 1.25
     
     @staticmethod
     def calculate_roll_multiplier(roll: int, base_stat: int) -> Tuple[int, str]:
@@ -60,7 +58,9 @@ class DamageCalculator:
         target_defense: int,
         charge_multiplier: float = 1.0,
         target_charge_multiplier: float = 1.0,
-        action_type: str = "attack"
+        action_type: str = "attack",
+        attacker_action_type: str = "attack",
+        target_action_type: str = "defend"
     ) -> Dict[str, Any]:
         """
         Calculate battle action result with new roll-based system
@@ -82,6 +82,8 @@ class DamageCalculator:
             charge_multiplier = max(1.0, min(16.0, float(charge_multiplier))) if charge_multiplier is not None else 1.0
             target_charge_multiplier = max(1.0, min(16.0, float(target_charge_multiplier))) if target_charge_multiplier is not None else 1.0
             action_type = str(action_type) if action_type is not None else "attack"
+            attacker_action_type = (str(attacker_action_type or "attack").lower())
+            target_action_type = (str(target_action_type or "defend").lower())
         except (ValueError, TypeError) as e:
             # Fallback to safe defaults if conversion fails
             attacker_attack = 10
@@ -89,6 +91,14 @@ class DamageCalculator:
             charge_multiplier = 1.0
             target_charge_multiplier = 1.0
             action_type = "attack"
+            attacker_action_type = "attack"
+            target_action_type = "defend"
+
+        # Normalize action types
+        if attacker_action_type not in ("attack", "defend", "charge"):
+            attacker_action_type = "attack"
+        if target_action_type not in ("attack", "defend", "charge"):
+            target_action_type = "defend"
         # Roll for attacker (attack action)
         attack_roll = random.randint(1, 20)
         attack_value, attack_result = DamageCalculator.calculate_roll_multiplier(attack_roll, attacker_attack)
@@ -96,28 +106,47 @@ class DamageCalculator:
         # Apply charge multiplier to attack
         final_attack = int(attack_value * charge_multiplier)
         
-        # Roll for target (defense action)
-        defense_roll = random.randint(1, 20)
-        defense_value, defense_result = DamageCalculator.calculate_roll_multiplier(defense_roll, target_defense)
-        
-        # Apply charge multiplier to defense
-        final_defense = int(defense_value * target_charge_multiplier)
+        # Target defense only applies if defending this round
+        if target_action_type == "defend":
+            defense_roll = random.randint(1, 20)
+            defense_value, defense_result = DamageCalculator.calculate_roll_multiplier(defense_roll, target_defense)
+            # Apply charge multiplier to defense
+            final_defense = int(defense_value * target_charge_multiplier)
+        else:
+            defense_roll = None
+            defense_result = "none"
+            final_defense = 0
         
         # Calculate damage
-        if final_attack > final_defense:
-            # Attack succeeds
-            final_damage = max(1, final_attack - final_defense)
-            parry_damage = 0
-        elif final_attack == final_defense:
-            # Perfect block
+        if attacker_action_type == "charge":
+            # Attacker is charging; no outgoing attack this round
             final_damage = 0
             parry_damage = 0
         else:
-            # Defense succeeds, potential parry
-            final_damage = 0
-            if defense_result != "miss":  # Only parry if defense wasn't a miss
-                parry_damage = max(1, final_defense - final_attack)
+            if target_action_type == "defend":
+                if final_attack > final_defense:
+                    # Attack succeeds through defense
+                    final_damage = max(1, final_attack - final_defense)
+                    parry_damage = 0
+                elif final_attack == final_defense:
+                    # Perfect block
+                    final_damage = 0
+                    parry_damage = 0
+                else:
+                    # Defense stronger; reflect remaining as counter
+                    final_damage = 0
+                    if defense_result != "miss":
+                        parry_damage = max(1, final_defense - final_attack)
+                    else:
+                        parry_damage = 0
+            elif target_action_type == "charge":
+                # Target is charging: takes full attack, with vulnerability
+                base_damage = final_attack
+                final_damage = int(max(0, base_damage) * DamageCalculator.VULNERABILITY_WHEN_CHARGING)
+                parry_damage = 0
             else:
+                # Target is not defending: takes full attack, no mitigation
+                final_damage = max(1, final_attack)
                 parry_damage = 0
         
         return {
@@ -129,7 +158,9 @@ class DamageCalculator:
             'defense_result': defense_result,
             'final_attack': final_attack,
             'final_defense': final_defense,
-            'charge_used': charge_multiplier > 1.0 or target_charge_multiplier > 1.0
+            'charge_used': charge_multiplier > 1.0 or target_charge_multiplier > 1.0,
+            'attacker_action_type': attacker_action_type,
+            'target_action_type': target_action_type
         }
     
     @staticmethod
@@ -166,6 +197,16 @@ class DamageCalculator:
         for player_id, defense_info in player_defenses.items():
             player_defense = defense_info.get('defense', 0)
             player_charge_multiplier = defense_info.get('charge_multiplier', 1.0)
+            # Determine target action for this round
+            player_action = str(defense_info.get('action', '') or '').lower()
+            if not player_action:
+                # Infer from boolean flags if present
+                if defense_info.get('defending', False):
+                    player_action = 'defend'
+                elif defense_info.get('charging', False):
+                    player_action = 'charge'
+                else:
+                    player_action = 'attack'
             
             # Use the new battle action calculation
             battle_result = DamageCalculator.calculate_battle_action(
@@ -173,7 +214,9 @@ class DamageCalculator:
                 target_defense=player_defense,
                 charge_multiplier=monster_charge_multiplier,
                 target_charge_multiplier=player_charge_multiplier,
-                action_type="monster_attack"
+                action_type="monster_attack",
+                attacker_action_type="attack",
+                target_action_type=player_action
             )
             
             results[player_id] = {
@@ -185,7 +228,8 @@ class DamageCalculator:
                 'defense_result': battle_result['defense_result'],
                 'final_attack': battle_result['final_attack'],
                 'final_defense': battle_result['final_defense'],
-                'charge_used': battle_result['charge_used']
+                'charge_used': battle_result['charge_used'],
+                'target_action_type': battle_result['target_action_type']
             }
         
         return results
