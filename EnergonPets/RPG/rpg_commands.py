@@ -38,15 +38,9 @@ class RPGCommands(commands.Cog):
             from Systems.user_data_manager import user_data_manager
             self.user_data_manager = user_data_manager
         
-        # Initialize AI if API key available
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=os.getenv('GEMINI_API_KEY', ''))
-            self.gemini_model = genai.GenerativeModel('gemini-pro')
-            self.ai_director = self.rpg_system
-        except:
-            self.gemini_model = None
-            self.ai_director = self.rpg_system
+        # Initialize AI director without importing Gemini here; rpg_system handles lazy AI init
+        self.gemini_model = None
+        self.ai_director = self.rpg_system
 
     async def _load_data_async(self, data_type: str) -> Dict[str, Any]:
         """Optimized data loading using user_data_manager"""
@@ -247,6 +241,44 @@ class RPGCommands(commands.Cog):
             # Send the battle message
             message = await channel.send(embed=embed, view=battle_view)
             battle_view.message = message
+
+            # Monitor battle completion and post AI-generated summary
+            async def _monitor_outcome():
+                try:
+                    # Wait until the battle over flag is set by the battle system
+                    while not getattr(battle_view, 'battle_over', False):
+                        await asyncio.sleep(2)
+
+                    # Determine victory for PvE battles
+                    victory = False
+                    if getattr(battle_view, 'monster', None) is not None:
+                        victory = battle_view.monster_hp <= 0
+
+                    # Generate outcome text via RPG system
+                    outcome_text = await self.rpg_system.handle_battle_outcome(
+                        str(player.id), battle_view, victory
+                    )
+
+                    # Build and send summary embed
+                    enemy_name = getattr(battle_view, 'enemy_name', None)
+                    if not enemy_name and getattr(battle_view, 'monster', None):
+                        enemy_name = battle_view.monster.get('name', 'Unknown Enemy')
+
+                    summary_color = discord.Color.green() if victory else discord.Color.red()
+                    summary_embed = discord.Embed(
+                        title="📖 Battle Summary",
+                        description=outcome_text,
+                        color=summary_color
+                    )
+                    if enemy_name:
+                        summary_embed.add_field(name="⚔️ Enemy", value=enemy_name, inline=False)
+                    summary_embed.set_footer(text=f"Battle concluded • {player.display_name}")
+                    await channel.send(embed=summary_embed)
+                except Exception as e:
+                    logger.error(f"Error generating battle outcome summary: {e}")
+
+            # Fire-and-forget outcome monitoring
+            asyncio.create_task(_monitor_outcome())
             
         except Exception as e:
             logger.error(f"Error in handle_ai_battle: {e}")
@@ -378,7 +410,7 @@ Format the response as:
             await channel.send("❌ Failed to start battle!")
 
     async def handle_first_react_event(self, channel, players: List[discord.User], event: Dict):
-        """Handle a group event using first-to-react system"""
+        """Handle a group event where each user selects their own skill and resolves individually"""
         # Create event embed
         embed = discord.Embed(
             title=f"🎯 {event['name']}",
@@ -390,15 +422,15 @@ Format the response as:
         party_names = [player.display_name for player in players]
         embed.add_field(name="🤖 Party Members", value=", ".join(party_names), inline=False)
         
-        # Create participants list for FirstReactView
+        # Create participants list for group selection
         participants = [{'user_id': str(p.id), 'name': p.display_name} for p in players]
         
-        # Create and send FirstReactView
-        view = self.rpg_system.FirstReactView(participants)
+        # Create and send GroupEventChoiceView
+        view = self.rpg_system.GroupEventChoiceView(participants, event)
         message = await channel.send(embed=embed, view=view)
         view.message = message
         
-        # Wait for choice with timeout (non-blocking for other commands)
+        # Wait until resolved or timeout
         try:
             await asyncio.wait_for(view.wait(), timeout=300.0)  # 5 minute timeout
         except asyncio.TimeoutError:
@@ -411,153 +443,80 @@ Format the response as:
             await channel.send(embed=embed)
             return
         
-        if view.chosen_skill and view.chosen_by:
-            chosen_skill = view.chosen_skill
-            chosen_by = view.chosen_by
-            
-            # Get skill data from event choices (now using success chances)
-            skill_data = None
-            for skill_key, skill_info in event.get('choices', {}).items():
-                if skill_key == chosen_skill or skill_info.get('skill') == chosen_skill:
-                    skill_data = skill_info
-                    break
-            
-            if not skill_data:
-                # Create fallback skill data with success chance
-                skill_data = {
-                    'skill': chosen_skill,
-                    'description': f'Use {chosen_skill} to overcome the challenge',
-                    'success': f'Your {chosen_skill} approach succeeds!',
-                    'failure': f'Your {chosen_skill} approach falls short...',
-                    'success_chance': 65  # Default success chance
-                }
-            
-            # Roll for success based on success chance (not skill check)
-            success_chance = skill_data.get('success_chance', 65)
-            roll = random.randint(1, 100)
-            success = roll <= success_chance
-            
-            # Award rewards using the new system
-            try:
-                # Prepare event data for reward distribution
-                event_data = {
-                    'name': event['name'],
-                    'type': 'event',
-                    'difficulty': event.get('difficulty', 'moderate'),
-                    'rarity': event.get('rarity', 'common'),
-                    'base_xp': {"easy": 50, "moderate": 100, "hard": 150, "very_hard": 200}.get(difficulty, 100),
-                    'base_loot_value': {"easy": 25, "moderate": 50, "hard": 75, "very_hard": 100}.get(difficulty, 50)
-                }
-                
-                # Distribute rewards using the new system
-                rewards = await self.rpg_system.distribute_group_rewards(players, event_data, success)
-                
-                # Create outcome embed
-                if success:
-                    outcome_text = f"🎉 **{chosen_by.display_name}** led the party using **{chosen_skill}** to succeed!"
-                    result_desc = skill_data.get('success', 'The party overcomes the challenge!')
-                    color = discord.Color.green()
-                else:
-                    outcome_text = f"⚠️ **{chosen_by.display_name}** chose **{chosen_skill}**, but it wasn't enough..."
-                    result_desc = skill_data.get('failure', 'The challenge proves difficult...')
-                    color = discord.Color.orange()
-                
-                result_embed = discord.Embed(
-                    title="🎯 Event Result",
-                    description=outcome_text,
-                    color=color
-                )
-                result_embed.add_field(name="📋 Result", value=result_desc, inline=False)
-                result_embed.add_field(name="🎲 Success Chance", value=f"{success_chance}% (rolled {roll})", inline=False)
-                
-                # Display rewards summary
-                if rewards:
-                    reward_text = ""
-                    for reward in rewards:
-                        if reward['user']:
-                            loot_names = [item['name'] for item in reward['loot']]
-                            loot_str = ", ".join(loot_names) if loot_names else "None"
-                            reward_text += f"**{reward['user'].display_name}**: {reward['xp']} XP, {loot_str}\n"
-                    
-                    if reward_text:
-                        result_embed.add_field(name="🎖️ Rewards", value=reward_text, inline=False)
-                
-                await channel.send(embed=result_embed)
-                
-            except Exception as e:
-                logger.error(f"Error in handle_first_react_event: {e}")
-                error_embed = discord.Embed(
-                    title="❌ Error",
-                    description=f"An error occurred during the event: {str(e)}",
-                    color=discord.Color.red()
-                )
-                await channel.send(embed=error_embed)
-            
-        else:
-            # Timeout
-            timeout_embed = discord.Embed(
-                title="⏰ Event Timeout",
-                description="No one chose an approach in time!",
+        # Resolve per-user outcomes and generate comprehensive text
+        try:
+            result = await self.rpg_system.resolve_group_event_individual(event, participants, view.selected_choices)
+            text = result.get('text', 'No results.')
+            comprehensive_embed = discord.Embed(
+                title="📖 Event Results",
+                description=text,
+                color=discord.Color.blurple()
+            )
+            comprehensive_embed.set_footer(text="Each pet acted independently; XP awarded per outcome.")
+            await channel.send(embed=comprehensive_embed)
+        except Exception as e:
+            logger.error(f"Error resolving group event: {e}")
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=f"Failed to resolve event: {str(e)}",
                 color=discord.Color.red()
             )
-            await channel.send(embed=timeout_embed)
+            await channel.send(embed=error_embed)
 
-    async def handle_event_challenge(self, channel, players: List[discord.User], event: Dict, chosen_skill: str):
-        """Handle an event challenge using success chances instead of skill checks"""
-        
-        # Find the chosen skill in event choices
-        skill_data = None
-        for skill_key, skill_info in event.get('choices', {}).items():
-            if skill_key == chosen_skill or skill_info.get('skill') == chosen_skill:
-                skill_data = skill_info
-                break
+    async def handle_event_challenge(self, channel, players: List[discord.User], event: Dict, chosen_skill: Optional[str] = None):
+        """Handle an event challenge with multi-user skill selection and per-user outcomes."""
+        try:
+            # Build participant descriptors
+            participants = [
+                {
+                    'user_id': str(u.id),
+                    'name': getattr(u, 'display_name', None) or getattr(u, 'name', str(u.id))
+                }
+                for u in players
+            ]
 
-        if not skill_data:
-            # Create fallback skill data with success chance
-            skill_data = {
-                'skill': chosen_skill,
-                'description': f'Use {chosen_skill} to overcome the challenge',
-                'success': f'Your {chosen_skill} approach succeeds!',
-                'failure': f'Your {chosen_skill} approach falls short...',
-                'success_chance': 65  # Default success chance
-            }
+            # Show the multi-user choice view
+            view = self.rpg_system.GroupEventChoiceView(participants, event)
+            event_name = event.get('name', 'Event Challenge')
+            event_desc = event.get('description', 'Make your choice for the skill check.')
+            embed = discord.Embed(
+                title=f"🎲 {event_name}",
+                description=f"{event_desc}\n\nEach participant, pick your skill. Then press Resolve.",
+                color=discord.Color.blurple()
+            )
+            message = await channel.send(embed=embed, view=view)
+            view.message = message
 
-        # Roll for success based on success chance (not skill check)
-        success_chance = skill_data.get('success_chance', 65)
-        roll = random.randint(1, 100)
-        success = roll <= success_chance
+            # Wait for resolution or timeout
+            try:
+                await asyncio.wait_for(view.wait(), timeout=300.0)
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⏰ Event Timeout",
+                    description="No resolution within 5 minutes. Event closed without outcomes.",
+                    color=discord.Color.red()
+                )
+                await channel.send(embed=timeout_embed)
+                return
 
-        # Award rewards
-        base_xp = {"easy": 50, "moderate": 100, "hard": 150, "very_hard": 200}.get(skill_data["difficulty"], 100)
-        
-        if success:
-            xp_reward = base_xp
-            energon_reward = base_xp // 2
-            loot = self.get_loot_drops("Rare")
-            outcome_text = f"Success! The group used {chosen_skill} to overcome the challenge!"
-        else:
-            xp_reward = base_xp // 2
-            energon_reward = base_xp // 4
-            loot = []
-            outcome_text = f"Partial success... The {chosen_skill} attempt wasn't fully successful."
+            # Resolve with per-user choices
+            result = await self.rpg_system.resolve_group_event_individual(event, participants, view.selected_choices)
 
-        # Award to all players
-        for player in players:
-            await self.award_xp_and_check_level(str(player.id), xp_reward)
-            await self.user_data_manager.add_energon(str(player.id), energon_reward, "rpg_activity")
-
-        embed = discord.Embed(
-            title="🎲 Event Result",
-            description=outcome_text,
-            color=discord.Color.green() if success else discord.Color.orange()
-        )
-        embed.add_field(name="Success Chance", value=f"{success_chance}% (rolled {roll})", inline=False)
-        embed.add_field(name="XP Reward", value=xp_reward, inline=True)
-        embed.add_field(name="Energon Reward", value=energon_reward, inline=True)
-        if loot:
-            embed.add_field(name="Loot", value=", ".join([item["name"] for item in loot]), inline=False)
-
-        await channel.send(embed=embed)
+            comprehensive_embed = discord.Embed(
+                title=f"✅ Event Resolved: {event.get('name', 'Challenge')}",
+                description=result.get('text', 'No actions recorded.'),
+                color=discord.Color.green()
+            )
+            comprehensive_embed.set_footer(text="Each pet acted independently; XP awarded per outcome.")
+            await channel.send(embed=comprehensive_embed)
+        except Exception as e:
+            logger.error(f"Error handling event challenge: {e}")
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=f"Failed to handle event challenge: {str(e)}",
+                color=discord.Color.red()
+            )
+            await channel.send(embed=error_embed)
 
     async def handle_story_segment(self, channel, players: List[discord.User], story: Dict):
         """Handle a story segment with choices"""
@@ -673,30 +632,7 @@ Format the response as:
         
         await ctx.send(embed=embed)
 
-    async def handle_event_challenge(self, channel, players, event, chosen_skill):
-        """Handle event challenge for group adventure"""
-        results = []
-        
-        for player in players:
-            result = self.rpg_system.process_random_event(str(player.id), event.get('id'), chosen_skill)
-            results.append((player, result))
-            
-        embed = discord.Embed(
-            title=f"🎲 Event: {event['name']}",
-            description=event['description'],
-            color=discord.Color.green()
-        )
-        
-        for player, result in results:
-            if 'error' not in result:
-                outcome = "✅ Success" if result.get('success', False) else "❌ Failed"
-                embed.add_field(
-                    name=f"{player.display_name}",
-                    value=f"{outcome} - {result.get('result_text', 'No outcome')}",
-                    inline=False
-                )
-        
-        await channel.send(embed=embed)
+    # Removed duplicate legacy handle_event_challenge to avoid conflicting logic
 
     @app_commands.command(name="start_cyberchronicles", description="Begin an AI-generated CyberChronicles adventure")
     async def start_cyberchronicles(self, interaction: discord.Interaction, pet: str):

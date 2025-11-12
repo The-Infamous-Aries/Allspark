@@ -14,12 +14,22 @@ from datetime import datetime
 
 # Third-party imports
 import discord
-import google.generativeai as genai
 from discord.ext import commands
 from discord import app_commands
 
 # Local system path setup
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+# Prefer vendored local_packages (SparkedHost-friendly) by placing it first on sys.path
+try:
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    _local_packages = os.path.join(_project_root, 'local_packages')
+    if os.path.isdir(_local_packages) and _local_packages not in sys.path:
+        sys.path.insert(0, _local_packages)
+    # Prevent user site-packages from taking precedence over vendored
+    os.environ.setdefault('PYTHONNOUSERSITE', '1')
+except Exception as _vend_err:
+    logging.getLogger('rpg_system').warning(f"Vendored path setup failed: {_vend_err}")
 
 # Local imports
 from Systems.user_data_manager import user_data_manager
@@ -63,9 +73,31 @@ class AIStoryGenerator:
     """AI-powered story generation for the Transformers RPG"""
     
     def __init__(self, api_key: str = None):
-        if api_key:
-            genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-pro')
+        self.model = None
+        # Lazy-import and pre-check gRPC native extension to avoid noisy errors
+        try:
+            key = api_key or os.getenv('GEMINI_API_KEY', '')
+            if key:
+                # Pre-check gRPC and cygrpc native extension
+                try:
+                    import grpc  # noqa: F401
+                    try:
+                        from grpc._cython import cygrpc  # noqa: F401
+                    except Exception as cyerr:
+                        raise ImportError(f"grpc 'cygrpc' extension not available: {cyerr}")
+                except Exception as grpc_err:
+                    logger.warning(
+                        "⚠️  Gemini disabled: missing gRPC native extension (cygrpc). "
+                        "Install manylinux wheels for grpcio/grpcio-status and protobuf in the container."
+                    )
+                else:
+                    # Only import/configure Gemini after gRPC check passes
+                    import google.generativeai as genai  # lazy import
+                    genai.configure(api_key=key)
+                    self.model = genai.GenerativeModel('gemini-2.5-pro')
+        except Exception as e:
+            # Graceful fallback without spamming error logs
+            logger.warning(f"Gemini init failed; AI features disabled: {e}")
         
     def _clean_ai_response(self, text: str) -> str:
         """Clean AI response by removing conversational preambles"""
@@ -139,6 +171,9 @@ Format as:
 **Reward:** [What they gain if successful - should scale with difficulty]
 **Risk:** [What happens if they fail or refuse]"""
 
+        # Use AI if available; otherwise fallback
+        if self.model is None:
+            return self._generate_fallback_event(context)
         try:
             response = await self.model.generate_content_async(prompt)
             return self._clean_ai_response(response.text)
@@ -170,6 +205,8 @@ Format as:
 **The Scene:** [What happens as battle begins]
 **Tactical Situation:** [Advantages/disadvantages for both sides]"""
 
+        if self.model is None:
+            return self._generate_fallback_battle_encounter(context)
         try:
             response = await self.model.generate_content_async(prompt)
             return self._clean_ai_response(response.text)
@@ -201,6 +238,8 @@ Format as:
 **Aftermath:** [Consequences and next steps]
 **The Living:** [What the survivors do next]"""
 
+        if self.model is None:
+            return self._generate_fallback_battle_outcome(context)
         try:
             response = await self.model.generate_content_async(prompt)
             return self._clean_ai_response(response.text)
@@ -233,6 +272,8 @@ Format as:
 **Observations:** [What they notice or learn]
 **The Path Ahead:** [What comes next in their journey]"""
 
+        if self.model is None:
+            return self._generate_fallback_story(context)
         try:
             response = await self.model.generate_content_async(prompt)
             return self._clean_ai_response(response.text)
@@ -293,6 +334,8 @@ Format as:
 **The World Around Them:** [Environmental details and world-building]
 **Foreshadowing:** [Subtle hints about what may come next]"""
 
+        if self.model is None:
+            return self._generate_fallback_comprehensive_story(context)
         try:
             response = await self.model.generate_content_async(prompt)
             return self._clean_ai_response(response.text)
@@ -690,6 +733,204 @@ class TransformersAIDnD:
                 'ai_context': 'energon extraction'
             }
         ]
+
+    async def _get_effective_pet_stats(self, user_id: str) -> Dict[str, Any]:
+        """Get a pet's effective stats including equipment bonuses.
+        Supports multiple stat key styles (e.g., ATT vs attack).
+        """
+        pet_data = await user_data_manager.get_pet_data(user_id)
+        if not pet_data:
+            return {
+                'effective_level': 1,
+                'name': 'Unknown',
+                'attack': 10,
+                'defense': 10,
+                'dexterity': pet_data.get('DEX', 10) if pet_data else 10,
+                'charisma': pet_data.get('CHA', 10) if pet_data else 10,
+                'resources': {
+                    'energy': 0,
+                    'maintenance': 0,
+                    'happiness': 0
+                }
+            }
+
+        # Effective level using equipment
+        effective_level = self._calculate_effective_level_with_equipment(pet_data)
+
+        # Base stats (support both full names and short codes)
+        base_attack = pet_data.get('attack', pet_data.get('ATT', 10))
+        base_defense = pet_data.get('defense', pet_data.get('DEF', 10))
+        base_dexterity = pet_data.get('dexterity', pet_data.get('DEX', 10))
+        base_charisma = pet_data.get('charisma', pet_data.get('CHA', 10))
+
+        # Equipment bonuses
+        equip = pet_data.get('equipment', {}) or {}
+        equip_attack = 0
+        equip_defense = 0
+        equip_dex = 0
+        equip_cha = 0
+        for _, item in equip.items():
+            if item and isinstance(item, Dict):
+                bonus = item.get('stat_bonus', {})
+                equip_attack += bonus.get('attack', bonus.get('ATT', 0))
+                equip_defense += bonus.get('defense', bonus.get('DEF', 0))
+                equip_dex += bonus.get('dexterity', bonus.get('DEX', 0))
+                equip_cha += bonus.get('charisma', bonus.get('CHA', 0))
+
+        return {
+            'effective_level': effective_level,
+            'name': pet_data.get('name', 'Unknown'),
+            'attack': base_attack + equip_attack,
+            'defense': base_defense + equip_defense,
+            'dexterity': base_dexterity + equip_dex,
+            'charisma': base_charisma + equip_cha,
+            'resources': {
+                'energy': pet_data.get('energy', 0),
+                'maintenance': pet_data.get('maintenance', 0),
+                'happiness': pet_data.get('happiness', 0)
+            },
+            'raw': pet_data
+        }
+
+    def _calculate_success_chance_for_skill(self, stats: Dict[str, Any], skill: str, difficulty: str = 'medium') -> float:
+        """Calculate success chance emphasizing the chosen skill.
+        Skill can be one of ATT, DEF, DEX, CHA (case-insensitive) or
+        their long names: attack, defense, dexterity, charisma.
+        """
+        # Base chance using level and attack/defense
+        base_chance = self._calculate_success_chance(stats.get('raw', {}), difficulty)
+
+        # Primary skill bonus
+        skill_key = (skill or '').lower()
+        primary_value = 0
+        if skill_key in ['att', 'attack']:
+            primary_value = stats.get('attack', 10)
+        elif skill_key in ['def', 'defense']:
+            primary_value = stats.get('defense', 10)
+        elif skill_key in ['dex', 'dexterity']:
+            primary_value = stats.get('dexterity', 10)
+        elif skill_key in ['cha', 'charisma']:
+            primary_value = stats.get('charisma', 10)
+
+        # Normalize and cap the bonus influence
+        primary_bonus = min(0.2, max(0.0, primary_value * 0.01))
+
+        final = base_chance + primary_bonus
+        return max(0.1, min(0.95, final))
+
+    async def resolve_group_event_individual(self, event: Dict[str, Any], participants: List[Dict[str, Any]], selected_choices: Dict[str, str]) -> Dict[str, Any]:
+        """Resolve a group event with per-user choices and outcomes.
+        Returns a dict with 'text' and 'results' list per user.
+        """
+        results: List[Dict[str, Any]] = []
+        lines: List[str] = []
+
+        # Difficulty fallback
+        difficulty = event.get('difficulty', 'medium')
+        if isinstance(difficulty, (int, float)):
+            # Map numeric difficulty to labels
+            if difficulty <= 0.25:
+                difficulty_label = 'easy'
+            elif difficulty <= 0.6:
+                difficulty_label = 'medium'
+            elif difficulty <= 0.85:
+                difficulty_label = 'hard'
+            else:
+                difficulty_label = 'extreme'
+            difficulty = difficulty_label
+
+        # Resolve each participant independently
+        for p in participants:
+            user_id = p.get('user_id')
+            display_name = p.get('name', user_id)
+            if not user_id:
+                continue
+
+            # Determine chosen skill or default to ATT
+            chosen_skill = selected_choices.get(user_id, 'ATT')
+
+            # Load stats and compute dynamic cost
+            effective_stats = await self._get_effective_pet_stats(user_id)
+            pet_data = effective_stats.get('raw', {})
+            cost = self._calculate_dynamic_costs(pet_data)
+
+            # Try to pay cost
+            paid = await self.resource_manager.deduct_resources(user_id, cost)
+            if not paid:
+                # Could not afford; automatic failure with note
+                success = False
+                xp_gain = max(5, int(8 + effective_stats['effective_level']))
+                level_result = await self.gain_pet_experience(user_id, xp_gain, 'group_event_fail_no_resources')
+                line = (
+                    f"{display_name} could not afford the cost (−E {cost.energy}, −M {cost.maintenance}, −H {cost.happiness}) "
+                    f"and failed the **{chosen_skill}** check. +{xp_gain} XP."
+                    + (" Level Up!" if level_result.get('leveled_up') else "")
+                )
+                results.append({
+                    'user_id': user_id,
+                    'name': display_name,
+                    'pet_name': pet_data.get('name', 'Unknown'),
+                    'skill': chosen_skill,
+                    'success': False,
+                    'xp': xp_gain,
+                    'leveled_up': level_result.get('leveled_up', False),
+                    'cost': asdict(cost)
+                })
+                lines.append(line)
+                continue
+
+            # Roll success with skill emphasis
+            chance = self._calculate_success_chance_for_skill(effective_stats, chosen_skill, difficulty)
+            roll = random.random()
+            success = roll < chance
+
+            # XP scaling per outcome
+            base_xp_map = {
+                'easy': 35,
+                'medium': 60,
+                'hard': 90,
+                'extreme': 120
+            }
+            base_xp = base_xp_map.get(difficulty, 60)
+            if success:
+                xp_gain = int(base_xp + effective_stats['effective_level'] * 4)
+                source = 'group_event_success'
+            else:
+                xp_gain = int(base_xp * 0.35 + effective_stats['effective_level'] * 2)
+                source = 'group_event_failure'
+
+            level_result = await self.gain_pet_experience(user_id, xp_gain, source)
+
+            # Format line with resource losses and level ups
+            line = (
+                f"{display_name} used **{chosen_skill}** (chance {int(chance*100)}%, roll {int(roll*100)}%) → "
+                + ("Success" if success else "Failure")
+                + f". −E {cost.energy}, −M {cost.maintenance}, −H {cost.happiness}; +{xp_gain} XP."
+                + (" Level Up!" if level_result.get('leveled_up') else "")
+            )
+            lines.append(line)
+
+            results.append({
+                'user_id': user_id,
+                'name': display_name,
+                'pet_name': pet_data.get('name', 'Unknown'),
+                'skill': chosen_skill,
+                'success': success,
+                'xp': xp_gain,
+                'leveled_up': level_result.get('leveled_up', False),
+                'cost': asdict(cost)
+            })
+
+        header = f"**Event Results: {event.get('name', 'Unknown Event')}**\n"
+        summary = "\n".join(lines) if lines else "No actions recorded."
+        return {
+            'text': header + summary,
+            'results': results
+        }
+
+    def GroupEventChoiceView(self, participants: List[Dict[str, Any]], event: Dict[str, Any]):
+        """Factory method to instantiate the multi-user event choice view."""
+        return GroupEventChoiceView(participants, event, self)
     
     def _calculate_dynamic_costs(self, pet_data: Dict[str, Any], base_percentage: float = 0.15) -> ResourceCost:
         """Calculate resource costs based on pet stats and level"""
@@ -977,8 +1218,9 @@ Create a compelling event name that fits the Transformers universe and matches t
             selected_rarity=enemy_rarity
         )
         
-        # Store encounter description for later use
+        # Store encounter description and enemy name for later use in summary
         battle_view.encounter_description = encounter_description
+        battle_view.enemy_name = battle_context.get('enemy_name')
         
         return battle_view
     
@@ -1084,15 +1326,8 @@ Create a compelling event name that fits the Transformers universe and matches t
         """Gain experience for pet - wrapper around add_experience from pet_levels"""
         from Systems.EnergonPets.pet_levels import add_experience
         
-        # Get pet data to calculate equipment stats
-        pet_data = await user_data_manager.get_pet_data(user_id)
-        if pet_data:
-            # Get equipment stats for proper level up calculation
-            from Systems.EnergonPets.pets_system import PetSystem
-            pet_system = PetSystem(self.bot)
-            equipment_stats = await pet_system.get_equipment_stats(pet_data, user_id)
-        else:
-            equipment_stats = None
+        # Use internal equipment stats helper to avoid external bot dependency
+        equipment_stats = await self._get_equipment_stats(user_id)
         
         # Call the existing add_experience function with equipment stats
         leveled_up, level_gains = await add_experience(user_id, amount, source, equipment_stats=equipment_stats)
@@ -1108,12 +1343,12 @@ Create a compelling event name that fits the Transformers universe and matches t
         # Get battle participants
         survivors = []
         fallen = []
-        
+
         for user, pet_data in battle_view.participants:
             if user.id == int(user_id):
                 pet_name = pet_data.get('name', 'Unknown')
                 # Check if pet survived (simplified check)
-                if battle_view.player_data.get(str(user_id), {}).get('alive', True):
+                if battle_view.player_data.get(int(user_id), {}).get('alive', True):
                     survivors.append(pet_name)
                 else:
                     fallen.append(pet_name)
@@ -1140,32 +1375,49 @@ Create a compelling event name that fits the Transformers universe and matches t
         )
         await self.story_tracker.add_moment(user_id, moment)
         
-        # Award rewards based on victory
-        if victory:
-            xp_reward = 75 if victory else 25
-            loot_count = 2 if victory else 1
-            
-            # Award XP with equipment stats
-            if pet_data:
-                # Get equipment stats for proper level up calculation
-                from Systems.EnergonPets.pets_system import PetSystem
-                pet_system = PetSystem(self.bot)
-                equipment_stats = await pet_system.get_equipment_stats(pet_data, user_id)
-            else:
-                equipment_stats = None
-            
-            await add_experience(user_id, xp_reward, equipment_stats=equipment_stats)
-            
-            # Generate loot
-            pet_data = await user_data_manager.get_pet_data(user_id)
-            if pet_data:
-                # Use effective level that factors in equipment bonuses
-                effective_level = self._calculate_effective_level_with_equipment(pet_data)
-                loot = await self.loot_system.get_loot_by_level(effective_level, loot_count)
-                # Add loot to pet inventory (implementation depends on your inventory system)
-                # This would need to be implemented based on your specific inventory management
-        
         return outcome_description
+
+    async def distribute_group_rewards(self, players: List[Any], event_data: Dict[str, Any], success: bool) -> List[Dict[str, Any]]:
+        """Distribute XP and loot to a party using each pet's effective level and equipment.
+
+        Returns a list of dicts per player: { 'user': discord.User, 'xp': int, 'loot': List[Dict] }
+        """
+        rewards_summary = []
+        # Base XP from event_data or scale by effective level
+        base_xp = event_data.get('base_xp', 100)
+        loot_rarity = event_data.get('rarity', 'common')
+        # Success multiplier slightly increases rewards
+        success_multiplier = 1.0 if success else 0.5
+
+        for player in players:
+            try:
+                user_id = str(player.id)
+                pet_data = await user_data_manager.get_pet_data(user_id)
+                if not pet_data:
+                    rewards_summary.append({'user': player, 'xp': 0, 'loot': []})
+                    continue
+
+                effective_level = self._calculate_effective_level_with_equipment(pet_data)
+                # Scale XP modestly by effective level to keep balance
+                xp_award = int(base_xp * success_multiplier)
+
+                # Award XP via pet_levels using equipment stats
+                equipment_stats = await self._get_equipment_stats(user_id)
+                await add_experience(user_id, xp_award, source=event_data.get('type', 'rpg_activity'), equipment_stats=equipment_stats)
+
+                # Loot count: tougher events grant more; success yields better count
+                base_loot_count = 1
+                if event_data.get('difficulty', 'moderate') in ['hard', 'very_hard', 'extreme']:
+                    base_loot_count = 2
+                loot_count = base_loot_count if success else 1
+
+                loot_items = await self.loot_system.get_loot_by_level(effective_level, loot_count)
+                rewards_summary.append({'user': player, 'xp': xp_award, 'loot': loot_items})
+            except Exception as e:
+                logger.error(f"Reward distribution error for user {player}: {e}")
+                rewards_summary.append({'user': player, 'xp': 0, 'loot': []})
+
+        return rewards_summary
     
     def get_event_cooldown(self, user_id: str) -> int:
         """Get remaining cooldown time for user"""
@@ -1493,3 +1745,70 @@ class CyberChroniclesView(discord.ui.View):
                 color=discord.Color.red()
             )
             await self.message.edit(embed=timeout_embed, view=None)
+
+
+class GroupEventChoiceView(discord.ui.View):
+    """Multi-user event choice view where each participant selects a skill.
+    Participants click a skill button; any user can press Resolve to finalize.
+    """
+    def __init__(self, participants: List[Dict[str, Any]], event: Dict[str, Any], rpg_system: TransformersAIDnD):
+        super().__init__(timeout=300)
+        self.participants = participants  # [{user_id, name}]
+        self.event = event
+        self.rpg_system = rpg_system
+        self.message = None
+        self.selected_choices: Dict[str, str] = {}
+        self._skill_labels = self._extract_skills(event)
+
+        # Add skill buttons dynamically (max 4 displayed)
+        for label in self._skill_labels[:4]:
+            btn = discord.ui.Button(label=label, style=discord.ButtonStyle.primary)
+
+            async def _on_click(interaction: discord.Interaction, skill_label=label):
+                uid = str(interaction.user.id)
+                # Only allow listed participants
+                if uid not in [p['user_id'] for p in self.participants]:
+                    await interaction.response.send_message("You are not in this event.", ephemeral=True)
+                    return
+                self.selected_choices[uid] = skill_label
+                await interaction.response.send_message(f"Selected {skill_label} for this event.", ephemeral=True)
+
+            btn.callback = _on_click
+            self.add_item(btn)
+
+        # Resolve button
+        resolve_btn = discord.ui.Button(label="Resolve Event", style=discord.ButtonStyle.success)
+
+        async def _resolve(interaction: discord.Interaction):
+            # Only allow a participant to resolve
+            uid = str(interaction.user.id)
+            if uid not in [p['user_id'] for p in self.participants]:
+                await interaction.response.send_message("Only participants can resolve the event.", ephemeral=True)
+                return
+            await interaction.response.send_message("Resolving event...", ephemeral=True)
+            # Stop to allow the command to compute and post results
+            self.stop()
+            if self.message:
+                try:
+                    await self.message.edit(view=None)
+                except Exception:
+                    pass
+
+        resolve_btn.callback = _resolve
+        self.add_item(resolve_btn)
+
+    def _extract_skills(self, event: Dict[str, Any]) -> List[str]:
+        # Try to infer skills from event choices structure; fallback to standard
+        skills = []
+        choices = event.get('choices', {})
+        if isinstance(choices, dict):
+            for k, v in choices.items():
+                if isinstance(v, dict) and 'skill' in v:
+                    skills.append(str(v['skill']).upper())
+                else:
+                    skills.append(str(k).upper())
+        # Deduplicate and filter
+        skills = [s for s in {s for s in skills if s}]
+        if not skills:
+            skills = ['ATT', 'DEF', 'DEX', 'CHA']
+        return skills
