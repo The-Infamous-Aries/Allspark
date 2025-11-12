@@ -11,7 +11,6 @@ from io import BytesIO
 import asyncio
 from datetime import datetime
 
-# Optional image generation support
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageChops
     PIL_AVAILABLE = True
@@ -23,7 +22,6 @@ except Exception:
     PIL_AVAILABLE = False
 
 logger = logging.getLogger("allspark.cybertron_games")
-
 DISCORD_CHAR_LIMIT = 2000
 
 # Data paths (relative to Systems directory)
@@ -355,16 +353,7 @@ class GameSession:
         self.action_log: Dict[str, List[str]] = {}
         self.kill_log: Dict[str, List[Dict[str, Any]]] = {}
         self.round_markers: List[Dict[str, Any]] = []
-        
-        # Create a mapping of participant to display name for consistent identification
-        self.participant_names = {}
-        for participant in self.participants:
-            if hasattr(participant, 'display_name'):
-                # Discord user object
-                self.participant_names[participant] = participant.display_name
-            else:
-                # String name
-                self.participant_names[participant] = str(participant)
+        self.participant_names = {p: getattr(p, 'display_name', str(p)) for p in participants}
         
         # Faction names and colors
         self.color_palette = {
@@ -431,20 +420,21 @@ class GameSession:
             'urban_grid', 'foundry_complex', 'rust_dunes',
             'mountain_ridge', 'spire_labyrinth', 'sky_causeways'
         ]
+        # Realistic, dark map colors
         self.style_bg_colors = {
-            'urban_grid': (170, 50, 50),
-            'foundry_complex': (170, 90, 20),
-            'rust_dunes': (190, 160, 40),
-            'mountain_ridge': (100, 100, 110),
-            'spire_labyrinth': (80, 40, 120),
-            'sky_causeways': (60, 100, 180)
+            'urban_grid': (100, 20, 20),        # dark red
+            'foundry_complex': (110, 55, 10),   # dark orange
+            'rust_dunes': (135, 115, 30),       # dark yellow
+            'mountain_ridge': (70, 70, 80),     # dark grey
+            'spire_labyrinth': (55, 25, 75),    # dark purple
+            'sky_causeways': (25, 50, 100)      # dark blue
         }
         self.map_size = (1200, 800)
         self.map_margin = 40
         self.border_inset = 20
         self.style_zones = self._compute_style_zones()
+        # PATCHES: ORGANIC shapes
         self.style_patches = self._compute_style_patches()
-        
         self._initialize_factions()
         self._initialize_locations()
     
@@ -517,95 +507,74 @@ class GameSession:
         zones['sky_causeways'] = (margin, margin, width - margin, height - margin)
         return zones
 
-    def _compute_style_patches(self, seed: Optional[int] = None) -> Dict[str, List[Tuple[int, int, int, int]]]:
+    def _compute_style_patches(self, seed: Optional[int] = None) -> Dict[str, List[List[Tuple[int, int]]]]:
         w, h = self.map_size
-        cx = w // 2
-        cy = h // 2
+        cx, cy = w // 2, h // 2
         m = self.map_margin
-        r_max = int(min(w, h) // 2 - m)
-        patches: Dict[str, List[Tuple[int, int, int, int]]] = {}
         rng = random.Random(seed) if seed is not None else random
+        patches = {}
 
-        def clamp_rect(x0, y0, x1, y1):
-            return (max(m, x0), max(m, y0), min(w - m, x1), min(h - m, y1))
+        # Rust Dunes base
+        patches['rust_dunes'] = [self._organic_blob(cx, cy, w * 0.42, h * 0.33, points=28, spread=30, rng=rng)]
 
-        # Foundry Complex: one central, decently sized, middish of the map
-        fw = 420
-        fh = 300
-        fx = cx + rng.randint(-30, 30)
-        fy = cy + rng.randint(-20, 20)
-        foundry = clamp_rect(fx - fw // 2, fy - fh // 2, fx + fw // 2, fy + fh // 2)
-        patches['foundry_complex'] = [foundry]
+        # Foundry Complex: central organic blob
+        patches['foundry_complex'] = [self._organic_blob(cx, cy, w * 0.16, h * 0.14, points=20, spread=34, rng=rng)]
 
-        # Urban Grid: small scattered sections around the foundry
-        u_rects: List[Tuple[int, int, int, int]] = []
+        # Urban Grids: scattered many small ovals/polygons near foundry
+        urbans = []
+        for i in range(20):
+            ang = rng.uniform(0, 2 * math.pi)
+            rad = rng.uniform(w * 0.09, w * 0.22)
+            px = cx + int(rad * math.cos(ang)) + rng.randint(-18, 18)
+            py = cy + int(rad * math.sin(ang)) + rng.randint(-10, 10)
+            size_w = rng.uniform(w * 0.026, w * 0.036)
+            size_h = rng.uniform(h * 0.020, h * 0.032)
+            urbans.append(self._organic_blob(px, py, size_w, size_h, points=8, spread=6, rng=rng))
+        patches['urban_grid'] = urbans
+
+        # Mountain Ridge: belt of medium blobs in a ring halfway
+        mountains = []
+        belt_radius = int(min(w, h) * 0.33)
         for i in range(8):
-            ang = i * (2 * math.pi / 8) + rng.random() * 0.25
-            dist = max(200, min(r_max - 120, 240 + rng.randint(-40, 40)))
-            px = int((foundry[0] + foundry[2]) // 2 + dist * math.cos(ang))
-            py = int((foundry[1] + foundry[3]) // 2 + dist * math.sin(ang))
-            uw = rng.randint(90, 130)
-            uh = rng.randint(70, 100)
-            u_rects.append(clamp_rect(px - uw // 2, py - uh // 2, px + uw // 2, py + uh // 2))
-        patches['urban_grid'] = u_rects
+            ang = 2 * math.pi * i / 8 + rng.uniform(-0.2, 0.2)
+            mx = cx + int(math.cos(ang) * belt_radius)
+            my = cy + int(math.sin(ang) * belt_radius)
+            mountains.append(self._organic_blob(mx, my, w*0.13, h*0.10, points=18, spread=16, rng=rng))
+        patches['mountain_ridge'] = mountains
 
-        # Mountain Ridge: medium patches halfway from center to edges
-        mr_rects: List[Tuple[int, int, int, int]] = []
-        ring_r = int(r_max * 0.55)
-        for i in range(6):
-            ang = i * (2 * math.pi / 6) + rng.random() * 0.2
-            px = int(cx + ring_r * math.cos(ang))
-            py = int(cy + ring_r * math.sin(ang))
-            mw = rng.randint(240, 300)
-            mh = rng.randint(180, 220)
-            mr_rects.append(clamp_rect(px - mw // 2, py - mh // 2, px + mw // 2, py + mh // 2))
-        patches['mountain_ridge'] = mr_rects
+        # Spire Labyrinth: ring around each mountain patch
+        spires = []
+        for poly in mountains:
+            mx = sum([p[0] for p in poly])//len(poly)
+            my = sum([p[1] for p in poly])//len(poly)
+            spires.append(self._organic_blob(mx, my, w*0.18, h*0.13, points=18, spread=22, rng=rng))
+        patches['spire_labyrinth'] = spires
 
-        # Spire Labyrinth: circle each mountain patch with smaller surrounding sections
-        sp_rects: List[Tuple[int, int, int, int]] = []
-        for (x0, y0, x1, y1) in mr_rects:
-            cxm = (x0 + x1) // 2
-            cym = (y0 + y1) // 2
-            radx = (x1 - x0) // 2 + 40
-            rady = (y1 - y0) // 2 + 40
-            for a in range(0, 360, 90):
-                ang = a * math.pi / 180.0
-                px = int(cxm + radx * math.cos(ang))
-                py = int(cym + rady * math.sin(ang))
-                sw = rng.randint(120, 160)
-                sh = rng.randint(80, 120)
-                sp_rects.append(clamp_rect(px - sw // 2, py - sh // 2, px + sw // 2, py + sh // 2))
-        patches['spire_labyrinth'] = sp_rects
+        # Sky Causeways: multiple small, organic patches simply in the middle
+        sky = []
+        for i in range(13):
+            ang = rng.uniform(0, 2 * math.pi)
+            rad = rng.uniform(w * 0.06, w * 0.19)
+            px = cx + int(rad * math.cos(ang)) + rng.randint(-16, 16)
+            py = cy + int(rad * math.sin(ang)) + rng.randint(-16, 16)
+            size_w = rng.uniform(w * 0.04, w * 0.069)
+            size_h = rng.uniform(h * 0.024, h * 0.036)
+            sky.append(self._organic_blob(px, py, size_w, size_h, points=8, spread=6, rng=rng))
+        patches['sky_causeways'] = sky
 
-        # Sky Causeways: smaller but more, centered inside mountain ring
-        sc_rects: List[Tuple[int, int, int, int]] = []
-        inner_r = int(r_max * 0.32)
-        for i in range(10):
-            ang = i * (2 * math.pi / 10) + rng.random() * 0.25
-            px = int(cx + inner_r * math.cos(ang))
-            py = int(cy + inner_r * math.sin(ang))
-            sw = rng.randint(90, 120)
-            sh = rng.randint(40, 60)
-            sc_rects.append(clamp_rect(px - sw // 2, py - sh // 2, px + sw // 2, py + sh // 2))
-        patches['sky_causeways'] = sc_rects
-
-        # Rust Dunes: treated as base fill; no discrete patches needed
-        patches['rust_dunes'] = []
         return patches
 
-    def _ring_specs(self) -> Dict[str, Tuple[int, int]]:
-        w, h = self.map_size
-        m = self.map_margin
-        r_max = int(min(w, h) // 2 - m)
-        step = max(60, r_max // 12)
-        specs: Dict[str, Tuple[int, int]] = {}
-        specs['sky_causeways'] = (0, step * 2)
-        specs['mountain_ridge'] = (step * 2, step * 4)
-        specs['spire_labyrinth'] = (step * 4, step * 6)
-        specs['foundry_complex'] = (step * 6, step * 8)
-        specs['urban_grid'] = (step * 8, step * 10)
-        specs['rust_dunes'] = (step * 10, r_max)
-        return specs
+    def _organic_blob(self, cx, cy, rx, ry, points=10, spread=8, rng=None):
+        if rng is None: rng = random
+        poly = []
+        for i in range(points):
+            ang = 2 * math.pi * i / points
+            radx = rx + rng.randint(-spread, spread)
+            rady = ry + rng.randint(-spread, spread)
+            x = int(cx + math.cos(ang) * radx)
+            y = int(cy + math.sin(ang) * rady)
+            poly.append((x, y))
+        return poly
 
     def _form_count_emoji(self, count: int, is_combiner: bool) -> str:
         if is_combiner:
@@ -621,98 +590,6 @@ class GameSession:
         if count == 4:
             return '✈️'
         return '🛸'
-
-    def _draw_ring_boundaries(self, draw: Any):
-        w, h = self.map_size
-        cx = w // 2
-        cy = h // 2
-        specs = self._ring_specs()
-        order = ['sky_causeways', 'mountain_ridge', 'spire_labyrinth', 'foundry_complex', 'urban_grid', 'rust_dunes']
-        for name in order:
-            r0, r1 = specs[name]
-            draw.ellipse([cx - r0, cy - r0, cx + r0, cy + r0], outline=(80, 70, 60, 190), width=5)
-            draw.ellipse([cx - r1, cy - r1, cx + r1, cy + r1], outline=(80, 70, 60, 220), width=6)
-            mid = (r0 + r1) // 2
-            draw.ellipse([cx - mid, cy - mid, cx + mid, cy + mid], outline=(60, 50, 45, 180), width=4)
-
-    def _draw_text_in_ring(self, img: Any, text: str, font: Any, r0: int, r1: int, x: int, y: int):
-        w, h = self.map_size
-        cx = w // 2
-        cy = h // 2
-        text_overlay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-        od = ImageDraw.Draw(text_overlay)
-        # shadow then main
-        od.text((x - 3, y - 3), text, fill=(245, 235, 210, 210), font=font)
-        od.text((x, y), text, fill=(90, 70, 60, 255), font=font)
-
-        # mask = intersection(text glyphs, ring band)
-        text_mask = Image.new('L', (w, h), 0)
-        tmd = ImageDraw.Draw(text_mask)
-        tmd.text((x, y), text, fill=255, font=font)
-
-        ring_mask = Image.new('L', (w, h), 0)
-        rmd = ImageDraw.Draw(ring_mask)
-        rmd.ellipse([cx - r1, cy - r1, cx + r1, cy + r1], fill=255)
-        rmd.ellipse([cx - r0, cy - r0, cx + r0, cy + r0], fill=0)
-
-        final_mask = ImageChops.multiply(text_mask, ring_mask) if ImageChops else text_mask
-        img.paste(text_overlay, (0, 0), final_mask)
-
-    def _draw_ring_labels(self, img: Any):
-        w, h = self.map_size
-        cx = w // 2
-        cy = h // 2
-        specs = self._ring_specs()
-        num_map = {
-            'sky_causeways': '1',
-            'spire_labyrinth': '2',
-            'mountain_ridge': '3',
-            'foundry_complex': '4',
-            'urban_grid': '5',
-            'rust_dunes': '6'
-        }
-        font = self._get_label_font(26)
-        for name, text in num_map.items():
-            r0, r1 = specs[name]
-            r = int(r0 + (r1 - r0) * 0.5)
-            a = 0 if name in ('sky_causeways', 'spire_labyrinth') else (-35 if name in ('mountain_ridge', 'urban_grid') else 25)
-            a = a * math.pi / 180
-            x = int(cx + r * math.cos(a)) - 10
-            y = int(cy + r * math.sin(a)) - 10
-            self._draw_text_in_ring(img, text, font, r0, r1, x, y)
-
-    def _draw_number_legend_top(self, draw: Any):
-        w, h = self.map_size
-        m = self.map_margin
-        font = self._get_label_font(20)
-        legend = "1 Sky Causeways   2 Spire Labyrinth   3 Mountain Ridge   4 Foundry Complex   5 Urban Grid   6 Rust Dunes"
-        x0 = m + 8
-        y0 = m - 30
-        draw.rectangle([x0 - 6, y0 - 4, w - m - 8, y0 + 24], outline=(85, 70, 55, 180), width=2, fill=(245, 235, 210, 200))
-        draw.text((x0, y0), legend, fill=(90, 70, 60, 255), font=font)
-
-    def _draw_emoji_legend_bottom(self, draw: Any):
-        w, h = self.map_size
-        m = self.map_margin
-        label_font = self._get_label_font(18)
-        emoji_font = self._get_emoji_font(24)
-        box_h = 64
-        y0 = h - m - box_h - 12
-        draw.rectangle([m + 8, y0 - 8, w - m - 8, y0 + box_h], outline=(85, 70, 55, 200), width=2, fill=(245, 235, 210, 220))
-        x = m + 22
-        try:
-            draw.text((x, y0 + 8), '🤖', font=emoji_font)
-        except Exception:
-            draw.text((x, y0 + 8), '🤖', fill=(0,0,0,255), font=emoji_font)
-        draw.text((x + 32, y0 + 10), "Robot", fill=(90, 70, 60, 255), font=label_font)
-        x += 170
-        for e, label in [('🚙', 'Vehicle'), ('🔱', 'Combiner'), ('💀', 'Eliminated')]:
-            try:
-                draw.text((x, y0 + 8), e, font=emoji_font)
-            except Exception:
-                draw.text((x, y0 + 8), e, fill=(0,0,0,255), font=emoji_font)
-            draw.text((x + 32, y0 + 10), label, fill=(90, 70, 60, 255), font=label_font)
-            x += 170
 
     def _random_point_in_style(self, style: str) -> Tuple[int, int]:
         w, h = self.map_size
@@ -888,81 +765,67 @@ class GameSession:
         return self.faction_color_map.get(faction, (255, 255, 255))
     
     def render_map(self) -> Optional[BytesIO]:
-        """Render the current game map with participant positions"""
         if not PIL_AVAILABLE:
             return None
-        
         try:
             img = Image.new('RGBA', self.map_size, (235, 223, 200, 255))
             draw = ImageDraw.Draw(img)
+            # Layer order: Rust Dunes (base), then biomes
 
-            terrain = self._render_terrain_base()
-            img.alpha_composite(terrain)
+            # Rust Dunes base - fills whole background
+            for poly in self.style_patches['rust_dunes']:
+                draw.polygon(poly, fill=(*self.style_bg_colors['rust_dunes'], 255))
 
-            tint = Image.new('RGBA', self.map_size, (0, 0, 0, 0))
-            td = ImageDraw.Draw(tint)
-            base_col = self.style_bg_colors.get('rust_dunes', (190, 160, 40))
-            td.rectangle([self.map_margin, self.map_margin, self.map_size[0] - self.map_margin, self.map_size[1] - self.map_margin], fill=(base_col[0], base_col[1], base_col[2], 22))
-            order = ['foundry_complex', 'urban_grid', 'mountain_ridge', 'spire_labyrinth', 'sky_causeways']
-            for style in order:
-                rects = getattr(self, 'style_patches', {}).get(style, [])
-                col = self.style_bg_colors.get(style, (120, 120, 120))
-                alpha = 26 if style in ('mountain_ridge', 'spire_labyrinth') else 28
-                for rect in rects:
-                    pts = self._generate_biome_polygon(rect, style)
-                    td.polygon(pts, fill=(col[0], col[1], col[2], alpha))
-            img.alpha_composite(tint)
+            for biome in ['foundry_complex', 'mountain_ridge', 'spire_labyrinth', 'sky_causeways', 'urban_grid']:
+                for poly in self.style_patches.get(biome, []):
+                    col = self.style_bg_colors[biome]
+                    draw.polygon(poly, fill=(col[0], col[1], col[2], 230))
 
-            self._apply_parchment_overlay(img)
-            draw.rectangle([self.map_margin - 10, self.map_margin - 10, self.map_size[0] - self.map_margin + 10, self.map_size[1] - self.map_margin + 10], outline=(85, 70, 55, 255), width=4)
-            for i in range(6):
-                pad = 12 + i * 6
-                draw.rectangle([self.map_margin - pad, self.map_margin - pad, self.map_size[0] - self.map_margin + pad, self.map_size[1] - self.map_margin + pad], outline=(50, 45, 40, 120), width=2)
+            # Strict 1-pixel image frame
+            border_col = (85, 70, 55, 255)
+            margin = self.map_margin
+            w, h = self.map_size
+            draw.rectangle([margin, margin, w-margin-1, h-margin-1], outline=border_col, width=1)
 
+            # --- Emoji Player Markers --- (no overlaps, real emoji Unicode, nice font!)
             size = 22
-            cnt = len(self.round_markers)
-            if cnt > 60:
-                size = 20
-            if cnt > 90:
-                size = 18
-            stamp_cache: Dict[Tuple[str, int], Image.Image] = {}
-            placed: List[Tuple[int, int]] = []
+            stamp_cache: Dict[Tuple[str,int], Image.Image] = {}
+            placed: List[Tuple[int,int]] = []
+            emoji_font = self._get_emoji_font(size)
             for marker in self.round_markers:
                 px, py = marker.get('x', 0), marker.get('y', 0)
                 emoji = marker.get('emoji', '⚪')
                 tries = 0
-                while tries < 12:
+                while tries < 10:
                     ok = True
                     for ox, oy in placed:
-                        if abs(px - ox) < 18 and abs(py - oy) < 18:
+                        if abs(px-ox) < 18 and abs(py-oy) < 18:
                             ok = False
                             break
-                    if ok:
-                        break
-                    px += random.randint(-8, 8)
-                    py += random.randint(-8, 8)
-                    px = max(self.map_margin, min(px, self.map_size[0] - self.map_margin))
-                    py = max(self.map_margin, min(py, self.map_size[1] - self.map_margin))
+                    if ok: break
+                    px += random.randint(-6,6)
+                    py += random.randint(-6,6)
+                    px = max(margin, min(px, w-margin-2))
+                    py = max(margin, min(py, h-margin-2))
                     tries += 1
                 placed.append((px, py))
-                key = (emoji, size)
-                if key not in stamp_cache:
-                    stamp_cache[key] = self._emoji_stamp(emoji, size)
-                stamp = stamp_cache[key]
+                if (emoji, size) not in stamp_cache:
+                    stamp_cache[(emoji, size)] = self._emoji_stamp(emoji, size, font=emoji_font)
+                stamp = stamp_cache[(emoji, size)]
                 img.paste(stamp, (px - stamp.width // 2, py - stamp.height // 2), stamp)
 
+            # --- Render eliminated emojis for players ---
             for participant in self.participants:
                 if participant in self.elimination_locations and self.elimination_round.get(participant) == self.round_index:
                     loc = self.elimination_locations[participant]
                     px, py = loc['x'], loc['y']
-                    px = max(self.map_margin, min(px, self.map_size[0] - self.map_margin))
-                    py = max(self.map_margin, min(py, self.map_size[1] - self.map_margin))
-                    key = ('💀', size)
-                    if key not in stamp_cache:
-                        stamp_cache[key] = self._emoji_stamp('💀', size)
-                    stamp = stamp_cache[key]
+                    px = max(margin, min(px, w-margin-2))
+                    py = max(margin, min(py, h-margin-2))
+                    if ('💀', size) not in stamp_cache:
+                        stamp_cache[('💀', size)] = self._emoji_stamp('💀', size, font=emoji_font)
+                    stamp = stamp_cache[('💀', size)]
                     img.paste(stamp, (px - stamp.width // 2, py - stamp.height // 2), stamp)
-            
+
             buf = BytesIO()
             img.save(buf, format='PNG')
             buf.seek(0)
@@ -971,38 +834,44 @@ class GameSession:
             logger.error(f"Error rendering map: {e}")
             return None
 
-    def _draw_robot(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
-        r = 6
-        draw.ellipse([px - r - 2, py - r - 2, px + r + 2, py + r + 2], fill=(col[0], col[1], col[2], 64))
-        draw.ellipse([px - r, py - r, px + r, py + r], fill=(col[0], col[1], col[2], 255), outline=(20, 20, 20, 255), width=2)
+    def _get_emoji_font(self, size: int):
+        if not ImageFont:
+            return None
+        try:
+            return ImageFont.truetype("C:\\Windows\\Fonts\\seguiemj.ttf", size)
+        except Exception: pass
+        try:
+            return ImageFont.truetype("Segoe UI Emoji", size)
+        except Exception: pass
+        try:
+            return ImageFont.truetype("segoe ui emoji", size)
+        except Exception:
+            return ImageFont.load_default()
 
-    def _draw_vehicle(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
-        w, h = 12, 8
-        x0, y0 = px - w // 2, py - h // 2
-        x1, y1 = px + w // 2, py + h // 2
-        draw.rectangle([x0, y0, x1, y1], fill=(col[0], col[1], col[2], 230), outline=(20, 20, 20, 255), width=2)
-        rw = 2
-        draw.ellipse([x0, y1 - rw, x0 + rw + 1, y1 + rw + 1], fill=(20, 20, 20, 220))
-        draw.ellipse([x1 - rw - 1, y1 - rw, x1, y1 + rw + 1], fill=(20, 20, 20, 220))
-
-    def _draw_combiner(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
-        s = 6
-        points = [(px, py - s), (px + s, py), (px, py + s), (px - s, py)]
-        draw.polygon(points, fill=(col[0], col[1], col[2], 230), outline=(20, 20, 20, 255))
-        draw.line([(px - s // 2, py), (px + s // 2, py)], fill=(20, 20, 20, 255), width=2)
-        draw.line([(px, py - s // 2), (px, py + s // 2)], fill=(20, 20, 20, 255), width=2)
-
-    def _draw_skull(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
-        r = 6
-        draw.ellipse([px - r - 2, py - r - 2, px + r + 2, py + r + 2], fill=(col[0], col[1], col[2], 70))
-        head = [px - r, py - r, px + r, py + r]
-        draw.ellipse(head, outline=(col[0], col[1], col[2], 240), width=2, fill=(255, 255, 255, 200))
-        eye_r = 2
-        draw.ellipse([px - 3 - eye_r, py - 2 - eye_r, px - 3 + eye_r, py - 2 + eye_r], fill=(20, 20, 20, 240))
-        draw.ellipse([px + 3 - eye_r, py - 2 - eye_r, px + 3 + eye_r, py - 2 + eye_r], fill=(20, 20, 20, 240))
-        draw.rectangle([px - 4, py + 2, px + 4, py + 5], fill=(255, 255, 255, 210), outline=(col[0], col[1], col[2], 240))
-        for dx in (-3, -1, 1, 3):
-            draw.line([(px + dx, py + 2), (px + dx, py + 5)], fill=(20, 20, 20, 255), width=1)
+    # --- Renders Unicode emoji stamp, returns as RGBA Image! ---
+    def _emoji_stamp(self, emoji: str, size: int, font=None) -> Image.Image:
+        font = font or self._get_emoji_font(size)
+        w = size * 2
+        h = size * 2
+        img = Image.new('RGBA', (w, h), (0,0,0,0))
+        d = ImageDraw.Draw(img)
+        try:
+            bbox = d.textbbox((0, 0), emoji, font=font)
+            tw = max(8, bbox[2] - bbox[0])
+            th = max(8, bbox[3] - bbox[1])
+        except Exception:
+            tw, th = d.textsize(emoji, font=font)
+        x = (w-tw)//2
+        y = (h-th)//2
+        try:
+            d.text((x, y), emoji, font=font)
+        except Exception:
+            d.text((x, y), emoji, fill=(0,0,0,255), font=font)
+        try:
+            bb = img.getbbox()
+            if bb: img = img.crop(bb)
+        except Exception: pass
+        return img
 
     def _draw_biome_texture(self, draw: Any, rect: Tuple[int, int, int, int], style: str):
         x0, y0, x1, y1 = rect
