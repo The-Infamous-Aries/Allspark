@@ -94,10 +94,17 @@ class PetCommands:
         await ctx.defer(ephemeral=False)
         
         try:
-            pet = await self.pet_system.get_user_pet(ctx.author.id)
+            # Force refresh to ensure we have the latest data
+            pet = await self.pet_system.get_user_pet(ctx.author.id, force_refresh=True)
             if not pet:
                 await ctx.send("🤖 You don't have a pet yet! Use `/get_pet autobot` or `/get_pet decepticon` to get one.")
                 return
+                
+            # Ensure all required fields exist
+            if "level" not in pet:
+                pet["level"] = 1
+            if "experience" not in pet:
+                pet["experience"] = 0
 
             needs_migration = (
                 'total_wins' not in pet or 
@@ -888,35 +895,17 @@ class PetCommandsCog(commands.Cog):
     async def pet_status(self, ctx: commands.Context):
         await self.pet_commands.pet_status_command(ctx)
     
-    @commands.hybrid_command(name='charge_pet', description='Charge your pet\'s energy with duration options')
-    @app_commands.describe(percentage="How long to charge your pet")
-    @app_commands.choices(percentage=[
-        app_commands.Choice(name="🪫 15 minutes", value="50%"),
-        app_commands.Choice(name="🔋 30 minutes", value="75%"),
-        app_commands.Choice(name="🏭 1 hour", value="100%")
-    ])
-    async def charge_pet(self, ctx: commands.Context, percentage: str):
-        await self.pet_commands.charge_pet_command(ctx, percentage)
+    @commands.hybrid_command(name='charge_pet', description='Fully charge your pet\'s energy')
+    async def charge_pet(self, ctx: commands.Context):
+        await self.pet_commands.charge_pet_command(ctx, "100%")
     
-    @commands.hybrid_command(name='play', description='Play with your pet to increase happiness with duration options')
-    @app_commands.describe(percentage="How long to play with your pet")
-    @app_commands.choices(percentage=[
-        app_commands.Choice(name="🎮 15 minutes", value="50%"),
-        app_commands.Choice(name="🃏 30 minutes", value="75%"),
-        app_commands.Choice(name="🎳 1 hour", value="100%")
-    ])
-    async def play(self, ctx: commands.Context, percentage: str):
-        await self.pet_commands.play_command(ctx, percentage)
+    @commands.hybrid_command(name='play', description='Play with your pet to fully increase happiness')
+    async def play(self, ctx: commands.Context):
+        await self.pet_commands.play_command(ctx, "100%")
     
-    @commands.hybrid_command(name='repair_pet', description='Repair your pet\'s maintenance with duration options')
-    @app_commands.describe(percentage="How long to repair your pet")
-    @app_commands.choices(percentage=[
-        app_commands.Choice(name="⚙️ 15 minutes", value="50%"),
-        app_commands.Choice(name="🔨 30 minutes", value="75%"),
-        app_commands.Choice(name="🛠️ 1 hour", value="100%")
-    ])
-    async def repair_pet(self, ctx: commands.Context, percentage: str):
-        await self.pet_commands.repair_pet_command(ctx, percentage)
+    @commands.hybrid_command(name='repair_pet', description='Fully repair your pet\'s maintenance')
+    async def repair_pet(self, ctx: commands.Context):
+        await self.pet_commands.repair_pet_command(ctx, "100%")
     
     @commands.hybrid_command(name='train', description='Train your pet with different intensity levels')
     @app_commands.describe(difficulty="Choose training intensity")

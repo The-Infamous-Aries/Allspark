@@ -12,7 +12,8 @@ from Systems.user_data_manager import UserDataManager
 from Systems.EnergonPets.energon_system import (
     EnergonGameManager, WIN_CONDITION, SLOT_THEMES, DIFFICULTY_MULTIPLIERS,
     MarketManager, CryptoMarketView,
-    BuyCoinModal, SellCoinModal, create_market_embed
+    BuyCoinModal, SellCoinModal, create_market_embed, register_market_channel,
+    start_cybercoin_market, stop_cybercoin_market, is_cybercoin_market_running
 )
 
 # Game state management
@@ -148,8 +149,14 @@ class EnergonCommands(commands.Cog):
                     await ctx.send(f"🎮 **New Energon Rush game started!**\n"
                                    f"You scout a ruined sector and find **{energon_gained} Energon**! Your Energon level is now **{energon_gained}**.")
             
-            # Update stats regardless of game state - use proper energon tracking
-            await user_data_manager.add_energon(player_id, energon_gained, "search")
+            # Update tracking: if in active game, record stats only; otherwise bank it
+            if game_active or energon_data.get('in_energon_rush', False):
+                energon_data['search_energon_earned'] = energon_data.get('search_energon_earned', 0) + energon_gained
+                energon_data['total_earned'] = energon_data.get('total_earned', 0) + energon_gained
+                energon_data['last_activity'] = datetime.now().isoformat()
+                await user_data_manager.save_energon_data(player_id, energon_data)
+            else:
+                await user_data_manager.add_energon(player_id, energon_gained, "search")
                 
         except Exception as e:
             await ctx.send(f"❌ Error during scouting: {str(e)}")
@@ -189,12 +196,13 @@ class EnergonCommands(commands.Cog):
                 if outcome_energon != 0:
                     new_energon = current_energon + outcome_energon
                     energon_data['energon'] = max(0, new_energon)
-                    
+                    # In active game: update stats only; do not mutate bank
                     if outcome_energon > 0:
-                        await user_data_manager.add_energon(player_id, outcome_energon, "search")
+                        energon_data['search_energon_earned'] = energon_data.get('search_energon_earned', 0) + outcome_energon
+                        energon_data['total_earned'] = energon_data.get('total_earned', 0) + outcome_energon
                     else:
-                        await user_data_manager.subtract_energon(player_id, abs(outcome_energon), "search")
-                    
+                        energon_data['total_spent'] = energon_data.get('total_spent', 0) + abs(outcome_energon)
+                    energon_data['last_activity'] = datetime.now().isoformat()
                     await user_data_manager.save_energon_data(player_id, energon_data)
                     
                     if new_energon >= WIN_CONDITION:
@@ -449,7 +457,7 @@ class EnergonCommands(commands.Cog):
                 description="The Energon slot machine is temporarily out of order! Please try again later.",
                 color=discord.Color.red()
             )
-            await ctx.send(embed=error_embed, ephemeral=True)
+            await ctx.send(embed=error_embed)
     
     async def start_slot_game(self, ctx_or_interaction, mode: str, difficulty: str, bet: int, 
                             user: discord.Member, current_energon: int) -> None:
@@ -576,23 +584,28 @@ class EnergonCommands(commands.Cog):
     async def cybercoin_market(self, ctx: commands.Context):
         """Display the CyberCoin market dashboard with auto-refreshing chart."""
         if not self.has_cybertronian_role(ctx.author):
-            await ctx.send("❌ Only Cybertronian Citizens can access the CyberCoin market!", ephemeral=True)
+            await ctx.send("❌ Only Cybertronian Citizens can access the CyberCoin market!")
             return
         
         embed = await create_market_embed()
         view = CryptoMarketView()
         message = await ctx.send(embed=embed, view=view)
         view.message = message
+        # Register this channel for hourly market updates
+        try:
+            register_market_channel(int(ctx.channel.id))
+        except Exception as e:
+            print(f"Error registering market channel: {e}")
 
     @commands.hybrid_command(name="cybercoin_profile", description="View your personal CyberCoin portfolio and transaction history")
     async def cybercoin_profile(self, ctx: commands.Context):
         """Display your personal CyberCoin portfolio and transaction history."""
         if not self.has_cybertronian_role(ctx.author):
-            await ctx.send("❌ Only Cybertronian Citizens can access CyberCoin portfolios!", ephemeral=True)
+            await ctx.send("❌ Only Cybertronian Citizens can access CyberCoin portfolios!")
             return
         
-        portfolio = user_data_manager.get_cybercoin_portfolio(str(ctx.author.id))
-        if not portfolio or portfolio["portfolio"]["total_coins"] <= 0:
+        summary = await user_data_manager.get_cybercoin_summary(str(ctx.author.id))
+        if not summary or summary["portfolio"]["total_coins"] <= 0:
             await ctx.send(embed=discord.Embed(
                 title="📊 Your CyberCoin Portfolio",
                 description="You don't own any CyberCoins yet! Use `/cybercoin_market` to start trading.",
@@ -603,7 +616,7 @@ class EnergonCommands(commands.Cog):
         market_manager = MarketManager()
         await market_manager.initialize()
         current_price = market_manager.market_data["current_price"]
-        portfolio_data = portfolio["portfolio"]
+        portfolio_data = summary["portfolio"]
         
         total_coins = portfolio_data["total_coins"]
         total_invested = portfolio_data["total_invested"]
@@ -631,7 +644,8 @@ class EnergonCommands(commands.Cog):
 
     async def _is_game_active(self, channel_id: int) -> bool:
         """Check if there's an active game in this channel."""
-        return await self.game_manager.is_game_active(channel_id)
+        # The is_game_active method in game_manager is not async, so don't use await
+        return self.game_manager.is_game_active(channel_id)
 
     async def _start_new_game(self, channel_id: int, starter_player_id: str) -> bool:
         """Start a new game in this channel."""
@@ -646,6 +660,12 @@ class EnergonCommands(commands.Cog):
         winner_id = str(ctx.author.id)
         await self.game_manager.end_game(channel_id, winner_id)
         
+        embed = discord.Embed(
+            title="🏁 Game Ended",
+            description="Energon banked. Use `/cybercoin_market` to trade.",
+            color=discord.Color.gold(),
+            timestamp=discord.utils.utcnow()
+        )
         embed.set_footer(text="Use /cybercoin_market to trade • Updated in real-time")
         await ctx.send(embed=embed)
 
@@ -680,7 +700,7 @@ class EnergonCommands(commands.Cog):
                        inline=True)
         
         # Global leaderboard
-        leaderboard = await user_data_manager.get_energon_leaderboard()
+        leaderboard = await user_data_manager.get_energon_leaderboard("all_time", 10)
         if leaderboard:
             medals = ["🥇", "🥈", "🥉"] + ["🔸"] * 7
             leaderboard_text = [
@@ -695,6 +715,30 @@ class EnergonCommands(commands.Cog):
         embed.set_footer(text="Energon Rush Statistics - Updated in real-time")
         await ctx.send(embed=embed)
         
+    @commands.hybrid_command(name="stop_cybercoin_market", description="Stop CyberCoin market updates and system")
+    async def stop_cybercoin_market(self, ctx: commands.Context):
+        if not (ctx.author.guild_permissions.manage_guild or self.has_cybertronian_role(ctx.author)):
+            await ctx.send("❌ You need Manage Server permission or Cybertronian role to control the market.")
+            return
+        success = await stop_cybercoin_market()
+        if success:
+            await ctx.send("🛑 CyberCoin market updates stopped.")
+        else:
+            await ctx.send("⚠️ Failed to stop the CyberCoin market.")
+
+    @commands.hybrid_command(name="start_cybercoin_market", description="Start or resume CyberCoin market updates")
+    async def start_cybercoin_market(self, ctx: commands.Context):
+        if not (ctx.author.guild_permissions.manage_guild or self.has_cybertronian_role(ctx.author)):
+            await ctx.send("❌ You need Manage Server permission or Cybertronian role to control the market.")
+            return
+        if is_cybercoin_market_running():
+            await ctx.send("ℹ️ CyberCoin market updates are already running.")
+            return
+        success = await start_cybercoin_market()
+        if success:
+            await ctx.send("▶️ CyberCoin market updates started.")
+        else:
+            await ctx.send("⚠️ Failed to start the CyberCoin market.")
 async def setup(bot):
     """Setup function to add the EnergonCommands cog to the bot."""
     game_manager = EnergonGameManager(bot)

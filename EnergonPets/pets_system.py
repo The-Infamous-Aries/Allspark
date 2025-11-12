@@ -252,13 +252,8 @@ class PetStatusView(discord.ui.View):
                 team_data = combiner_data.get("team_data", {"🦾": [], "🦿": []})
                 
                 if team_id:
-                    # Get combiner name if available
-                    from ..Random.themer import DataManager
-                    data_manager = DataManager()
-                    combiner_name_data = await data_manager.get_user_theme_data_section(
-                        team_id, "combiner_name", {}
-                    )
-                    combiner_name = combiner_name_data.get("name", "Unnamed Combiner")
+                    # Theme system is being phased out; use a safe fallback name
+                    combiner_name = "Unnamed Combiner"
                     
                     # Build team member list using the new data structure
                     team_members = []
@@ -272,7 +267,7 @@ class PetStatusView(discord.ui.View):
                                 member_role = member_entry.get("role", part_name)
                                 
                                 # Get pet data for each member
-                                member_pet = await user_data_manager.get_pet_data(member_id)
+                                member_pet = await user_data_manager.get_pet_data(str(member_id))
                                 if member_pet:
                                     pet_name = member_pet.get("name", f"Pet {member_id}")
                                     # Try to get Discord user for display name
@@ -498,7 +493,15 @@ class RefreshButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
         view = self.view
-        view._cached_embed = None  # Invalidate cache
+        # Force fresh data reload from file
+        view.pet_data = None  # Clear cached pet data
+        view._cached_embed = None  # Invalidate embed cache
+        view._cached_equipment_stats = None  # Invalidate equipment stats cache
+        view._last_update = 0  # Reset update timestamp
+        
+        # Force refresh by getting fresh pet data from file
+        view.pet_data = await view.pet_system.get_user_pet(view.user_id, force_refresh=True)
+        
         embed = await view.create_main_embed()
         await interaction.edit_original_response(embed=embed, view=view)
 
@@ -948,6 +951,8 @@ class PetSystem:
             "battle_xp_earned": 0,
             "training_xp_earned": 0,
             "search_xp_earned": 0,
+            "daily_xp_earned": 0,
+            "quest_xp_earned": 0,
             "charge_xp_earned": 0,
             "play_xp_earned": 0,
             "repair_xp_earned": 0
@@ -1023,97 +1028,130 @@ class PetSystem:
         return await add_experience(user_id, xp_amount, source, equipment_stats)
 
     async def charge_pet(self, user_id: int, percentage: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """Charge pet's energy by percentage (50%, 75%, or 100%)"""
+        """Charge pet's energy to maximum"""
         pet = await self.get_user_pet(user_id)
         if not pet:
             return False, "You don't have a pet!", []
-        on_cooldown, remaining_time = self._is_command_on_cooldown("charge", user_id)
-        if on_cooldown:
-            minutes_remaining = remaining_time // 60
-            seconds_remaining = remaining_time % 60
-            return False, f"Your pet is still charging! Wait {minutes_remaining}m {seconds_remaining}s", []
-        valid_percentages = {"50%", "75%", "100%"}
-        if percentage not in valid_percentages:
-            return False, "Invalid percentage! Choose from: 50%, 75%, or 100%", []
+        
         equipment_stats = await self.get_equipment_stats(user_id)
         max_energy = pet['max_energy'] + equipment_stats.get('energy', 0)       
         if pet['energy'] >= max_energy:
             return False, f"Your pet is already fully charged! ({int(pet['energy'])}/{max_energy})", []
-        percentage_map = {"50%": 0.5, "75%": 0.75, "100%": 1.0}
-        energy_percentage = percentage_map[percentage]
-        target_energy = max_energy * energy_percentage
-        energy_gain = min(target_energy - pet['energy'], max_energy - pet['energy'])
-        pet['energy'] = min(pet['energy'] + energy_gain, max_energy)
-        self._set_command_cooldown("charge", user_id, percentage)
-        xp_map = {"50%": 10, "75%": 25, "100%": 50}
-        xp_gain = xp_map[percentage]
-        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "charge", equipment_stats)       
+        
+        # Fill energy to maximum
+        energy_gain = max_energy - pet['energy']
+        pet['energy'] = max_energy
+        
+        # Give XP for charging
+        xp_gain = 50  # Fixed XP gain
+        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "charge", equipment_stats)
+        
+        # Sync refreshed XP/level and maxima, then ensure energy matches new max
+        try:
+            fresh = await self.get_user_pet(user_id, force_refresh=True)
+            if fresh:
+                pet['experience'] = fresh.get('experience', pet.get('experience'))
+                pet['level'] = fresh.get('level', pet.get('level'))
+                pet['attack'] = fresh.get('attack', pet.get('attack'))
+                pet['defense'] = fresh.get('defense', pet.get('defense'))
+                pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+                # Recalculate max after potential level-up and refill
+                max_energy = pet['max_energy'] + equipment_stats.get('energy', 0)
+                pet['energy'] = max_energy
+        except Exception:
+            pass
+        
         await self._queue_save(user_id, pet)
         # Update cache immediately so subsequent calls see the updated stats
         await self._update_cache(str(user_id), pet)
-        return True, f"Charged your pet to {percentage}! (+{int(energy_gain)}⚡, +{xp_gain}XP)", level_gains
+        
+        return True, f"Charged your pet to maximum! (+{int(energy_gain)}⚡, +{xp_gain}XP)", level_gains
 
     async def play_with_pet(self, user_id: int, percentage: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """Play with pet to increase happiness by percentage (50%, 75%, or 100%)"""
+        """Play with pet to increase happiness to maximum"""
         pet = await self.get_user_pet(user_id)
         if not pet:
             return False, "You don't have a pet!", []
-        on_cooldown, remaining_time = self._is_command_on_cooldown("play", user_id)
-        if on_cooldown:
-            minutes_remaining = remaining_time // 60
-            seconds_remaining = remaining_time % 60
-            return False, f"Your pet needs rest from playing! Wait {minutes_remaining}m {seconds_remaining}s", []
-        valid_percentages = {"50%", "75%", "100%"}
-        if percentage not in valid_percentages:
-            return False, "Invalid percentage! Choose from: 50%, 75%, or 100%", []
+            
         equipment_stats = await self.get_equipment_stats(user_id)
         max_happiness = pet['max_happiness'] + equipment_stats.get('happiness', 0)     
         if pet['happiness'] >= max_happiness:
             return False, f"Your pet is already maximally happy! ({int(pet['happiness'])}/{max_happiness})", []
-        percentage_map = {"50%": 0.5, "75%": 0.75, "100%": 1.0}
-        happiness_percentage = percentage_map[percentage]
-        target_happiness = max_happiness * happiness_percentage
-        happiness_gain = min(target_happiness - pet['happiness'], max_happiness - pet['happiness'])
-        pet['happiness'] = min(pet['happiness'] + happiness_gain, max_happiness)
-        self._set_command_cooldown("play", user_id, percentage)
-        xp_map = {"50%": 10, "75%": 25, "100%": 50}
-        xp_gain = xp_map[percentage]
-        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "play", equipment_stats)     
+            
+        # Fill happiness to maximum
+        happiness_gain = max_happiness - pet['happiness']
+        pet['happiness'] = max_happiness
+        
+        # Give XP for playing
+        xp_gain = 50  # Fixed XP gain
+        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "play", equipment_stats)
+        
+        # Sync refreshed XP/level and maxima, then ensure happiness matches new max
+        try:
+            fresh = await self.get_user_pet(user_id, force_refresh=True)
+            if fresh:
+                pet['experience'] = fresh.get('experience', pet.get('experience'))
+                pet['level'] = fresh.get('level', pet.get('level'))
+                pet['attack'] = fresh.get('attack', pet.get('attack'))
+                pet['defense'] = fresh.get('defense', pet.get('defense'))
+                pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+                # Recalculate max after potential level-up and refill
+                max_happiness = pet['max_happiness'] + equipment_stats.get('happiness', 0)
+                pet['happiness'] = max_happiness
+        except Exception:
+            pass
+        
         await self._queue_save(user_id, pet)
         # Update cache immediately so subsequent calls see the updated stats
         await self._update_cache(str(user_id), pet)
-        return True, f"Played with your pet to {int(pet['happiness'])}/{max_happiness} (+{int(happiness_gain)}😊, +{xp_gain}XP)", level_gains
+        
+        return True, f"Played with your pet to maximum happiness! (+{int(happiness_gain)}😊, +{xp_gain}XP)", level_gains
 
     async def repair_pet(self, user_id: int, percentage: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """Repair pet's maintenance by percentage (50%, 75%, or 100%)"""
+        """Repair pet's maintenance to maximum"""
         pet = await self.get_user_pet(user_id)
         if not pet:
             return False, "You don't have a pet!", []
-        on_cooldown, remaining_time = self._is_command_on_cooldown("repair", user_id)
-        if on_cooldown:
-            minutes_remaining = remaining_time // 60
-            seconds_remaining = remaining_time % 60
-            return False, f"Your pet is still being repaired! Wait {minutes_remaining}m {seconds_remaining}s", []
-        valid_percentages = {"50%", "75%", "100%"}
-        if percentage not in valid_percentages:
-            return False, "Invalid percentage! Choose from: 50%, 75%, or 100%", []
+            
         equipment_stats = await self.get_equipment_stats(user_id)
         max_maintenance = pet['max_maintenance'] + equipment_stats.get('maintenance', 0)     
         if pet['maintenance'] >= max_maintenance:
             return False, f"Your pet is already fully repaired! ({int(pet['maintenance'])}/{max_maintenance})", []
-        percentage_map = {"50%": 0.5, "75%": 0.75, "100%": 1.0}
-        maintenance_percentage = percentage_map[percentage]
-        target_maintenance = max_maintenance * maintenance_percentage
-        maintenance_gain = min(target_maintenance - pet['maintenance'], max_maintenance - pet['maintenance'])
-        pet['maintenance'] = min(pet['maintenance'] + maintenance_gain, max_maintenance)
-        self._set_command_cooldown("repair", user_id, percentage)
-        xp_map = {"50%": 10, "75%": 25, "100%": 50}
-        xp_gain = xp_map[percentage]
-        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "repair", equipment_stats)    
+            
+        # Fill maintenance to maximum
+        maintenance_gain = max_maintenance - pet['maintenance']
+        pet['maintenance'] = max_maintenance
+        
+        # Give XP for repairing
+        xp_gain = 50  # Fixed XP gain
+        leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "repair", equipment_stats)
+        
+        # Sync refreshed XP/level and maxima, then ensure maintenance matches new max
+        try:
+            fresh = await self.get_user_pet(user_id, force_refresh=True)
+            if fresh:
+                pet['experience'] = fresh.get('experience', pet.get('experience'))
+                pet['level'] = fresh.get('level', pet.get('level'))
+                pet['attack'] = fresh.get('attack', pet.get('attack'))
+                pet['defense'] = fresh.get('defense', pet.get('defense'))
+                pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+                # Recalculate max after potential level-up and refill
+                max_maintenance = pet['max_maintenance'] + equipment_stats.get('maintenance', 0)
+                pet['maintenance'] = max_maintenance
+        except Exception:
+            pass
+        
         await self._queue_save(user_id, pet)
         # Update cache immediately so subsequent calls see the updated stats
         await self._update_cache(str(user_id), pet)
-        return True, f"Repaired your pet to {int(pet['maintenance'])}/{max_maintenance} (+{int(maintenance_gain)}🔧, +{xp_gain}XP)", level_gains
+        
+        return True, f"Repaired your pet to maximum! (+{int(maintenance_gain)}🔧, +{xp_gain}XP)", level_gains
 
     async def train_pet(self, user_id: int, difficulty: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Train pet to gain stats"""
@@ -1176,6 +1214,29 @@ class PetSystem:
         
         leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "training", equipment_stats)
         
+        # Merge refreshed XP/level and maxima, preserving local resource drains and training stat changes
+        try:
+            fresh = await self.get_user_pet(user_id, force_refresh=True)
+            if fresh:
+                pet['experience'] = fresh.get('experience', pet.get('experience'))
+                pet['level'] = fresh.get('level', pet.get('level'))
+                pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+                base_attack_after_level = fresh.get('attack', pet.get('attack', 0))
+                base_defense_after_level = fresh.get('defense', pet.get('defense', 0))
+                if stat_type == "attack" and stat_gain > 0:
+                    pet['attack'] = base_attack_after_level + stat_gain
+                    pet['defense'] = base_defense_after_level
+                elif stat_type == "defense" and stat_gain > 0:
+                    pet['defense'] = base_defense_after_level + stat_gain
+                    pet['attack'] = base_attack_after_level
+                else:
+                    pet['attack'] = base_attack_after_level
+                    pet['defense'] = base_defense_after_level
+        except Exception:
+            pass
+        
         # Track training energon
         pet['total_training_energon'] = pet.get('total_training_energon', 0) + energon_gain
         
@@ -1234,6 +1295,20 @@ class PetSystem:
             equipment_stats = await self.get_equipment_stats(user_id)
             leveled_up, level_gains = await add_experience(user_id, xp_gain, "mission", equipment_stats)
             
+            # Merge refreshed XP/level and maxima while preserving local changes
+            try:
+                fresh = await self.get_user_pet(user_id, force_refresh=True)
+                if fresh:
+                    pet['experience'] = fresh.get('experience', pet.get('experience'))
+                    pet['level'] = fresh.get('level', pet.get('level'))
+                    pet['attack'] = fresh.get('attack', pet.get('attack'))
+                    pet['defense'] = fresh.get('defense', pet.get('defense'))
+                    pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                    pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                    pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+            except Exception:
+                pass
+            
             # Update user's main energon balance
             try:
                 # Use proper energon tracking method to update total_earned
@@ -1270,6 +1345,20 @@ class PetSystem:
             # Get equipment stats for proper level up calculation even on failure
             equipment_stats = await self.get_equipment_stats(user_id)
             leveled_up, level_gains = await add_experience(user_id, xp_gain, "mission", equipment_stats)
+            
+            # Merge refreshed XP/level and maxima while preserving local changes
+            try:
+                fresh = await self.get_user_pet(user_id, force_refresh=True)
+                if fresh:
+                    pet['experience'] = fresh.get('experience', pet.get('experience'))
+                    pet['level'] = fresh.get('level', pet.get('level'))
+                    pet['attack'] = fresh.get('attack', pet.get('attack'))
+                    pet['defense'] = fresh.get('defense', pet.get('defense'))
+                    pet['max_energy'] = fresh.get('max_energy', pet.get('max_energy'))
+                    pet['max_happiness'] = fresh.get('max_happiness', pet.get('max_happiness'))
+                    pet['max_maintenance'] = fresh.get('max_maintenance', pet.get('max_maintenance'))
+            except Exception:
+                pass
             
             await self._queue_save(user_id, pet)
             return True, f"Mission failed! Your pet gained {xp_gain}XP but lost {maintenance_loss}🔧 maintenance and {happiness_loss}😊 happiness."
@@ -1565,6 +1654,20 @@ class PetSystem:
         equipment_stats = await self.get_equipment_stats(user_id)
         leveled_up, level_gains = await self.add_experience(user_id, xp_gain, "battle", equipment_stats)
         
+        # Merge refreshed XP/level and maxima while preserving battle stats
+        try:
+            fresh = await self.get_user_pet(user_id, force_refresh=True)
+            if fresh:
+                pet1['experience'] = fresh.get('experience', pet1.get('experience'))
+                pet1['level'] = fresh.get('level', pet1.get('level'))
+                pet1['attack'] = fresh.get('attack', pet1.get('attack'))
+                pet1['defense'] = fresh.get('defense', pet1.get('defense'))
+                pet1['max_energy'] = fresh.get('max_energy', pet1.get('max_energy'))
+                pet1['max_happiness'] = fresh.get('max_happiness', pet1.get('max_happiness'))
+                pet1['max_maintenance'] = fresh.get('max_maintenance', pet1.get('max_maintenance'))
+        except Exception:
+            pass
+        
         await self._queue_save(user_id, pet1)
         await self._queue_save(opponent_id, pet2)
         
@@ -1618,8 +1721,27 @@ class PetSystem:
         await asyncio.gather(*save_tasks, return_exceptions=True)
     
     async def _queue_save(self, user_id: int, pet_data: Dict[str, Any]) -> None:
-        """Queue a save operation"""
-        await self._pending_saves.put((user_id, pet_data))
+        """Immediately persist pet data with logging and cache update"""
+        try:
+            # Ensure required fields for integrity
+            pet_data.setdefault("user_id", str(user_id))
+            pet_data.setdefault("username", f"User_{user_id}")
+            self._ensure_pet_data_complete(pet_data)
+        except Exception as e:
+            logger.error(f"Failed to ensure pet data complete for {user_id}: {e}")
+        try:
+            await user_data_manager.save_pet_data(str(user_id), f"User_{user_id}", pet_data)
+            await self._update_cache(str(user_id), pet_data)
+            logger.info(f"Saved pet data for user {user_id} (immediate)")
+            # Verify persisted state (XP)
+            try:
+                saved = await user_data_manager.get_pet_data(str(user_id))
+                if saved and saved.get("experience") != pet_data.get("experience"):
+                    logger.warning(f"XP mismatch after save for user {user_id}: expected {pet_data.get('experience')}, got {saved.get('experience')}")
+            except Exception as ve:
+                logger.debug(f"Post-save verification failed for {user_id}: {ve}")
+        except Exception as e:
+            logger.error(f"Error saving pet data for user {user_id}: {e}")
     
     async def get_user_pet(self, user_id: int, *, force_refresh: bool = False, username: str = None) -> Optional[Dict[str, Any]]:
         """Get user's pet with caching and background refresh"""
@@ -1636,6 +1758,8 @@ class PetSystem:
         try:
             pet_data = await user_data_manager.get_pet_data(cache_key, username)
             if pet_data:
+                # Ensure all required fields exist
+                self._ensure_pet_data_complete(pet_data)
                 # Schedule cache update without waiting
                 asyncio.create_task(self._update_cache(cache_key, pet_data))
                 return pet_data
@@ -1643,6 +1767,38 @@ class PetSystem:
         except Exception as e:
             logger.error(f"Error getting pet data for {user_id}: {e}")
             return None
+            
+    def _ensure_pet_data_complete(self, pet_data: Dict[str, Any]) -> None:
+        """Ensure all required fields exist in pet data"""
+        # Basic stats
+        if "level" not in pet_data:
+            pet_data["level"] = 1
+        if "experience" not in pet_data:
+            pet_data["experience"] = 0
+        if "attack" not in pet_data:
+            pet_data["attack"] = 0
+        if "defense" not in pet_data:
+            pet_data["defense"] = 0
+            
+        # Resource stats
+        if "max_energy" not in pet_data:
+            pet_data["max_energy"] = 100
+        if "max_maintenance" not in pet_data:
+            pet_data["max_maintenance"] = 100
+        if "max_happiness" not in pet_data:
+            pet_data["max_happiness"] = 100
+        if "energy" not in pet_data:
+            pet_data["energy"] = pet_data.get("max_energy", 100)
+        if "maintenance" not in pet_data:
+            pet_data["maintenance"] = pet_data.get("max_maintenance", 100)
+        if "happiness" not in pet_data:
+            pet_data["happiness"] = pet_data.get("max_happiness", 100)
+            
+        # XP tracking
+        for source in ["mission", "battle", "training", "search", "daily", "quest", "charge", "play", "repair", "combiner_battle", "combiner_pvp_victory", "combiner_pvp_defeat", "mega_fight", "rpg_event"]:
+            xp_key = f"{source}_xp_earned"
+            if xp_key not in pet_data:
+                pet_data[xp_key] = 0
     
     async def _update_cache(self, user_id: str, pet_data: Dict[str, Any]) -> None:
         """Update cache with new pet data"""

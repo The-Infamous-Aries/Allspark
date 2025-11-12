@@ -69,8 +69,9 @@ class MegaFightModeView(discord.ui.View):
                         # Import battle system
                         from .PetBattles.battle_system import UnifiedBattleView
                         
-                        # Load monster using proper method
-                        monster = await UnifiedBattleView.get_monster_by_type_and_rarity(
+                        # Load monster using proper method - create temporary instance
+                        temp_battle_view = UnifiedBattleView(self.ctx)
+                        monster = await temp_battle_view.get_monster_by_type_and_rarity(
                             self.selected_enemy_type, 
                             self.selected_rarity
                         )
@@ -167,7 +168,7 @@ class MegaFightModeView(discord.ui.View):
                                     
                                     for i, member_id in enumerate(self.combiner_team['all_members']):
                                         # Get pet data for this member
-                                        pet_data = await self.bot.user_data_manager.get_pet_data(str(member_id))
+                                        pet_data = await user_data_manager.get_pet_data(str(member_id))
                                         if pet_data:
                                             pet_damage = damage_per_pet + (1 if i < remaining_damage else 0)
                                             max_hp = pet_data.get('energy', 100) + pet_data.get('maintenance', 0) + pet_data.get('happiness', 0)
@@ -304,9 +305,13 @@ class MegaFightModeView(discord.ui.View):
                                         if str(member_id) != str(self.ctx.author.id):  # Skip the leader who already got rewards
                                             # Add experience to each member
                                             from .pet_levels import add_experience
-                                            member_pet_data = await self.cog.bot.user_data_manager.get_pet_data(str(member_id))
+                                            member_pet_data = await user_data_manager.get_pet_data(str(member_id))
                                             member_equipment_stats = self.cog.calculate_equipment_stats(member_pet_data.get('equipment', {})) if member_pet_data else {}
                                             await add_experience(str(member_id), base_reward // 2, "combiner_battle", member_equipment_stats)
+                                            
+                                            # Save pet data after XP addition
+                                            if member_pet_data:
+                                                await user_data_manager.save_pet_data(str(member_id), str(member_id), member_pet_data)
                                             
                                             # Add energon to each member
                                             try:
@@ -678,6 +683,10 @@ class MegaFightModeView(discord.ui.View):
                                 member_equipment_stats = self.cog.calculate_equipment_stats(member_pet_data.get('equipment', {})) if member_pet_data else {}
                                 await add_experience(str(member_id), winner_reward, "combiner_pvp_victory", member_equipment_stats)
                                 
+                                # Save pet data after XP addition
+                                if member_pet_data:
+                                    await self.cog.bot.user_data_manager.save_pet_data(str(member_id), str(member_id), member_pet_data)
+                                
                                 # Add energon
                                 try:
                                     await user_data_manager.add_energon(str(member_id), winner_reward // 2, "combiner_pvp_victory")
@@ -692,6 +701,10 @@ class MegaFightModeView(discord.ui.View):
                                 member_pet_data = await self.cog.bot.user_data_manager.get_pet_data(str(member_id))
                                 member_equipment_stats = self.cog.calculate_equipment_stats(member_pet_data.get('equipment', {})) if member_pet_data else {}
                                 await add_experience(str(member_id), loser_reward, "combiner_pvp_defeat", member_equipment_stats)
+                                
+                                # Save pet data after XP addition
+                                if member_pet_data:
+                                    await self.cog.bot.user_data_manager.save_pet_data(str(member_id), str(member_id), member_pet_data)
                                 
                                 # Add small energon
                                 try:
@@ -902,7 +915,7 @@ class CombinerPvPBattleView(PvPBattleView):
                     logger.info(f"Pet for member {member_id} died in mega fight - all stats set to 0")
                 
                 # Save pet data using user_data_manager with the correct member_id
-                await self.bot.user_data_manager.save_pet_data(str(member_id), str(member_id), pet)
+                await user_data_manager.save_pet_data(str(member_id), str(member_id), pet)
             
             logger.info(f"Applied {total_damage} damage to combiner team {combiner_team.get('name', 'Unknown')}, distributed among {len(pet_owners)} pets")
             
@@ -941,7 +954,7 @@ class CombinerPvPBattleView(PvPBattleView):
                     pet['happiness'] = 0
                     # Save the updated pet data
                     member_id = combiner_team['all_members'][i]
-                    await self.bot.user_data_manager.save_pet_data(str(member_id), str(member_id), pet)
+                    await user_data_manager.save_pet_data(str(member_id), str(member_id), pet)
                     logger.info(f"Pet for member {member_id} defeated in mega fight - all stats set to 0")
             
             # Team is defeated if more than 75% of pets are defeated
@@ -1127,15 +1140,17 @@ class MegaFightView(discord.ui.View):
             # Award energon using UserDataManager for proper tracking
             await self.cog.bot.user_data_manager.add_energon(str(member_id), energon_reward, "mega_fight_win")
             reward_messages.append(f"<@{member_id}> gained {energon_reward} energon")
-            
-            # Pet XP reward
+
             pet_data = await self.cog.bot.user_data_manager.get_pet_data(str(member_id))
             if pet_data:
                 from .pet_levels import add_experience
                 xp_gain = random.randint(25, 50)
                 equipment_stats = self.cog.calculate_equipment_stats(pet_data.get('equipment', {}))
-                level_up_result = await add_experience(self.cog.bot, str(member_id), xp_gain, "mega_fight", equipment_stats)
+                level_up_result = await add_experience(str(member_id), xp_gain, "mega_fight", equipment_stats)
                 reward_messages.append(f"<@{member_id}>'s pet gained {xp_gain} XP")
+                
+                # Save pet data after XP addition
+                await self.cog.bot.user_data_manager.save_pet_data(str(member_id), str(member_id), pet_data)
                 
                 if level_up_result and level_up_result.get('leveled_up'):
                     # Send level-up embed
@@ -1143,7 +1158,7 @@ class MegaFightView(discord.ui.View):
                         await interaction.followup.send(embed=level_up_result['embed'])
                     except:
                         reward_messages.append(f"<@{member_id}>'s pet leveled up!")
-        
+    
         # Process losing team
         for member_id in losing_team['all_members']:
             # Update stats
@@ -1232,37 +1247,68 @@ class PetsMegaCog(commands.Cog):
         if not hasattr(self.bot, 'user_data_manager'):
             return None
         
-        # Check if user is in any combiner team
-        in_combiner, message_id = await self.bot.user_data_manager.is_user_in_any_combiner(str(user_id))
-        if not in_combiner or not message_id:
+        # Use UserDataManager to get the user's current combiner team
+        combiner_data = await self.bot.user_data_manager.get_user_pet_combiner_team(str(user_id))
+        if not combiner_data:
             return None
-        
-        # Get the team data from the theme system
-        team_data = await self.bot.user_data_manager.get_user_theme_data_section(message_id, "combiner_teams", {})
-        if not team_data:
+
+        team_id = combiner_data.get("team_id")
+        team_data = combiner_data.get("team_data", {})
+        if not team_id or not team_data:
             return None
-        
-        # Get the combiner name data
-        combiner_name_data = await self.bot.user_data_manager.get_user_theme_data_section(message_id, "combiner_name", {})
-        
-        # Collect all members from team data
-        all_members = []
-        for part_members in team_data.values():
-            all_members.extend(part_members)
-        
-        # Check if user is actually in this team and team is complete (4 members)
-        if str(user_id) not in all_members or len(all_members) != 4:
+
+        # Flatten team members from structured team_data
+        # Expected format: {"🦾": [{"user_id": "...", "role": "Left Arm"}, ...], "🦿": [{...}, ...]}
+        role_order = [
+            ("🦾", "Left Arm"), ("🦾", "Right Arm"),
+            ("🦿", "Left Leg"), ("🦿", "Right Leg")
+        ]
+        all_members: list[str] = []
+        head_id: str = None
+
+        try:
+            # Build ordered member list and determine head by priority
+            for emoji, role_name in role_order:
+                entries = team_data.get(emoji, [])
+                for entry in entries:
+                    if entry.get("role") == role_name:
+                        member_id = str(entry.get("user_id"))
+                        if member_id not in all_members:
+                            all_members.append(member_id)
+                            if head_id is None:
+                                head_id = member_id
+            # If any members weren't added due to role naming variations, include remaining
+            for entries in team_data.values():
+                for entry in entries:
+                    member_id = str(entry.get("user_id"))
+                    if member_id and member_id not in all_members:
+                        all_members.append(member_id)
+        except Exception:
+            # Fallback: naive flatten
+            for entries in team_data.values():
+                for entry in entries:
+                    member_id = str(entry.get("user_id"))
+                    if member_id and member_id not in all_members:
+                        all_members.append(member_id)
+            head_id = all_members[0] if all_members else None
+
+        # Validate team composition
+        if str(user_id) not in all_members:
             return None
-        
-        # Create team info structure
+        if len(all_members) != 4:
+            return None
+        if not head_id:
+            head_id = all_members[0]
+
+        # Construct team info (no theme system dependency for name)
         team_info = {
             'all_members': all_members,
-            'name': combiner_name_data.get('name', 'Unknown Combiner'),
-            'message_id': message_id,
-            'is_head': str(user_id) == str(all_members[0]) if all_members else False,  # First member is head
-            'team_id': message_id
+            'name': 'Unnamed Combiner',
+            'team_id': team_id,
+            'head_id': head_id,
+            'message_id': team_id  # Back-compat: some flows may expect message_id
         }
-        
+
         return team_info
     
     def calculate_equipment_stats(self, equipment):
@@ -1347,7 +1393,8 @@ class PetsMegaCog(commands.Cog):
                     combined_stats['member_ids'].append(str(member_id))
                     
                     # Calculate health from energy, maintenance, and happiness (current stats for current health)
-                    pet_battle_health = base_energy + base_maintenance + base_happiness
+                    # Include equipment bonuses in current health calculation
+                    pet_battle_health = base_energy + base_maintenance + base_happiness + equipment_stats['energy'] + equipment_stats['maintenance'] + equipment_stats['happiness']
                     combined_stats['current_health'] += pet_battle_health
                     
                     # Max health uses max stats + equipment bonuses
@@ -1387,7 +1434,7 @@ class PetsMegaCog(commands.Cog):
     async def update_player_stats(self, user_id, stat_name, value):
         """Update player statistics."""
         try:
-            user_data = await self.bot.user_data_manager.get_user_data(str(user_id), str(user_id))
+            user_data = await user_data_manager.get_user_data(str(user_id), str(user_id))
             if not user_data:
                 return
                 
@@ -1405,8 +1452,9 @@ class PetsMegaCog(commands.Cog):
                 
             user_data['mega_fights'][stat_name] += value
             
-            # Save the updated data
-            self.bot.user_data_manager.save_user_data(str(user_id), user_data)
+            # Save the updated data (ensure username is provided)
+            username = user_data.get('username', str(user_id))
+            await user_data_manager.save_user_data(str(user_id), username, user_data)
             
         except Exception as e:
             logger.error(f"Error updating player stats for {user_id}: {e}")

@@ -34,6 +34,7 @@ DIFFICULTY_MULTIPLIERS = {
 }
 
 bot = None
+active_market_channels: set[int] = set()
 
 class EnergonGameManager:
     """Main manager class for all Energon-related games and data."""
@@ -254,11 +255,15 @@ class EnergonGameManager:
             self.game_data[channel_id].add(player_id)
             
             # Update global active_games if it exists
-            if 'active_games' in globals():
-                global active_games
-                if channel_id not in active_games:
-                    active_games[channel_id] = set()
-                active_games[channel_id].add(player_id)
+            try:
+                if 'active_games' in globals():
+                    global active_games
+                    if channel_id not in active_games:
+                        active_games[channel_id] = set()
+                    active_games[channel_id].add(player_id)
+            except NameError:
+                # active_games doesn't exist in globals, skip this step
+                pass
             
             # Save state immediately
             await self.save_game_state()
@@ -284,45 +289,27 @@ class EnergonGameManager:
             # Bank energon for all players and reset game state
             for player_id in game_players:
                 try:
+                    user_data_manager = self._get_user_data_manager()
+                    
                     # Get player energon data
-                    if hasattr(self.bot, 'user_data_manager'):
-                        energon_data = await self.bot.user_data_manager.get_energon_data(player_id)
-                    else:
-                        from Systems.user_data_manager import user_data_manager
-                        energon_data = await user_data_manager.get_energon_data(player_id)
+                    energon_data = await user_data_manager.get_energon_data(player_id)
                     
                     # Bank the final energon amount
                     current_energon = energon_data.get("energon", 0)
                     if current_energon > 0:
-                        if hasattr(self.bot, 'user_data_manager'):
-                            await self.bot.user_data_manager.update_energon_stat(player_id, "energon_bank", current_energon)
-                        else:
-                            from Systems.user_data_manager import user_data_manager
-                            await user_data_manager.update_energon_stat(player_id, "energon_bank", current_energon)
+                        await user_data_manager.update_energon_stat(player_id, "energon_bank", current_energon)
                     
                     # Reset game flag and energon
                     energon_data["in_energon_rush"] = False
                     energon_data["energon"] = 0
                     
-                    if hasattr(self.bot, 'user_data_manager'):
-                        await self.bot.user_data_manager.save_energon_data(player_id, energon_data)
-                    else:
-                        from Systems.user_data_manager import user_data_manager
-                        await user_data_manager.save_energon_data(player_id, energon_data)
+                    await user_data_manager.save_energon_data(player_id, energon_data)
                     
                     # Track game results
                     if player_id == winner_id:
-                        if hasattr(self.bot, 'user_data_manager'):
-                            await self.bot.user_data_manager.update_energon_stat(player_id, "games_won", 1)
-                        else:
-                            from Systems.user_data_manager import user_data_manager
-                            await user_data_manager.update_energon_stat(player_id, "games_won", 1)
+                        await user_data_manager.update_energon_stat(player_id, "games_won", 1)
                     else:
-                        if hasattr(self.bot, 'user_data_manager'):
-                            await self.bot.user_data_manager.update_energon_stat(player_id, "games_lost", 1)
-                        else:
-                            from Systems.user_data_manager import user_data_manager
-                            await user_data_manager.update_energon_stat(player_id, "games_lost", 1)
+                        await user_data_manager.update_energon_stat(player_id, "games_lost", 1)
                     
                 except Exception as e:
                     print(f"Error processing player {player_id} game end: {e}")
@@ -332,10 +319,14 @@ class EnergonGameManager:
                 del self.game_data[channel_id]
             
             # Update global active_games if it exists
-            if 'active_games' in globals():
-                global active_games
-                if channel_id in active_games:
-                    del active_games[channel_id]
+            try:
+                if 'active_games' in globals():
+                    global active_games
+                    if channel_id in active_games:
+                        del active_games[channel_id]
+            except NameError:
+                # active_games doesn't exist in globals, skip this step
+                pass
             
             # Save state immediately
             await self.save_game_state()
@@ -382,51 +373,65 @@ class EnergonGameManager:
         """Ensure game state is loaded before accessing data."""
         # In async setup, state is loaded immediately
         if not self._game_state_loaded:
-            print("Warning: Game state not loaded. Ensure setup() is called properly.")
-            # We'll skip auto-loading in async contexts to avoid blocking
+            # Initialize empty state to prevent errors
+            self._initialize_empty_state()
+            self._game_state_loaded = True
+            # Schedule async loading for next event loop cycle
+            try:
+                import asyncio
+                asyncio.create_task(self.load_game_state())
+            except (RuntimeError, ImportError):
+                print("Warning: Could not schedule async game state loading.")
     
     async def get_player_stats(self, player_id: str) -> Dict[str, Any]:
         """Get or create player statistics."""
         self._ensure_state_loaded()
         
-        # Use bot's user_data_manager to get energon stats
+        # Use user_data_manager to get energon stats
+        user_data_manager = self._get_user_data_manager()
+        return await user_data_manager.get_energon_stats(player_id)
+
+    def _get_user_data_manager(self):
+        """Get user data manager instance, either from bot or import."""
         if hasattr(self.bot, 'user_data_manager'):
-            return await self.bot.user_data_manager.get_energon_stats(player_id)
+            return self.bot.user_data_manager
         else:
             from Systems.user_data_manager import user_data_manager
-            return await user_data_manager.get_energon_stats(player_id)
+            return user_data_manager
 
-    def update_player_stats(self, player_id: str, stat_type: str, amount: int = 1) -> None:
+    async def update_player_stats(self, player_id: str, stat_type: str, amount: int = 1) -> None:
         """Update player statistics and save immediately."""
         self._ensure_state_loaded()
-            
-        if hasattr(self.bot, 'user_data_manager'):
-            self.bot.user_data_manager.update_energon_stat(player_id, stat_type, amount)
-        else:
-            from Systems.user_data_manager import user_data_manager
-            user_data_manager.update_energon_stat(player_id, stat_type, amount)
+        
+        user_data_manager = self._get_user_data_manager()
+        await user_data_manager.update_energon_stat(player_id, stat_type, amount)
 
     async def bank_player_energon(self, player_id: str, final_energon: int) -> None:
         """Save player's final energon to their bank for future games and update global leaderboard."""
         try:
             from Systems.user_data_manager import user_data_manager
             
-            # Update the player's banked energon in their user file
-            await user_data_manager.update_energon_stat(player_id, "energon_bank", final_energon)
-            
-            # Also save to global leaderboard for quick loading
-            await self.save_player_energon_to_global(player_id, final_energon)
+            # Increment the player's banked energon and clear in-game balance
+            energon_data = await user_data_manager.get_energon_data(player_id)
+            current_bank = energon_data.get("energon_bank", 0)
+            energon_data["energon_bank"] = current_bank + max(0, final_energon)
+            energon_data["energon"] = 0
+            await user_data_manager.save_energon_data(player_id, energon_data)
+
+            # Also save updated bank to global leaderboard for quick loading
+            await self.save_player_energon_to_global(player_id, energon_data["energon_bank"])
             
             print(f"Banked {final_energon} energon for player {player_id} (user file + global leaderboard)")
             
         except Exception as e:
             print(f"Error banking energon for player {player_id}: {e}")
             
+    
+
     async def get_player_banked_energon(self, player_id: str) -> int:
         """Get player's banked energon amount."""
         try:
-            from Systems.user_data_manager import user_data_manager
-            
+            user_data_manager = self._get_user_data_manager()
             energon_data = await user_data_manager.get_energon_data(player_id)
             return energon_data.get("energon_bank", 0)
             
@@ -478,14 +483,12 @@ class EnergonGameManager:
         """Award energon directly to player's bank (for bets, etc.)"""
         try:
             from Systems.user_data_manager import user_data_manager
-            
-            energon_data = await user_data_manager.get_energon_data(player_id)
-            banked_energon = energon_data.get("energon_bank", 0)
-            
-            energon_data["energon_bank"] = banked_energon + amount
-            await user_data_manager.save_energon_data(player_id, energon_data)
-            
-            print(f"Awarded {amount} energon to bank for player {player_id}")
+
+            success, new_bank, _ = await user_data_manager.add_energon(player_id, amount, "bank_award")
+            if success:
+                print(f"Awarded {amount} energon to bank for player {player_id} (new bank: {new_bank})")
+            else:
+                print(f"Failed to award {amount} energon to bank for player {player_id}")
             
         except Exception as e:
             print(f"Error awarding energon to bank: {e}")
@@ -508,7 +511,7 @@ class EnergonGameManager:
             # Initialize player stats if new player
             player_stats = await user_data_manager.get_energon_data(player_id)
             if "games_played" not in player_stats:
-                await user_data_manager.update_energon_stat(player_id, "games_played")
+                await user_data_manager.update_energon_stat(player_id, "games_played", 0)
             
             print(f"Initialized player {player_name} ({player_id}) for Energon Rush starting at 0 energon")
             
@@ -527,6 +530,7 @@ class MarketConfig:
     MIN_INVESTMENT = 10.0
     MAX_PRICE = 1000000.0
     MIN_PRICE = 0.01
+    MAX_DELTA_PER_UPDATE = 0.08  # Cap price change per update to ±8%
     
     # Event probabilities
     EVENT_CHANCE = 0.25  # 25% chance of new event
@@ -732,9 +736,13 @@ class MarketManager:
                 # Extract the actual market data from the nested structure
                 market_data = data["market_data"]
                 # Convert string timestamps back to datetime objects
-                if "last_update" in market_data:
-                    if isinstance(market_data["last_update"], str):
-                        market_data["last_update"] = datetime.fromisoformat(market_data["last_update"])
+                if "last_update" in market_data and isinstance(market_data["last_update"], str):
+                    market_data["last_update"] = datetime.fromisoformat(market_data["last_update"]) 
+                # Convert optional holiday cycle timestamps if present
+                if "holiday_event_start_time" in market_data and isinstance(market_data["holiday_event_start_time"], str):
+                    market_data["holiday_event_start_time"] = datetime.fromisoformat(market_data["holiday_event_start_time"]) 
+                if "last_holiday_cycle" in market_data and isinstance(market_data["last_holiday_cycle"], str):
+                    market_data["last_holiday_cycle"] = datetime.fromisoformat(market_data["last_holiday_cycle"])
                 return market_data
                 
         except Exception as e:
@@ -759,15 +767,23 @@ class MarketManager:
             "total_coins_in_circulation": 0.0
         }
     
+    def _json_safe(self, obj):
+        from datetime import datetime as _dt
+        if isinstance(obj, _dt):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: self._json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple, set)):
+            return [self._json_safe(v) for v in obj]
+        return obj
+    
     async def save_market_data(self) -> None:
         """Save market data to user_data_manager."""
         try:
             from Systems.user_data_manager import user_data_manager
             
-            # Convert datetime objects to ISO strings for JSON serialization
-            data_to_save = self.market_data.copy()
-            if isinstance(data_to_save["last_update"], datetime):
-                data_to_save["last_update"] = data_to_save["last_update"].isoformat()
+            # Recursively convert non-JSON types (e.g., datetime) to safe values
+            data_to_save = self._json_safe(self.market_data)
             
             # Wrap market data in the expected structure
             wrapped_data = {
@@ -836,9 +852,13 @@ class MarketManager:
                 self.market_data["holiday_event_start_time"] = datetime.utcnow()
                 self.market_data["last_holiday_event_type"] = "surge"  # Start with surge
         
-        # Calculate total price change
+        # Calculate total price change with per-update cap
         total_change = base_volatility + net_pressure + sentiment_factor
-        new_price = current_price * (1 + total_change) * event_multiplier * holiday_multiplier
+        raw_factor = (1 + total_change) * event_multiplier * holiday_multiplier
+        raw_delta = raw_factor - 1.0
+        max_delta = getattr(MarketConfig, "MAX_DELTA_PER_UPDATE", 0.08)
+        capped_delta = max(-max_delta, min(max_delta, raw_delta))
+        new_price = current_price * (1.0 + capped_delta)
         
         # Ensure price stays within bounds
         new_price = max(MarketConfig.MIN_PRICE, min(MarketConfig.MAX_PRICE, new_price))
@@ -885,13 +905,13 @@ class MarketManager:
     
     async def get_user_cybercoin_summary(self, user_id: str) -> dict:
         """Get comprehensive CyberCoin summary for a user using new transaction system."""
-        from Systems.user_data_manager import get_cybercoin_summary
-        return await get_cybercoin_summary(user_id)
+        from Systems.user_data_manager import user_data_manager
+        return await user_data_manager.get_cybercoin_summary(user_id)
     
-    def record_purchase(self, user_id: str, amount_invested: float, coins_received: float, price_per_coin: float) -> None:
+    async def record_purchase(self, user_id: str, amount_invested: float, coins_received: float, price_per_coin: float) -> None:
         """Record a CyberCoin purchase using the new transaction system."""
-        from Systems.user_data_manager import record_cybercoin_purchase
-        record_cybercoin_purchase(user_id, amount_invested, coins_received, price_per_coin)
+        from Systems.user_data_manager import user_data_manager
+        await user_data_manager._record_cybercoin_purchase_async(user_id, amount_invested, coins_received, price_per_coin)
         
         # Update supply/demand pressure
         self.update_supply_demand("buy", amount_invested)
@@ -900,10 +920,10 @@ class MarketManager:
         self.market_data["total_volume_24h"] += amount_invested
         self.market_data["total_coins_in_circulation"] += coins_received
     
-    def record_sale(self, user_id: str, coins_sold: float, sale_amount: float, price_per_coin: float) -> dict:
+    async def record_sale(self, user_id: str, coins_sold: float, sale_amount: float, price_per_coin: float) -> dict:
         """Record a CyberCoin sale using the new transaction system and return sale details."""
-        from Systems.user_data_manager import record_cybercoin_sale
-        result = record_cybercoin_sale(user_id, coins_sold, sale_amount, price_per_coin)
+        from Systems.user_data_manager import user_data_manager
+        result = await user_data_manager._record_cybercoin_sale_async(user_id, coins_sold, sale_amount, price_per_coin)
         
         # Update supply/demand pressure
         self.update_supply_demand("sell", sale_amount)
@@ -914,11 +934,11 @@ class MarketManager:
         
         return result
     
-    def get_user_available_coins(self, user_id: str) -> float:
+    async def get_user_available_coins(self, user_id: str) -> float:
         """Get the total number of coins a user currently holds."""
-        from Systems.user_data_manager import get_cybercoin_portfolio
-        portfolio = get_cybercoin_portfolio(user_id)
-        return portfolio.get('total_coins', 0)
+        from Systems.user_data_manager import user_data_manager
+        summary = await user_data_manager.get_cybercoin_summary(user_id)
+        return summary.get('portfolio', {}).get('total_coins', 0)
     
     async def get_user_portfolio_value(self, user_id: str, current_price: float) -> dict:
         """Calculate user's portfolio value and profit/loss."""
@@ -972,7 +992,7 @@ class MarketManager:
         self.add_market_event(f"🎉 Holiday Event Cycle: {event_message}")
         
         # Reset cycle timer for next event
-        self.market_data["event_updates_remaining"] = MarketConfig.HOLIDAY_EVENT_CYCLE_INTERVAL // 3600  # Convert to hours
+        self.market_data["event_updates_remaining"] = 1  # Keep active until next cycle/update
 
 # Discord UI Components for CyberCoin Market
 class CryptoMarketView(discord.ui.View):
@@ -982,48 +1002,87 @@ class CryptoMarketView(discord.ui.View):
         super().__init__(timeout=None)
         self.message = None
     
-    @discord.ui.button(label="💰 Buy CyberCoin", style=discord.ButtonStyle.success, emoji="📈")
+    @discord.ui.button(label="💰 Buy CyberCoin", style=discord.ButtonStyle.success)
     async def buy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle buy button click."""
+        """Handle buy button click: buy exactly 1 coin and refresh."""
         if not has_cybertronian_role(interaction.user):
             await interaction.response.send_message("❌ Only verified users can trade!", ephemeral=True)
             return
         
         player_id = str(interaction.user.id)
-        current_energon = await get_player_energon(player_id)
+        market_manager = MarketManager()
+        await market_manager.initialize()
+        current_price = market_manager.market_data["current_price"]
+        available_energon = await get_player_energon(player_id)
         
-        if current_energon < MarketConfig.MIN_INVESTMENT:
+        if available_energon < current_price:
             await interaction.response.send_message(
-                f"❌ You need at least {MarketConfig.MIN_INVESTMENT} Energon to buy!", 
+                f"❌ You need at least {current_price:.2f} Energon to buy 1 CyberCoin!",
                 ephemeral=True
             )
             return
         
-        await interaction.response.send_modal(BuyCoinModal(interaction.user, current_energon, self.message))
+        # Deduct energon and record purchase of 1 coin
+        await update_player_energon(player_id, -current_price)
+        await market_manager.record_purchase(player_id, current_price, 1.0, current_price)
+        
+        # Recalculate price immediately and persist
+        new_price = market_manager.calculate_dynamic_price()
+        market_manager.market_data["current_price"] = new_price
+        market_manager.market_data["price_history"].append(new_price)
+        market_manager.update_market_trend()
+        await market_manager.save_market_data()
+        
+        # Confirm and refresh dashboard embed
+        await interaction.response.send_message(
+            f"✅ Bought 1 CyberCoin at {current_price:.2f} Energon. New price: {new_price:.2f}.",
+            ephemeral=True
+        )
+        if self.message:
+            new_embed = await create_market_embed()
+            await self.message.edit(embed=new_embed)
     
-    @discord.ui.button(label="💸 Sell CyberCoin", style=discord.ButtonStyle.danger, emoji="📉")
+    @discord.ui.button(label="💸 Sell CyberCoin", style=discord.ButtonStyle.danger)
     async def sell_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle sell button click."""
+        """Handle sell button click: sell exactly 1 coin and refresh."""
         player_id = str(interaction.user.id)
         market_manager = MarketManager()
         await market_manager.initialize()
         
-        available_coins = market_manager.get_user_available_coins(player_id)
-        current_energon = await get_player_energon(player_id)
-        
-        if available_coins <= 0:
-            await interaction.response.send_message("❌ You don't have any CyberCoins to sell!", ephemeral=True)
+        available_coins = await market_manager.get_user_available_coins(player_id)
+        if available_coins < 1.0:
+            await interaction.response.send_message("❌ You need at least 1 CyberCoin to sell!", ephemeral=True)
             return
         
-        await interaction.response.send_modal(SellCoinModal(interaction.user, available_coins, current_energon, self.message))
+        current_price = market_manager.market_data["current_price"]
+        sale_details = await market_manager.record_sale(player_id, 1.0, current_price, current_price)
+        
+        # Credit energon to user
+        await update_player_energon(player_id, current_price)
+        
+        # Recalculate price immediately and persist
+        new_price = market_manager.calculate_dynamic_price()
+        market_manager.market_data["current_price"] = new_price
+        market_manager.market_data["price_history"].append(new_price)
+        market_manager.update_market_trend()
+        await market_manager.save_market_data()
+        
+        realized_profit = float(sale_details.get('profit', 0.0)) if sale_details.get('success', True) else 0.0
+        await interaction.response.send_message(
+            f"✅ Sold 1 CyberCoin at {current_price:.2f} Energon (Profit: {realized_profit:+.2f}). New price: {new_price:.2f}.",
+            ephemeral=True
+        )
+        if self.message:
+            new_embed = await create_market_embed()
+            await self.message.edit(embed=new_embed)
 
 class BuyCoinModal(discord.ui.Modal):
     """Modal for buying CyberCoin."""
     
-    def __init__(self, user: discord.Member, current_energon: float, message: discord.Message):
+    def __init__(self, user: discord.Member, available_energon: float, message: discord.Message):
         super().__init__(title="💰 Buy CyberCoin")
         self.user = user
-        self.current_energon = current_energon
+        self.available_energon = available_energon
         self.message = message
         
         self.amount = discord.ui.TextInput(
@@ -1060,10 +1119,10 @@ class BuyCoinModal(discord.ui.Modal):
                 )
                 return
             
-            if invest_amount > self.current_energon:
-                max_coins = self.current_energon / current_price
+            if invest_amount > self.available_energon:
+                max_coins = self.available_energon / current_price
                 await interaction.response.send_message(
-                    f"❌ You only have **{self.current_energon} Energon** available (≈**{max_coins:.4f} coins** at current price)!",
+                    f"❌ You only have **{self.available_energon:.2f} Energon** available (≈**{max_coins:.4f} coins** at current price)!",
                     ephemeral=True
                 )
                 return
@@ -1072,17 +1131,25 @@ class BuyCoinModal(discord.ui.Modal):
             
             player_id = str(self.user.id)
             
+            # Deduct from current game energon first, then banked energon
+            from Systems.user_data_manager import user_data_manager
+            energon_data = await user_data_manager.get_energon_data(player_id)
+            current_game = energon_data.get("energon", 0)
+            
+            if current_game >= invest_amount:
+                energon_data["energon"] = current_game - invest_amount
+                await user_data_manager.save_energon_data(player_id, energon_data)
+            else:
+                remainder = invest_amount - current_game
+                energon_data["energon"] = 0
+                await user_data_manager.save_energon_data(player_id, energon_data)
+                success, _, _ = await user_data_manager.subtract_energon(player_id, remainder, "cybercoin_purchase")
+                if not success:
+                    await interaction.response.send_message("❌ Purchase failed due to insufficient Energon.", ephemeral=True)
+                    return
+            
             # Record the purchase using the new transaction system
-            market_manager.record_purchase(player_id, invest_amount, coins_received, current_price)
-            
-            # Update player energon
-            await update_player_energon(player_id, -invest_amount)
-            
-            # Update market data (legacy system for compatibility)
-            market_manager.market_data["buy_pressure"] += 1
-            market_manager.market_data["total_volume_24h"] += invest_amount
-            market_manager.market_data["total_coins_in_circulation"] += coins_received
-            await market_manager.save_market_data()
+            await market_manager.record_purchase(player_id, invest_amount, coins_received, current_price)
             
             # Get updated portfolio info
             portfolio_info = await market_manager.get_user_portfolio_value(player_id, current_price)
@@ -1172,16 +1239,12 @@ class SellCoinModal(discord.ui.Modal):
             player_id = str(self.user.id)
             
             # Record the sale using the new transaction system (FIFO)
-            sale_details = market_manager.record_sale(player_id, sell_amount, energon_received, current_price)
+            sale_details = await market_manager.record_sale(player_id, sell_amount, energon_received, current_price)
             
             # Update player energon
             await update_player_energon(player_id, energon_received)
             
-            # Update market data (legacy system for compatibility)
-            market_manager.market_data["sell_pressure"] += 1
-            market_manager.market_data["total_volume_24h"] += energon_received
-            market_manager.market_data["total_coins_in_circulation"] -= sell_amount
-            await market_manager.save_market_data()
+
             
             # Get updated portfolio info
             portfolio_info = await market_manager.get_user_portfolio_value(player_id, current_price)
@@ -1205,9 +1268,11 @@ class SellCoinModal(discord.ui.Modal):
                 inline=True
             )
             
+            # Safely derive realized profit from sale details
+            realized_profit = float(sale_details.get('profit', 0.0)) if sale_details.get('success', True) else 0.0
             embed.add_field(
                 name="💰 Profit from Sale",
-                value=f"**{sale_details['profit_loss']:+.2f}** Energon",
+                value=f"**{realized_profit:+.2f}** Energon",
                 inline=True
             )
             
@@ -1340,9 +1405,6 @@ async def market_update_loop():
     """Background task to update market prices and events."""
     await bot.wait_until_ready()
     
-    # Store market dashboard messages for auto-refresh
-    market_messages = []
-    
     while not bot.is_closed():
         try:
             market_manager = MarketManager()
@@ -1405,54 +1467,6 @@ async def market_update_loop():
                         market_manager.add_market_event(f"⚡ Event ended: {data['active_event']['message']}")
                         data['active_event'] = None
                     
-            # Handle holiday events - 100% guaranteed to happen on holiday days
-            current_holiday = get_current_holiday()
-            
-            if current_holiday:
-                # Initialize holiday event system if not already active
-                if not data.get('holiday_event_active'):
-                    data['holiday_event_active'] = True
-                    data['holiday_event_start_time'] = datetime.utcnow()
-                    data['last_holiday_event_type'] = 'surge'  # Start with surge
-                    data['last_holiday_cycle'] = datetime.utcnow()
-                
-                # Check if we should cycle to the next holiday event (every 5 minutes)
-                if market_manager.should_cycle_holiday_event():
-                    market_manager.cycle_holiday_event(current_holiday)
-                
-                # Ensure holiday event is always active during the holiday
-                if not data['active_event'] or not data['active_event']['type'].startswith('holiday_'):
-                    # Force create initial holiday event
-                    is_surge = random.random() < 0.5  # 50/50 initial chance
-                    event_message = market_manager.get_next_holiday_event(current_holiday, is_surge)
-                    holiday_multiplier = random.uniform(*current_holiday["multiplier_range"])
-                    
-                    data['active_event'] = {
-                        'type': f"holiday_{current_holiday['name'].lower().replace(' ', '_')}_guaranteed",
-                        'message': event_message,
-                        'multiplier': holiday_multiplier,
-                        'holiday_name': current_holiday['name']
-                    }
-                    data['event_updates_remaining'] = 1  # Keep it active for cycling
-                    
-                    market_manager.add_market_event(f"🎉 GUARANTEED Holiday Event: {event_message}")
-            else:
-                # Not a holiday - clean up holiday event tracking
-                if data.get('holiday_event_active'):
-                    data['holiday_event_active'] = False
-                    data.pop('holiday_event_start_time', None)
-                    data.pop('last_holiday_event_type', None)
-                    data.pop('last_holiday_cycle', None)
-                
-                # Handle non-holiday events
-                if data['active_event'] and data['event_updates_remaining'] > 0:
-                    data['event_updates_remaining'] -= 1
-                    
-                    # Event has ended
-                    if data['event_updates_remaining'] <= 0:
-                        market_manager.add_market_event(f"⚡ Event ended: {data['active_event']['message']}")
-                        data['active_event'] = None
-                        
                 # Random events (only when not a holiday)
                 elif random.random() < MarketConfig.EVENT_CHANCE:
                     event_type, event_data = select_weighted_event()
@@ -1474,27 +1488,21 @@ async def market_update_loop():
             market_manager.update_market_trend()
             await market_manager.save_market_data()
             
-            # Update market dashboard messages every hour
+            # Refresh market dashboard messages in registered channels
             try:
-                # Get the bot instance
-                if bot.is_ready():
-                    # Try to find market dashboard messages in configured channels
-                    from config import get_channel_ids
-                    # Note: We don't have guild context here, so we'll use None
-                    channel_ids = get_channel_ids(None)
-                    market_channel_id = channel_ids.get('cybercoin_market')
-                    
-                    if market_channel_id:
-                        channel = bot.get_channel(market_channel_id)
-                        if channel:
-                            # Find the latest market dashboard message
-                            async for message in channel.history(limit=10):
-                                if message.author == bot.user and "🚀 CyberCoin Market Dashboard" in message.embeds[0].title if message.embeds else "":
-                                    new_embed = await create_market_embed()
-                                    await message.edit(embed=new_embed)
-                                    break
+                if bot and bot.is_ready():
+                    new_embed = await create_market_embed()
+                    for channel_id in list(active_market_channels):
+                        channel = bot.get_channel(channel_id)
+                        if not channel:
+                            continue
+                        # Find the latest market dashboard message and edit it
+                        async for message in channel.history(limit=25):
+                            if message.author == bot.user and message.embeds and "🚀 CyberCoin Market Dashboard" in message.embeds[0].title:
+                                await message.edit(embed=new_embed)
+                                break
             except Exception as e:
-                print(f"Error updating market dashboard: {e}")
+                print(f"Error refreshing market dashboard: {e}")
             
         except Exception as e:
             print(f"Error in market update loop: {e}")
@@ -1502,15 +1510,73 @@ async def market_update_loop():
         await asyncio.sleep(MarketConfig.UPDATE_INTERVAL)
 
 game_manager: Optional[EnergonGameManager] = None
+market_update_task: Optional[asyncio.Task] = None
 
 async def setup(bot_instance: commands.Bot) -> None:
     """Initialize the Energon system with the bot instance."""
-    global game_manager
+    global game_manager, bot, market_update_task
     
+    bot = bot_instance
     game_manager = EnergonGameManager(bot_instance)
     await game_manager.load_game_state()
     
+    # Start the market update loop so the dashboard stays fresh
+    try:
+        if market_update_task is None or market_update_task.done():
+            market_update_task = asyncio.create_task(market_update_loop())
+    except Exception as e:
+        print(f"Failed to start market update loop: {e}")
+    
     print("Energon system initialized successfully!")
+
+# Register the channel where the market was started
+def register_market_channel(channel_id: int) -> None:
+    try:
+        active_market_channels.add(channel_id)
+    except Exception as e:
+        print(f"Error registering market channel {channel_id}: {e}")
+
+
+def is_cybercoin_market_running() -> bool:
+    """Return True if the market update loop task is running."""
+    try:
+        return market_update_task is not None and not market_update_task.done()
+    except Exception:
+        return False
+
+
+async def start_cybercoin_market() -> bool:
+    """Start or resume the CyberCoin market update loop."""
+    global market_update_task
+    if bot is None:
+        print("Cannot start market: bot instance not set.")
+        return False
+    if market_update_task and not market_update_task.done():
+        return True
+    try:
+        market_update_task = asyncio.create_task(market_update_loop())
+        return True
+    except Exception as e:
+        print(f"Failed to start market update loop: {e}")
+        return False
+
+
+async def stop_cybercoin_market() -> bool:
+    """Stop the CyberCoin market update loop."""
+    global market_update_task
+    if not market_update_task:
+        return True
+    try:
+        market_update_task.cancel()
+        try:
+            await market_update_task
+        except asyncio.CancelledError:
+            pass
+        market_update_task = None
+        return True
+    except Exception as e:
+        print(f"Failed to stop market update loop: {e}")
+        return False
 
 
 # Convenience functions for external use
@@ -1527,10 +1593,10 @@ async def get_player_stats(player_id: str) -> Dict[str, Any]:
     return {}
 
 
-def update_player_stats(player_id: str, stat_type: str, amount: int = 1) -> None:
+async def update_player_stats(player_id: str, stat_type: str, amount: int = 1) -> None:
     """Convenience function to update player stats."""
     if game_manager:
-        game_manager.update_player_stats(player_id, stat_type, amount)
+        await game_manager.update_player_stats(player_id, stat_type, amount)
 
 # Energon access functions using unified UserDataManager
 async def get_player_energon(player_id: str) -> int:
@@ -1550,9 +1616,11 @@ async def update_player_energon(player_id: str, amount: int) -> bool:
         
         # Use proper energon tracking methods for gains/losses
         if amount > 0:
-            return await user_data_manager.add_energon(player_id, amount)
+            success, *_ = await user_data_manager.add_energon(player_id, amount)
+            return success
         else:
-            return await user_data_manager.subtract_energon(player_id, abs(amount))
+            success, *_ = await user_data_manager.subtract_energon(player_id, abs(amount))
+            return success
     except Exception:
         return False
 
@@ -1607,5 +1675,9 @@ __all__ = [
     'SellCoinModal',
     'create_market_embed',
     'market_update_loop',
-    'setup'
+    'setup',
+    'register_market_channel',
+    'start_cybercoin_market',
+    'stop_cybercoin_market',
+    'is_cybercoin_market_running'
 ]
