@@ -19,19 +19,22 @@ def setup_environment():
     # Set environment variables to prevent automatic package installation
     os.environ['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
     os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+    os.environ['PYTHONNOUSERSITE'] = '1'
     os.environ['PYTHONPATH'] = str(script_dir) + os.pathsep + os.environ.get('PYTHONPATH', '')
     
-    # Add the current directory to Python path
-    if str(script_dir) not in sys.path:
-        sys.path.insert(0, str(script_dir))
+    # Add the current directory to Python path (ensure project root is first)
+    project_root = str(script_dir)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
     
-    # Prioritize local packages directory for SparkedHost
+    # Prioritize local packages directory for SparkedHost (force index 0)
     local_packages_dir = script_dir / "local_packages"
     if local_packages_dir.exists():
         local_packages_str = str(local_packages_dir)
-        if local_packages_str not in sys.path:
-            sys.path.insert(0, local_packages_str)
-        print(f"✅ Local packages directory prioritized: {local_packages_dir}")
+        # Remove any existing occurrence to avoid duplicates further down the list
+        sys.path = [p for p in sys.path if p != local_packages_str]
+        sys.path.insert(0, local_packages_str)
+        print(f"✅ Local packages directory prioritized at sys.path[0]: {local_packages_dir}")
         
         # Log available local packages for debugging
         try:
@@ -45,16 +48,66 @@ def setup_environment():
     print(f"✅ Working directory: {script_dir}")
     print(f"✅ Python path updated with {len(sys.path)} entries")
     print(f"🔍 Python path priority order:")
-    for i, path in enumerate(sys.path[:5]):  # Show first 5 entries
+    for i, path in enumerate(sys.path[:8]):  # Show first entries including local_packages and project
         print(f"   {i+1}. {path}")
 
 # Setup environment before imports
 setup_environment()
 
-
-
 # Import UserDataManager for unified data storage
 from Systems.user_data_manager import UserDataManager
+
+# Runtime check: ensure critical dependencies are vendored in local_packages
+def log_vendored_dependencies_status():
+    """Log whether key third-party packages are loaded from local_packages.
+    This helps ensure SparkedHost runs without external pip installs.
+    """
+    logger = logging.getLogger('VendoredDeps')
+    def check_module(name, import_name=None, optional=False):
+        mod_name = import_name or name
+        try:
+            mod = __import__(mod_name)
+            path = getattr(mod, '__file__', '') or ''
+            source = 'local_packages' if 'local_packages' in (path or '') else 'system'
+            logger.info(f"{name}: OK (source={source}, path={path})")
+        except Exception as e:
+            level = logger.warning if optional else logger.error
+            level(f"{name}: MISSING ({'optional' if optional else 'required'}) — {e}")
+
+    logger.info("🔎 Checking vendored dependencies availability...")
+    # Core
+    check_module('discord')
+    check_module('aiohttp')
+    check_module('requests')
+    check_module('dotenv', import_name='dotenv')
+    check_module('tqdm')
+    # AIOHTTP ecosystem
+    check_module('multidict')
+    check_module('yarl')
+    check_module('frozenlist')
+    check_module('aiosignal')
+    check_module('async_timeout')
+    # Data and typing
+    check_module('attrs', import_name='attr')
+    check_module('pydantic')
+    # Google/Gemini stack (optional in production if disabled)
+    check_module('grpc', optional=True)
+    check_module('grpc_status', optional=True)
+    check_module('protobuf', import_name='google.protobuf', optional=True)
+    check_module('googleapiclient', optional=True)
+    check_module('httplib2', optional=True)
+    # Web scraping / parsing
+    check_module('bs4', optional=True)
+    # PnW tooling
+    check_module('pnwkit', optional=True)
+    # Imaging (used for treaty image; optional fallback exists)
+    try:
+        from PIL import Image  # noqa: F401
+        logger.info("Pillow: OK (source=unknown; check module path)")
+    except Exception as e:
+        logger.warning(f"Pillow: MISSING (optional) — {e}")
+
+    logger.info("✅ Vendored dependency check completed.")
 
 # Enhanced error handling and logging setup
 class ColoredFormatter(logging.Formatter):
@@ -279,20 +332,30 @@ class AllsparkBot(commands.Bot):
         ]
         
         secondary_modules = [
-        ('energon_commands', 'Systems.EnergonPets.energon_commands'),
-        ('pets_commands', 'Systems.EnergonPets.pets_commands'),
-        ('pets_mega', 'Systems.EnergonPets.pets_mega'),
-        ('battle_commands', 'Systems.EnergonPets.battle_commands'),
-        ('cybercoin_test', 'Systems.EnergonPets.cybercoin_test'),
-        ('rpg_commands', 'Systems.EnergonPets.RPG.rpg_commands'),
-        ('trivia', 'Systems.trivia'),
-        ('fun_system', 'Systems.Random.fun_system'),
-        ('talk_system', 'Systems.Random.talk_system'),
-        ('themer', 'Systems.Random.themer'),
-        ('hunger_games', 'Systems.Random.hunger_games'),
-        ('pnw_recruit', 'Systems.PnW.recruit'),
-        ('military_affairs', 'Systems.PnW.ma')
-    ]
+            ('energon_commands', 'Systems.EnergonPets.energon_commands'),
+            ('pets_commands', 'Systems.EnergonPets.pets_commands'),
+            ('pets_mega', 'Systems.EnergonPets.pets_mega'),
+            ('battle_commands', 'Systems.EnergonPets.battle_commands'),
+            ('cybercoin_test', 'Systems.EnergonPets.cybercoin_test'),
+            ('rpg_commands', 'Systems.EnergonPets.RPG.rpg_commands'),
+            ('trivia', 'Systems.trivia'),
+            ('fun_system', 'Systems.Random.fun_system'),
+            ('talk_system', 'Systems.Random.talk_system'),
+            ('goodevil', 'Systems.Random.goodevil'),
+            ('themer', 'Systems.Random.themer'),
+            ('hunger_games', 'Systems.Random.hunger_games'),
+            ('pnw_recruit', 'Systems.PnW.recruit'),
+            ('pnw_ma_destroy', 'Systems.PnW.MA.destroy'),
+            ('pnw_ma_show', 'Systems.PnW.MA.show'),
+            ('pnw_ma_bloc', 'Systems.PnW.MA.bloc'),
+            ('pnw_ma_blitz', 'Systems.PnW.MA.blitz'),
+            ('pnw_ma_alliance', 'Systems.PnW.MA.alliance'),
+            ('pnw_ma_compare', 'Systems.PnW.MA.compare'),
+            ('pnw_ma_war_cost', 'Systems.PnW.MA.war_cost'),
+            ('pnw_snipe', 'Systems.PnW.snipe'),
+            ('pnw_audit', 'Systems.PnW.MA.audit'),
+            ('horoscope_signs', 'Systems.Horoscope.signs')
+        ]
         
         all_modules = primary_modules + secondary_modules
 
@@ -369,7 +432,7 @@ class AllsparkBot(commands.Bot):
             'pets_system', 'pets_commands', 'battle_commands', 'cybercoin_test'
         ]]
         optional_loaded = [m for m in self.loaded_modules if m in [
-            'fun_system', 'talk_system', 'me', 'themer', 'hunger_games', 'pnw_recruit', 'military_affairs'
+            'fun_system', 'talk_system', 'goodevil', 'me', 'themer', 'hunger_games', 'pnw_recruit', 'pnw_snipe', 'pnw_audit'
         ]]
         
         logger.info("=" * 60)
@@ -427,19 +490,8 @@ class AllsparkBot(commands.Bot):
             for guild in self.guilds:
                 logger.info(f"   🏰 {guild.name} ({guild.id}) - {guild.member_count} members")
         
-        try:
-            # Wait for Discord to stabilize connection
-            logger.info("⏳ Waiting for Discord connection to stabilize...")
-            await asyncio.sleep(5)
-            
-            # Sync commands with staged approach
-            logger.info("🔄 Beginning staged command sync...")
-            synced = await self.tree.sync()
-            logger.info(f"✅ Synced {len(synced)} slash commands")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to sync commands: {e}")
-            logger.error(traceback.format_exc())
+        # Commands are synced during setup_hook via sync_commands_safely; no extra sync here
+        logger.info("🧭 Bot is ready. Commands were synced during setup.")
 
     async def on_member_join(self, member):
         """Welcome new members"""
@@ -815,6 +867,9 @@ if __name__ == "__main__":
         logger.info("=" * 60)
         logger.info("🔧 SPARKEDHOST STARTUP SEQUENCE")
         logger.info("=" * 60)
+        
+        # Verify vendored dependency availability before connecting
+        log_vendored_dependencies_status()
         
         # Log system information for debugging
         bot.log_system_info()
