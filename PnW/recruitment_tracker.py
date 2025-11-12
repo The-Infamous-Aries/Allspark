@@ -40,10 +40,12 @@ class RecruitmentTracker:
             if leader_name and leader_name != self.history[nation_id]['leader_name']:
                 self.history[nation_id]['leader_name'] = leader_name
         
+        # Resolve the human-readable title from recruit.json
+        message_title = await self._get_message_title_async(message_number)
         self.history[nation_id]['messages'].append({
             'message_number': message_number,
             'sent_at': datetime.now(timezone.utc).isoformat(),
-            'message_title': self._get_message_title(message_number)
+            'message_title': message_title
         })
         
         # Keep only last 100 messages per nation to prevent file bloat
@@ -53,8 +55,26 @@ class RecruitmentTracker:
         await self._save_history()
     
     def _get_message_title(self, message_number: int) -> str:
-        """Get the title for a message number (for tracking purposes)."""
+        """Fallback title if recruit.json lookup fails."""
         return f"Message #{message_number}"
+
+    async def _get_message_title_async(self, message_number: int) -> str:
+        """Resolve the message title from recruit.json by message_number."""
+        try:
+            data = await self.user_data_manager.load_json_data('recruit')
+            messages = data.get('messages', []) if isinstance(data, dict) else []
+            for msg in messages:
+                try:
+                    if int(msg.get('message_number', -1)) == int(message_number):
+                        title = msg.get('title')
+                        if isinstance(title, str) and title.strip():
+                            return title.strip()
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Fallback to generic title
+        return self._get_message_title(message_number)
     
     async def can_send_message(self, nation_id: str, message_number: int) -> bool:
         """

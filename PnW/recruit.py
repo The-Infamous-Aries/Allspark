@@ -150,7 +150,9 @@ class RecruitCog(commands.Cog):
             print(f"🔄 Starting PnW API fetch for ALL nations...")
             
             # Load nations page by page until we get all of them
-            while True:
+            max_pages = 1000  # Safety limit to prevent infinite loops
+            pages_fetched = 0
+            while pages_fetched < max_pages:
                 try:
                     query = kit.query("nations", {
                         "first": page_size,
@@ -182,6 +184,7 @@ class RecruitCog(commands.Cog):
                         
                     all_nations.extend(nations)
                     page_num += 1
+                    pages_fetched += 1
                     
                     # Add a small delay to avoid overwhelming the API
                     await asyncio.sleep(0.1)
@@ -189,6 +192,10 @@ class RecruitCog(commands.Cog):
                 except Exception as page_error:
                     print(f"❌ Error on page {page_num}: {str(page_error)}")
                     break
+            
+            # Safety check if we hit the max pages limit
+            if pages_fetched >= max_pages:
+                print(f"⚠️ WARNING: Hit maximum page limit ({max_pages}), may not have fetched all nations")
                         
             print(f"🔍 DEBUG: Fetched {len(all_nations)} total nations from API")
             
@@ -357,9 +364,6 @@ class RecruitCog(commands.Cog):
         # Format the message with leader name
         body = message["message"].format(leader_name=leader_name)
         
-        # Append plain-text Discord and Alliance links (no HTML)
-        body += "\n\nDiscord: https://discord.gg/JSAEGjmUQG\nAlliance: https://politicsandwar.com/alliance/id=9445"
-
         # Sanitize subject/body for API compliance
         subject_sanitized = self._sanitize_text(subject, max_len=80)
         body_sanitized = self._sanitize_text(body, max_len=900)
