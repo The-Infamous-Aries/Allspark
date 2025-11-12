@@ -1,2014 +1,2112 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
-import asyncio
+from discord import app_commands, ui, ButtonStyle, Embed, File
 import random
 import logging
-from groq import Groq
-from typing import Dict, List, Any, Union, Optional, Tuple
+from typing import Dict, List, Any, Tuple, Optional
+import math
 import json
-from datetime import datetime, timedelta
-from discord.ui import Button, View
-import sys
 import os
-import re
-import shutil
+from io import BytesIO
+import asyncio
+from datetime import datetime
 
-# Add parent directory to path to import config
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from config import GROQ_API_KEY
+# Optional image generation support
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageChops
+    PIL_AVAILABLE = True
+except Exception:
+    Image = None
+    ImageDraw = None
+    ImageFont = None
+    ImageChops = None
+    PIL_AVAILABLE = False
 
 logger = logging.getLogger("allspark.cybertron_games")
 
 DISCORD_CHAR_LIMIT = 2000
 
-# Helper function to break a long message into chunks
-async def _send_long_message_in_chunks(channel: discord.TextChannel, content: str, view: View = None):
-    """Sends a message, breaking it into chunks <= 2000 characters if necessary."""
-    if not content:
-        return
-        
-    chunks = [content[i:i + DISCORD_CHAR_LIMIT] for i in range(0, len(content), DISCORD_CHAR_LIMIT)]
-    
-    # Send all chunks
-    for i, chunk in enumerate(chunks):
-        # Only attach the view to the final chunk
-        current_view = view if i == len(chunks) - 1 else None
-        
-        # Use a minimal separator for continuation, or nothing if the first part
-        prefix = ""
-        if i > 0:
-            prefix = "*(... continuation ...)*\n"
-            
-        await channel.send(content=prefix + chunk, view=current_view)
+# Data paths (relative to Systems directory)
+_SYSTEMS_DIR = os.path.dirname(os.path.dirname(__file__))
+_DATA_DIR = os.path.join(_SYSTEMS_DIR, 'Data', 'Hunger Games')
+_ACTIONS_PATH = os.path.join(_DATA_DIR, 'actions.json')
+_ELIMS_PATH = os.path.join(_DATA_DIR, 'eliminations.json')
+_VEHICLE_PATH = os.path.join(_DATA_DIR, 'vehicle.json')
+_LOCATION_PATH = os.path.join(_DATA_DIR, 'location.json')
 
-class CybertronGamesGenerator:
-    """AI-powered Transformers-themed Cybertron Games story generator"""
-    
-    def __init__(self, api_key: str = None):
-        """Initialize the AI Cybertron Games Generator with Groq API"""
-        self.game_state: Dict[str, Any] = {}
-        self.round_history: List[str] = []
-        self.faction_tracker = {}   # Track faction assignments
-        self.active_games = {}
-        self.active_views = {}
-        self.eliminated = set()     # Track eliminated warriors
-        self.original_participants = {}  # Store original participants for each game
-        self.game_states_dir = os.path.join(os.path.dirname(__file__), 'game_states')
-        
-        # Create game states directory if it doesn't exist
-        os.makedirs(self.game_states_dir, exist_ok=True)
-        
-        if api_key:
-            try:
-                self.client = Groq(api_key=api_key)
-                self.model = "llama-3.1-8b-instant" # or "mixtral-8x7b-32768"
-                self.use_ai = True
-                logger.info(f"✅ AI initialized successfully with Groq API for Cybertron Games")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize AI: {e}")
-                self.use_ai = False
-                self.model = None
-        else:
-            logger.warning("⚠️  No API key provided - using fallback cybertronian narratives")
-            self.use_ai = False
-            self.model = None
 
-    def _get_game_file_path(self, game_key: str) -> str:
-        """Get the file path for a game state JSON file"""
-        return os.path.join(self.game_states_dir, f'cybertron_game_{game_key}.json')
+def _load_json(path: str) -> Dict[str, Any]:
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-    def _save_game_state_to_file(self, game_key: str, game_data: Dict[str, Any]) -> bool:
-        """Save game state to JSON file"""
-        try:
-            file_path = self._get_game_file_path(game_key)
-            
-            # Convert participants to serializable format
-            serializable_data = game_data.copy()
-            serializable_data['participants'] = [
-                {
-                    'id': p.id,
-                    'name': p.name,
-                    'display_name': p.display_name,
-                    'bot': p.bot
-                }
-                for p in game_data['participants']
-            ]
-            
-            # Convert datetime to string
-            if 'start_time' in serializable_data and isinstance(serializable_data['start_time'], datetime):
-                serializable_data['start_time'] = serializable_data['start_time'].isoformat()
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(serializable_data, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"✅ Game state saved to {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to save game state: {e}")
-            return False
 
-    def _load_game_state_from_file(self, game_key: str) -> Optional[Dict[str, Any]]:
-        """Load game state from JSON file"""
-        try:
-            file_path = self._get_game_file_path(game_key)
-            if not os.path.exists(file_path):
-                return None
-            
-            with open(file_path, 'r', encoding='utf-8') as f:
-                serializable_data = json.load(f)
-            
-            # Convert participants back to discord.Member objects (simplified version)
-            # Note: This will need to be enhanced when loading from actual Discord context
-            game_data = serializable_data.copy()
-            
-            # Convert datetime string back to datetime object
-            if 'start_time' in game_data and isinstance(game_data['start_time'], str):
-                game_data['start_time'] = datetime.fromisoformat(game_data['start_time'])
-            
-            # Restore original participants for validation
-            if 'participants' in game_data and game_key not in self.original_participants:
-                self.original_participants[game_key] = [p.display_name if hasattr(p, 'display_name') else str(p) 
-                                                       for p in game_data['participants']]
-            
-            logger.info(f"✅ Game state loaded from {file_path}")
-            return game_data
-        except Exception as e:
-            logger.error(f"❌ Failed to load game state: {e}")
-            return None
+class DataPools:
+    def __init__(self):
+        self.actions_by_style: Dict[str, List[str]] = {}
+        self.elims_by_style: Dict[str, List[str]] = {}
+        self.vehicles: Dict[str, List[Any]] = {}
+        self.locations: Dict[str, List[str]] = {}
 
-    def _delete_game_state_file(self, game_key: str) -> bool:
-        """Delete game state JSON file"""
-        try:
-            file_path = self._get_game_file_path(game_key)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                logger.info(f"✅ Game state file deleted: {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to delete game state file: {e}")
-            return False
+    def reload(self):
+        actions = _load_json(_ACTIONS_PATH)
+        eliminations = _load_json(_ELIMS_PATH)
+        vehicles = _load_json(_VEHICLE_PATH)
+        locations = _load_json(_LOCATION_PATH)
 
-    def _cleanup_old_game_files(self, max_age_hours: int = 24) -> int:
-        """Clean up old game state files older than max_age_hours"""
-        try:
-            cleaned_count = 0
-            current_time = datetime.now()
-            
-            for filename in os.listdir(self.game_states_dir):
-                if filename.startswith('cybertron_game_') and filename.endswith('.json'):
-                    file_path = os.path.join(self.game_states_dir, filename)
-                    try:
-                        file_stat = os.stat(file_path)
-                        file_age = current_time - datetime.fromtimestamp(file_stat.st_mtime)
-                        
-                        if file_age > timedelta(hours=max_age_hours):
-                            os.remove(file_path)
-                            cleaned_count += 1
-                            logger.info(f"Cleaned up old game file: {filename}")
-                    except Exception as e:
-                        logger.warning(f"Could not process file {filename}: {e}")
-            
-            logger.info(f"Cleaned up {cleaned_count} old game files")
-            return cleaned_count
-        except Exception as e:
-            logger.error(f"Failed to cleanup old game files: {e}")
-            return 0
-
-    async def _generate_champion_summary(self, game_data: Dict[str, Any], champion: str) -> str:
-        """Generate AI summary of champion's journey"""
-        if not self.use_ai:
-            return None
+        # Extract entries from the new format
+        self.actions_by_style = {}
+        self.elims_by_style = {}
         
-        try:
-            # Get champion's faction and round history
-            assignments = game_data['assignments']
-            round_history = game_data['round_history']
-            
-            champion_faction_data = assignments.get(champion, "Unknown")
-            if isinstance(champion_faction_data, dict) and 'faction' in champion_faction_data:
-                champion_faction = champion_faction_data['faction']
-            elif isinstance(champion_faction_data, str):
-                champion_faction = champion_faction_data
-            else:
-                champion_faction = "Unknown"
-            
-            # Build detailed champion actions per round
-            champion_actions = []
-            eliminations_caused = []
-            faction_changes = []
-            
-            for round_num, round_data in enumerate(round_history, 1):
-                round_info = f"Round {round_num}: "
-                
-                # Check faction changes
-                if "faction_changes" in round_data:
-                    for change in round_data["faction_changes"]:
-                        if isinstance(change, dict) and change.get("warrior") == champion:
-                            faction_changes.append(f"Round {round_num}: Switched from {change.get('from_faction', 'Unknown')} to {change.get('to_faction', 'Unknown')} - {change.get('reason', 'changed allegiances')}")
-                
-                # Check eliminations caused by champion
-                if "eliminated" in round_data:
-                    for elimination in round_data["eliminated"]:
-                        if isinstance(elimination, dict) and elimination.get("eliminated_by") == champion:
-                            eliminations_caused.append(f"Round {round_num}: Eliminated {elimination.get('warrior', 'Unknown')} via {elimination.get('method', 'unknown method')}")
-                
-                # Extract champion's role from narrative
-                if "narrative" in round_data and isinstance(round_data["narrative"], str):
-                    narrative = round_data["narrative"]
-                    # Look for champion's name in the narrative to extract their actions
-                    if champion in narrative:
-                        # Extract sentences mentioning the champion
-                        sentences = [s.strip() for s in narrative.split('.') if champion in s]
-                        if sentences:
-                            champion_actions.append(f"Round {round_num}: {'; '.join(sentences)}")
-            
-            # Build context about champion's journey with detailed actions
-            journey_context = f"""
-            Cybertron Games Champion Analysis:
-            - Champion: {champion}
-            - Final Faction: {champion_faction}
-            - Total Rounds: {game_data['current_round']}
-            - Total Eliminations: {len(game_data['eliminations'])}
-            - Rounds Participated: {len(round_history)}
-            
-            Champion's Detailed Journey:
-            
-            FACTION CHANGES ({len(faction_changes)}):
-            {chr(10).join(faction_changes) if faction_changes else 'No faction changes'}
-            
-            ELIMINATIONS CAUSED ({len(eliminations_caused)}):
-            {chr(10).join(eliminations_caused) if eliminations_caused else 'No direct eliminations recorded'}
-            
-            ROUND-BY-ROUND ACTIONS:
-            {chr(10).join(champion_actions) if champion_actions else 'No specific actions found in narratives'}
-            
-            Based on this detailed round-by-round analysis of the champion's actions throughout the Cybertron Games, 
-            provide a compelling narrative summary of their journey to victory. Focus on:
-            1. Their strategic choices and evolution across rounds
-            2. Key faction loyalty shifts and their impact
-            3. Specific combat achievements and eliminations they caused
-            4. How they adapted their tactics round by round
-            5. The defining moments that led to their ultimate triumph on Cybertron
-            
-            Make the narrative specific to their actual recorded actions, not generic praise."""
-            
-            completion = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": "You are a Cybertronian historian documenting the legendary Cybertron Games. Create a compelling narrative of the champion's journey based on their specific recorded actions, eliminations, and faction changes throughout the games."
-                    },
-                    {
-                        "role": "user", 
-                        "content": journey_context
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=300,
-                top_p=1
-            )
-            
-            champion_summary = completion.choices[0].message.content.strip()
-            return f"*{champion_summary}*"
-            
-        except Exception as e:
-            logger.error(f"Failed to generate champion summary: {e}")
-            return None
-
-    def has_cybertronian_role(self, member: discord.Member) -> bool:
-        """Check if a member has any Cybertronian role using the server-specific role ID system"""
-        if not member or not member.roles:
-            return False
-            
-        from config import get_role_ids
-        
-        guild_id = member.guild.id if member.guild else None
-        role_ids_config = get_role_ids(guild_id)
-        
-        cybertronian_roles = []
-        for role_name in ['Autobot', 'Decepticon', 'Maverick', 'Cybertronian_Citizen']:
-            role_ids = role_ids_config.get(role_name, [])
-            if isinstance(role_ids, list):
-                cybertronian_roles.extend(role_ids)
-            elif role_ids:  # Only add non-None, non-zero values
-                cybertronian_roles.append(role_ids)
-        
-        # Filter out any None or 0 values that might have slipped through
-        cybertronian_roles = [role_id for role_id in cybertronian_roles if role_id and role_id != 0]
-        
-        member_role_ids = [role.id for role in member.roles]
-        return any(role_id in member_role_ids for role_id in cybertronian_roles)
-
-    def assign_factions(self, warriors: List[Union[str, discord.Member]], faction_count: int = 2) -> Dict[str, Dict[str, str]]:
-        """Assign random factions to warriors for the game"""
-        
-        faction_names = [
-            "Autobot", "Decepticon", "Maximal", "Predacon", "Neutral",
-            "Seeker", "Wrecker", "Dinobot", "Guardian", "Titan",
-            "Cybertronian Knight", "Technobot", "Monsterbot", "Targetmaster",
-            "Headmaster", "Powermaster", "Micromaster", "Action Master",
-            "Stunticon", "Combaticon", "Constructicon", "Terrorcon",
-            "Protectobot", "Aerialbot", "Technobot", "Seacon",
-            "Throttlebot", "Clones", "Delorean", "Omnibot",
-            "Sparklings", "Scavengers", "Reflectors", "Junkions",
-            "Bounty Hunter", "Gladiators", "Science Division", "Explorers",
-            "Peacekeepers", "Rebel Alliance", "Black Ops", "Shadow Syndicate"
-        ]
-        
-        factions = faction_names[:faction_count]
-        assignments = {}
-        
-        for i, warrior in enumerate(warriors):
-            warrior_name = warrior.display_name if isinstance(warrior, discord.Member) else str(warrior)
-            faction = factions[i % len(factions)]
-            
-            self.faction_tracker[warrior_name] = faction
-            assignments[warrior_name] = {"faction": faction}
-        
-        return assignments
-
-    def _generate_cybertron_round(self, round_num: int, participants: List[discord.Member], previous_round: str = None) -> Dict[str, Any]:
-        """Generate a pure Transformers-themed round using AI with structured output"""
-        
-        if not self.use_ai or not self.model or not hasattr(self, 'client') or not self.client:
-            logger.warning(f"AI not available: use_ai={self.use_ai}, model={self.model}, client={getattr(self, 'client', None)}")
-            return self._generate_fallback_cybertron_round_structured(round_num, participants)
-
-        alive_tributes = [p.display_name for p in participants]
-        
-        # Build faction data for the prompt
-        faction_prompt_part = ""
-        factions_dict = {}
-        for p in participants:
-            faction = self.faction_tracker.get(p.display_name, 'Neutral')
-            if faction not in factions_dict:
-                factions_dict[faction] = []
-            factions_dict[faction].append(p.display_name)
-        
-        faction_prompt_part += "**CURRENT FACTIONS:**\n"
-        for faction, members in factions_dict.items():
-            faction_prompt_part += f"- **{faction}**: {', '.join(members)}\n"
-
-        # Build simple history context
-        history_context = ""
-        if previous_round:
-            history_context = f"\n**LAST ROUND'S NARRATIVE:**\n{previous_round}\n"
-        
-        # Add elimination history context
-        elimination_context = ""
-        if self.eliminated:
-            elimination_context = f"\n**PREVIOUSLY ELIMINATED WARRIORS (DO NOT INCLUDE IN SURVIVORS):**\n{', '.join(sorted(list(self.eliminated)))}\n"
-
-        prompt = f"""
-        You are the **Oracle of Cybertron**, master storyteller for the **Cybertron Games**.
-        Create a narrative for ROUND {round_num} involving the remaining sparks.
-        
-        **CURRENT IGNITED SPARKS:**
-        {", ".join(alive_tributes)}
-        
-        {faction_prompt_part}
-        
-        {history_context}
-        
-        {elimination_context}
-        
-        Your narrative must describe energon-fueled combat, alliance shifts, faction changes, and eliminations. Do not use human terms.
-        
-        CRITICAL REQUIREMENTS - YOU MUST INCLUDE ALL OF THESE:
-        1. faction_descriptions MUST include descriptions for ALL current factions: {list(factions_dict.keys())}
-        2. survivors MUST be a complete list of ALL warriors still alive after this round - DO NOT include any warriors listed in PREVIOUSLY ELIMINATED WARRIORS
-        3. eliminated MUST include 1-2 eliminations with specific warrior names, who eliminated them, and creative Transformers-themed methods
-        IMPORTANT: eliminated_by MUST be a DIFFERENT warrior name from the warrior being eliminated - NEVER use the same name as the warrior being eliminated. Use another warrior's name, "environmental hazard", "energon explosion", "the arena itself", or similar creative causes if no other warriors are available.
-        4. faction_changes should include 0-1 changes with specific warrior names and detailed reasons
-        5. narrative must be detailed and engaging, at least 2-3 sentences with specific events
-        6. Use actual warrior names from: {alive_tributes}
-        7. Make eliminations creative (laser cores, energon weapons, transformation failures, etc.)
-        8. DO NOT mention or include ANY warriors from the PREVIOUSLY ELIMINATED WARRIORS list in your narrative or survivors list
-        
-        Return your response in this exact JSON format:
-        {{
-            "faction_descriptions": {{
-                "faction_name": "detailed description of what this faction did this round",
-                "another_faction": "detailed description of their specific actions"
-            }},
-            "faction_changes": [
-                {{
-                    "warrior": "warrior_name",
-                    "from_faction": "old_faction",
-                    "to_faction": "new_faction", 
-                    "reason": "specific reason for faction change"
-                }}
-            ],
-            "eliminated": [
-                {{
-                    "warrior": "warrior_name",
-                    "eliminated_by": "killer_name or cause",
-                    "method": "creative Transformers-themed elimination method"
-                }}
-            ],
-            "survivors": ["complete", "list", "of", "all", "surviving", "warriors"],
-            "narrative": "detailed story text describing specific events and actions"
-        }}
-        
-        Make sure to include ALL warriors in the survivors list who are still alive - EXCLUDE any warriors from PREVIOUSLY ELIMINATED WARRIORS.
-        RETURN ONLY VALID JSON - NO MARKDOWN FORMATTING OR ADDITIONAL TEXT.
-        """
-        
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            response_text = response.choices[0].message.content.strip()
-            
-            if not response_text:
-                raise ValueError("Empty response from AI")
-            
-            try:
-                structured_data = json.loads(response_text)
-                logger.info(f"AI response parsed successfully: {structured_data}")
-                
-                # Enhanced validation to prevent raw JSON display
-                # Check if the parsed data is still a string (indicates raw JSON was returned)
-                if isinstance(structured_data, str):
-                    logger.warning(f"AI returned raw JSON string instead of structured data: {structured_data[:200]}...")
-                    self._process_narrative(response_text, participants)
-                    return self._convert_text_to_structured(response_text, participants)
-                
-                # Validate the structure of the data
-                if not isinstance(structured_data, dict):
-                    logger.warning(f"AI response is not a dictionary, falling back to text parsing")
-                    self._process_narrative(response_text, participants)
-                    return self._convert_text_to_structured(response_text, participants)
-                
-                # Validate required fields and their types
-                required_fields = {
-                    'faction_descriptions': dict,
-                    'faction_changes': list,
-                    'eliminated': list,
-                    'survivors': list,
-                    'narrative': str
-                }
-                
-                for field, expected_type in required_fields.items():
-                    if field in structured_data:
-                        if not isinstance(structured_data[field], expected_type):
-                            logger.warning(f"Field '{field}' has wrong type: expected {expected_type}, got {type(structured_data[field])}")
-                            if field == 'narrative':
-                                structured_data[field] = "The battle continues with various warriors taking action."
-                            elif field in ['faction_changes', 'eliminated', 'survivors']:
-                                structured_data[field] = []
-                            elif field == 'faction_descriptions':
-                                structured_data[field] = {}
-                    else:
-                        logger.warning(f"Missing required field '{field}' in AI response")
-                        if field == 'narrative':
-                            structured_data[field] = "The battle continues with various warriors taking action."
-                        elif field in ['faction_changes', 'eliminated', 'survivors']:
-                            structured_data[field] = []
-                        elif field == 'faction_descriptions':
-                            structured_data[field] = {}
-                
-                # Additional validation for narrative to ensure it doesn't contain raw JSON
-                if 'narrative' in structured_data and isinstance(structured_data['narrative'], str):
-                    narrative = structured_data['narrative'].strip()
-                    if narrative.startswith(('{', '[')) or '```json' in narrative.lower():
-                        logger.warning(f"Narrative contains raw JSON: {narrative[:200]}...")
-                        structured_data['narrative'] = "The battle continues with various warriors taking action."
-                
-                # Validate survivors list contains proper strings
-                if 'survivors' in structured_data and isinstance(structured_data['survivors'], list):
-                    valid_survivors = []
-                    for survivor in structured_data['survivors']:
-                        if isinstance(survivor, str) and not survivor.startswith(('{', '[')):
-                            valid_survivors.append(survivor)
-                        else:
-                            logger.warning(f"Invalid survivor entry (contains JSON): {survivor}")
-                    structured_data['survivors'] = valid_survivors
-                
-                # Validate faction descriptions don't contain raw JSON
-                if 'faction_descriptions' in structured_data and isinstance(structured_data['faction_descriptions'], dict):
-                    valid_descriptions = {}
-                    for faction, description in structured_data['faction_descriptions'].items():
-                        if isinstance(description, str) and not description.startswith(('{', '[')):
-                            valid_descriptions[faction] = description
-                        else:
-                            logger.warning(f"Invalid faction description for {faction} (contains JSON): {description}")
-                            valid_descriptions[faction] = f"The {faction} faction acted this round."
-                    structured_data['faction_descriptions'] = valid_descriptions
-                
-                # Ensure eliminations is a list of dictionaries, not raw text
-                if "eliminated" in structured_data and not isinstance(structured_data["eliminated"], list):
-                    logger.warning(f"Eliminations field is not a list, attempting to fix")
-                    structured_data["eliminated"] = []
-                
-                # Validate each elimination entry
-                if "eliminated" in structured_data and isinstance(structured_data["eliminated"], list):
-                    valid_eliminations = []
-                    for elimination in structured_data["eliminated"]:
-                        if isinstance(elimination, dict) and "warrior" in elimination:
-                            valid_eliminations.append(elimination)
-                        else:
-                            logger.warning(f"Invalid elimination entry: {elimination}")
-                    structured_data["eliminated"] = valid_eliminations
-                
-                # Ensure complete data before processing
-                structured_data = self._ensure_complete_data(structured_data, participants)
-                
-                self._process_structured_narrative(structured_data, participants)
-                logger.info(f"✅ AI generated structured Cybertron Round {round_num} successfully")
-                return structured_data
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON parsing failed for round {round_num}, falling back to text parsing: {e}")
-                self._process_narrative(response_text, participants)
-                structured_data = self._convert_text_to_structured(response_text, participants)
-                return self._ensure_complete_data(structured_data, participants)
-            
-        except Exception as e:
-            logger.error(f"❌ AI generation failed: {e}, using enhanced cybertronian fallback")
-            fallback_data = self._generate_fallback_cybertron_round_structured(round_num, participants)
-            return self._ensure_complete_data(fallback_data, participants)
-
-    def _process_structured_narrative(self, structured_data: Dict[str, Any], participants: List[discord.Member]):
-        """Process structured narrative data from AI"""
-        # Process faction changes
-        if "faction_changes" in structured_data:
-            for change in structured_data["faction_changes"]:
-                warrior = change.get("warrior", "")
-                to_faction = change.get("to_faction", "Neutral")
-                if warrior:
-                    self.faction_tracker[warrior] = to_faction
-                    logger.info(f"Faction change: {warrior} -> {to_faction}")
+        # Process actions
+        if 'entries' in actions:
+            for entry in actions['entries']:
+                style = entry.get('style')
+                if not style:
+                    continue
+                if style not in self.actions_by_style:
+                    self.actions_by_style[style] = []
+                if 'templates' in entry and isinstance(entry['templates'], list):
+                    self.actions_by_style[style].extend(entry['templates'])
+                elif 'template' in entry and isinstance(entry['template'], str):
+                    self.actions_by_style[style].append(entry['template'])
         
         # Process eliminations
-        eliminated_this_round = []
-        if "eliminated" in structured_data:
-            for elimination in structured_data["eliminated"]:
-                if isinstance(elimination, dict):
-                    warrior = elimination.get("warrior", "")
-                    eliminated_by = elimination.get("eliminated_by", "unknown")
-                    method = elimination.get("method", "unknown method")
-                    
-                    if warrior:
-                        eliminated_this_round.append(warrior)
-                        logger.info(f"Eliminated: {warrior} by {eliminated_by} via {method}")
-                else:
-                    logger.warning(f"Invalid elimination entry: {elimination}")
-        
-        # Update participant tracking
-        current_participants = [p.display_name for p in participants]
-        for warrior in eliminated_this_round:
-            if warrior in current_participants:
-                self.eliminated.add(warrior)
-        
-        logger.info(f"Processed structured narrative: {len(structured_data.get('faction_changes', []))} faction changes, {len(eliminated_this_round)} eliminations")
+        if 'entries' in eliminations:
+            for entry in eliminations['entries']:
+                style = entry.get('style')
+                if not style:
+                    continue
+                if style not in self.elims_by_style:
+                    self.elims_by_style[style] = []
+                if 'templates' in entry and isinstance(entry['templates'], list):
+                    self.elims_by_style[style].extend(entry['templates'])
+                elif 'template' in entry and isinstance(entry['template'], str):
+                    self.elims_by_style[style].append(entry['template'])
 
-    def _convert_text_to_structured(self, story_text: str, participants: List[discord.Member]) -> Dict[str, Any]:
-        """Convert old text format to structured format"""
-        # This is a fallback method to convert text to structured format
-        structured = {
-            "faction_descriptions": {},
-            "faction_changes": [],
-            "eliminated": [],
-            "survivors": [],
-            "narrative": story_text
-        }
-        
-        # Try to extract survivors (everyone not eliminated)
-        current_names = [p.display_name for p in participants]
-        eliminated_names = list(self.eliminated)
-        structured["survivors"] = [name for name in current_names if name not in eliminated_names]
-        
-        # Try to parse faction changes and eliminations from text (basic parsing)
-        # This is a simplified version - in production you'd want more sophisticated parsing
-        lines = story_text.split('\n')
-        for line in lines:
-            line = line.strip()
-            # Look for elimination patterns
-            if any(keyword in line.lower() for keyword in ['eliminated', 'defeated', 'destroyed', 'fallen']):
-                # Basic extraction - this could be improved
-                for name in current_names:
-                    if name in line and name not in eliminated_names:
-                        structured["eliminated"].append({
-                            "warrior": name,
-                            "eliminated_by": "unknown",
-                            "method": line
-                        })
-                        break
-        
-        return structured
+        self.vehicles = vehicles
+        # Flatten or keep styles for locations; pick randomly across styles at runtime
+        self.locations = locations.get('locations', {})
 
-    def _validate_round_data_against_original_participants(self, structured_data: Dict[str, Any], original_participants: List[discord.Member]) -> Dict[str, Any]:
-        """Validate that all names in the generated round data are from the original participant list"""
-        original_names = [p.display_name for p in original_participants]
-        
-        # Validate survivors
-        if 'survivors' in structured_data and isinstance(structured_data['survivors'], list):
-            valid_survivors = []
-            for survivor in structured_data['survivors']:
-                if isinstance(survivor, str) and survivor in original_names:
-                    valid_survivors.append(survivor)
-                else:
-                    logger.warning(f"Invalid survivor '{survivor}' - not in original participants")
-            structured_data['survivors'] = valid_survivors
-        
-        # Validate eliminations
-        if 'eliminated' in structured_data and isinstance(structured_data['eliminated'], list):
-            valid_eliminations = []
-            for elimination in structured_data['eliminated']:
-                if isinstance(elimination, dict) and 'warrior' in elimination:
-                    warrior = elimination['warrior']
-                    if warrior in original_names:
-                        # Also validate eliminated_by field
-                        eliminated_by = elimination.get('eliminated_by', 'unknown')
-                        if eliminated_by != 'unknown' and eliminated_by not in original_names:
-                            logger.warning(f"Invalid eliminated_by '{eliminated_by}' - not in original participants, changing to 'unknown'")
-                            elimination['eliminated_by'] = 'unknown'
-                        valid_eliminations.append(elimination)
-                    else:
-                        logger.warning(f"Invalid elimination warrior '{warrior}' - not in original participants")
-            structured_data['eliminated'] = valid_eliminations
-        
-        # Validate faction changes
-        if 'faction_changes' in structured_data and isinstance(structured_data['faction_changes'], list):
-            valid_changes = []
-            for change in structured_data['faction_changes']:
-                if isinstance(change, dict) and 'warrior' in change:
-                    warrior = change['warrior']
-                    if warrior in original_names:
-                        valid_changes.append(change)
-                    else:
-                        logger.warning(f"Invalid faction change warrior '{warrior}' - not in original participants")
-            structured_data['faction_changes'] = valid_changes
-        
-        # Validate faction descriptions (ensure they only mention original participants)
-        if 'faction_descriptions' in structured_data and isinstance(structured_data['faction_descriptions'], dict):
-            for faction, description in structured_data['faction_descriptions'].items():
-                if isinstance(description, str):
-                    # Check if description mentions any non-original names
-                    for word in description.split():
-                        # Remove punctuation
-                        clean_word = word.strip('.,!?*•-()[]{}')
-                        if clean_word in original_names or clean_word.lower() in [name.lower() for name in original_names]:
-                            continue
-                        # If it's a capitalized word that might be a name, check if it's in original names
-                        elif clean_word.istitle() and len(clean_word) > 2:
-                            # Check case-insensitive match
-                            name_found = False
-                            for orig_name in original_names:
-                                if clean_word.lower() in orig_name.lower() or orig_name.lower() in clean_word.lower():
-                                    name_found = True
-                                    break
-                            if not name_found:
-                                logger.warning(f"Potential invalid name '{clean_word}' in faction description for {faction}")
-        
-        return structured_data
+    def _strip_style_prefix(self, style: str, name: str) -> str:
+        key = style.replace('_', ' ').lower()
+        lower = name.lower()
+        if lower.startswith(key + ' '):
+            return name[len(key) + 1:]
+        return name
 
-    def _ensure_complete_data(self, structured_data: Dict[str, Any], participants: List[discord.Member]) -> Dict[str, Any]:
-        """Ensure all required data fields are present and properly formatted"""
-        
-        # First validate against original participants
-        structured_data = self._validate_round_data_against_original_participants(structured_data, participants)
-        
-        # Ensure all required fields exist
-        required_fields = ['faction_descriptions', 'faction_changes', 'eliminated', 'survivors', 'narrative']
-        for field in required_fields:
-            if field not in structured_data:
-                structured_data[field] = {} if field == 'faction_descriptions' else []
-                if field == 'narrative':
-                    structured_data[field] = "The battle continues with various warriors taking action."
-        
-        # Ensure faction descriptions exist for all current factions
-        current_factions = set()
-        for p in participants:
-            faction = self.faction_tracker.get(p.display_name, 'Neutral')
-            current_factions.add(faction)
-        
-        if not isinstance(structured_data['faction_descriptions'], dict):
-            structured_data['faction_descriptions'] = {}
-        
-        # Add missing faction descriptions
-        for faction in current_factions:
-            if faction not in structured_data['faction_descriptions']:
-                actions = [
-                    "conducted energon reconnaissance",
-                    "fortified their position", 
-                    "launched a strategic assault",
-                    "defended their territory",
-                    "searched for allies"
-                ]
-                structured_data['faction_descriptions'][faction] = f"The {faction} faction {random.choice(actions)} this round."
-        
-        # Ensure survivors list is accurate
-        current_names = [p.display_name for p in participants]
-        if not isinstance(structured_data['survivors'], list):
-            structured_data['survivors'] = []
-        
-        # Filter survivors to only include current participants
-        valid_survivors = []
-        for survivor in structured_data['survivors']:
-            if isinstance(survivor, str) and survivor in current_names and survivor not in self.eliminated:
-                valid_survivors.append(survivor)
-        
-        # Add any missing survivors
-        for name in current_names:
-            if name not in self.eliminated and name not in valid_survivors:
-                valid_survivors.append(name)
-        
-        structured_data['survivors'] = valid_survivors
-        
-        # Ensure eliminations are properly formatted
-        if not isinstance(structured_data['eliminated'], list):
-            structured_data['eliminated'] = []
-        
-        valid_eliminations = []
-        for elimination in structured_data['eliminated']:
-            if isinstance(elimination, dict) and 'warrior' in elimination:
-                warrior = elimination.get('warrior', 'Unknown')
-                eliminated_by = elimination.get('eliminated_by', 'unknown')
-                method = elimination.get('method', 'unknown method')
-                
-                # Fix self-eliminations - if eliminated_by is the same as warrior, use a different cause
-                if eliminated_by == warrior or eliminated_by.lower() in ['self', 'themselves', warrior.lower()]:
-                    # Use environmental causes instead
-                    environmental_causes = [
-                        "Arena hazards", "Environmental disaster", "Cybertron itself", 
-                        "The AllSpark", "Energon explosion", "Transformation malfunction",
-                        "Arena trap", "Environmental hazard", "The planet itself"
-                    ]
-                    eliminated_by = random.choice(environmental_causes)
-                
-                # Ensure all required fields are present
-                valid_elimination = {
-                    'warrior': warrior,
-                    'eliminated_by': eliminated_by,
-                    'method': method
-                }
-                valid_eliminations.append(valid_elimination)
-        structured_data['eliminated'] = valid_eliminations
-        
-        # Ensure faction changes are properly formatted
-        if not isinstance(structured_data['faction_changes'], list):
-            structured_data['faction_changes'] = []
-        
-        valid_changes = []
-        for change in structured_data['faction_changes']:
-            if isinstance(change, dict) and 'warrior' in change:
-                # Ensure all required fields are present
-                valid_change = {
-                    'warrior': change.get('warrior', 'Unknown'),
-                    'from_faction': change.get('from_faction', 'Neutral'),
-                    'to_faction': change.get('to_faction', 'Neutral'),
-                    'reason': change.get('reason', 'changed allegiances')
-                }
-                valid_changes.append(valid_change)
-        structured_data['faction_changes'] = valid_changes
-        
-        # Ensure narrative is a proper string
-        if not isinstance(structured_data['narrative'], str) or not structured_data['narrative'].strip():
-            structured_data['narrative'] = "The battle on Cybertron continues as warriors clash in epic combat."
-        
-        return structured_data
+    def random_location(self) -> str:
+        if not self.locations:
+            return "Iacon plaza"
+        style = random.choice(list(self.locations.keys()))
+        pool = self.locations.get(style, [])
+        if not pool:
+            return "Iacon plaza"
+        name = random.choice(pool)
+        return self._strip_style_prefix(style, name)
 
-    def _generate_fallback_cybertron_round_structured(self, round_num: int, participants: List[discord.Member]) -> Dict[str, Any]:
-        """Generate structured fallback round when AI is unavailable"""
-        # Get current factions
-        factions_dict = {}
-        for p in participants:
-            faction = self.faction_tracker.get(p.display_name, 'Neutral')
-            if faction not in factions_dict:
-                factions_dict[faction] = []
-            factions_dict[faction].append(p.display_name)
+    def random_location_with_style(self) -> Tuple[str, str]:
+        """Return (style_key, location_name). Falls back to generic when empty."""
+        if not self.locations:
+            return ("urban_grid", "Urban Grid Plaza")
+        style = random.choice(list(self.locations.keys()))
+        pool = self.locations.get(style, [])
+        loc = random.choice(pool) if pool else ("Urban Grid Plaza")
+        return (style, self._strip_style_prefix(style, loc))
+
+    def random_location_for_style(self, style: str) -> str:
+        pool = self.locations.get(style, [])
+        if not pool:
+            return "Urban Grid Plaza"
+        name = random.choice(pool)
+        return self._strip_style_prefix(style, name)
+
+    def random_vehicle_for_a_count(self, a_count: int) -> str:
+        key = 'vehicles_1vANY' if a_count == 1 else 'vehicles_2vANY' if a_count == 2 else 'vehicles_3vANY'
+        pool = self.vehicles.get(key, [])
+        if not pool:
+            return "Cybertronian interceptor"
+        choice = random.choice(pool)
+        if isinstance(choice, dict):
+            return choice.get('Name', "Cybertronian interceptor")
+        return str(choice)
+
+    def random_combiner_for_a_count(self, a_count: int) -> str:
+        key = 'combiners_4' if a_count == 4 else 'combiners_5'
+        pool = self.vehicles.get(key, [])
+        if not pool:
+            return "Steelstorm"
+        choice = random.choice(pool)
+        if isinstance(choice, dict):
+            return choice.get('Name', "Steelstorm")
+        return str(choice)
+
+    def random_alt_details_for_count(self, count: int) -> Tuple[str, str, str]:
+        if count in (1, 2, 3):
+            key = 'vehicles_1vANY' if count == 1 else 'vehicles_2vANY' if count == 2 else 'vehicles_3vANY'
+        else:
+            key = 'combiners_4' if count == 4 else 'combiners_5'
+        pool = self.vehicles.get(key, [])
+        if not pool:
+            name = "Steelstorm" if count in (4, 5) else "Cybertronian interceptor"
+            return (name, "", "")
+        entry = random.choice(pool)
+        if isinstance(entry, dict):
+            name = entry.get('Name', "")
+            attacks = entry.get('Attack', [])
+            falses = entry.get('FalseAttack', [])
+            attack = random.choice(attacks) if attacks else ""
+            false = random.choice(falses) if falses else ""
+            return (name, attack, false)
+        return (str(entry), "", "")
+
+    def random_alt_details_by_type(self, count: int, use_combiner: bool) -> Tuple[str, str, str]:
+        if count in (1, 2, 3):
+            key = 'vehicles_1vANY' if count == 1 else 'vehicles_2vANY' if count == 2 else 'vehicles_3vANY'
+        else:
+            if use_combiner:
+                key = 'combiners_4' if count == 4 else 'combiners_5'
+            else:
+                key = 'vehicles_4vANY' if count == 4 else 'vehicles_5vANY'
+        pool = self.vehicles.get(key, [])
+        if not pool:
+            name = "Steelstorm" if use_combiner and count in (4, 5) else ("Cybertronian interceptor")
+            return (name, "", "")
+        entry = random.choice(pool)
+        if isinstance(entry, dict):
+            name = entry.get('Name', "")
+            attacks = entry.get('Attack', [])
+            falses = entry.get('FalseAttack', [])
+            attack = random.choice(attacks) if attacks else ""
+            false = random.choice(falses) if falses else ""
+            return (name, attack, false)
+        return (str(entry), "", "")
+
+
+def _format_a_open(names: List[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"Team {names[0]} and {names[1]}"
+    return f"Team {', '.join(names[:-1])}, and {names[-1]}"
+
+def _fill_template(template: str, style: str, side_a: List[str], side_b: List[str], pools: DataPools) -> str:
+    # Participants
+    mapping: Dict[str, str] = {}
+    for i, name in enumerate(side_a, start=1):
+        mapping[f"A{i}"] = name
+    for i, name in enumerate(side_b, start=1):
+        mapping[f"B{i}"] = name
+
+    mapping['Location'] = pools.random_location()
+
+    a_count = len(side_a)
+    if a_count in (1, 2, 3):
+        a_name, a_attack, a_false = pools.random_alt_details_by_type(a_count, False)
+        mapping['VehicleA'] = a_name
+    else:
+        use_combiner_a = ('{CombinerA}' in template) and not ('{VehicleA}' in template)
+        a_name, a_attack, a_false = pools.random_alt_details_by_type(a_count, use_combiner_a)
+        if use_combiner_a:
+            mapping['CombinerA'] = a_name
+        else:
+            mapping['VehicleA'] = a_name
+    if a_attack:
+        mapping['AttackA'] = a_attack
+    if a_false:
+        mapping['FalseAttackA'] = a_false
+
+    b_count = len(side_b)
+    if b_count in (1, 2, 3):
+        b_name, b_attack, b_false = pools.random_alt_details_by_type(b_count, False)
+        mapping['VehicleB'] = b_name
+    else:
+        use_combiner_b = ('{CombinerB}' in template) and not ('{VehicleB}' in template)
+        b_name, b_attack, b_false = pools.random_alt_details_by_type(b_count, use_combiner_b)
+        if use_combiner_b:
+            mapping['CombinerB'] = b_name
+        else:
+            mapping['VehicleB'] = b_name
+    if b_attack:
+        mapping['AttackB'] = b_attack
+    if b_false:
+        mapping['FalseAttackB'] = b_false
+
+    mapping['A_open'] = _format_a_open([mapping[f"A{i}"] for i in range(1, a_count + 1)])
+
+    # Replace placeholders
+    result = template
+    for key, val in mapping.items():
+        result = result.replace(f"{{{key}}}", val)
+
+    # Clean any remaining placeholders like {A4} when not present
+    for i in range(1, 6):
+        result = result.replace(f"{{A{i}}}", "")
+        result = result.replace(f"{{B{i}}}", "")
+    for key in [
+        'VehicleA','VehicleB','CombinerA','CombinerB',
+        'AttackA','AttackB','FalseAttackA','FalseAttackB'
+    ]:
+        result = result.replace(f"{{{key}}}", "")
+    result = result.replace("  ", " ").replace(" ,", ",").strip()
+    return result
+
+
+async def _send_long_message(channel: discord.abc.Messageable, text: str):
+    if len(text) <= DISCORD_CHAR_LIMIT:
+        await channel.send(text)
+        return
+    start = 0
+    while start < len(text):
+        chunk = text[start:start + DISCORD_CHAR_LIMIT]
+        await channel.send(chunk)
+        start += DISCORD_CHAR_LIMIT
+
+
+def _fill_template_with_location(
+    template: str,
+    style: str,
+    side_a: List[Any],
+    side_b: List[Any],
+    pools: DataPools,
+    location_name: str
+) -> str:
+    """Fill the template using a provided location name, maintaining vehicle/combiner selection by style."""
+    mapping: Dict[str, str] = {}
+    
+    for i, participant in enumerate(side_a, start=1):
+        if hasattr(participant, 'display_name'):
+            mapping[f"A{i}"] = participant.display_name
+        else:
+            mapping[f"A{i}"] = str(participant)
+    
+    for i, participant in enumerate(side_b, start=1):
+        if hasattr(participant, 'display_name'):
+            mapping[f"B{i}"] = participant.display_name
+        else:
+            mapping[f"B{i}"] = str(participant)
+
+    style_display = style.replace('_', ' ').title()
+    mapping['Location'] = f"{location_name} in {style_display}"
+
+    a_count = len(side_a)
+    if a_count in (1, 2, 3):
+        a_name, a_attack, a_false = pools.random_alt_details_by_type(a_count, False)
+        mapping['VehicleA'] = a_name
+    else:
+        use_combiner_a = ('{CombinerA}' in template) and not ('{VehicleA}' in template)
+        a_name, a_attack, a_false = pools.random_alt_details_by_type(a_count, use_combiner_a)
+        if use_combiner_a:
+            mapping['CombinerA'] = a_name
+        else:
+            mapping['VehicleA'] = a_name
+    if a_attack:
+        mapping['AttackA'] = a_attack
+    if a_false:
+        mapping['FalseAttackA'] = a_false
+
+    b_count = len(side_b)
+    if b_count in (1, 2, 3):
+        b_name, b_attack, b_false = pools.random_alt_details_by_type(b_count, False)
+        mapping['VehicleB'] = b_name
+    else:
+        use_combiner_b = ('{CombinerB}' in template) and not ('{VehicleB}' in template)
+        b_name, b_attack, b_false = pools.random_alt_details_by_type(b_count, use_combiner_b)
+        if use_combiner_b:
+            mapping['CombinerB'] = b_name
+        else:
+            mapping['VehicleB'] = b_name
+    if b_attack:
+        mapping['AttackB'] = b_attack
+    if b_false:
+        mapping['FalseAttackB'] = b_false
+
+    mapping['A_open'] = _format_a_open([mapping[f"A{i}"] for i in range(1, a_count + 1)])
+
+    result = template
+    for key, val in mapping.items():
+        result = result.replace(f"{{{key}}}", val)
+
+    for i in range(1, 6):
+        result = result.replace(f"{{A{i}}}", "")
+        result = result.replace(f"{{B{i}}}", "")
+    for key in [
+        'VehicleA','VehicleB','CombinerA','CombinerB',
+        'AttackA','AttackB','FalseAttackA','FalseAttackB'
+    ]:
+        result = result.replace(f"{{{key}}}", "")
+    result = result.replace("  ", " ").replace(" ,", ",").strip()
+    return result
+
+
+class GameSession:
+    def __init__(self, participants: List[Any], pools: DataPools, all_factions: bool = False, starting_factions: bool = False):
+        self.participants = participants.copy()
+        self.pools = pools
+        self.alive = participants.copy()
+        self.assignment = {}
+        self.locations = {}
+        self.elimination_locations = {}
+        self.elimination_round = {}
+        self.forms = {}
+        self.round_index = 0
+        self.started = False
+        self.all_factions = all_factions
+        self.starting_factions = starting_factions
+        self.action_log: Dict[str, List[str]] = {}
+        self.kill_log: Dict[str, List[Dict[str, Any]]] = {}
+        self.round_markers: List[Dict[str, Any]] = []
         
-        # Generate faction descriptions
-        faction_descriptions = {}
-        for faction, members in factions_dict.items():
-            actions = [
-                f"conducted energon reconnaissance",
-                f"fortified their position",
-                f"launched a strategic assault", 
-                f"defended their territory",
-                f"searched for allies"
-            ]
-            faction_descriptions[faction] = f"The {faction} faction {random.choice(actions)} this round."
+        # Create a mapping of participant to display name for consistent identification
+        self.participant_names = {}
+        for participant in self.participants:
+            if hasattr(participant, 'display_name'):
+                # Discord user object
+                self.participant_names[participant] = participant.display_name
+            else:
+                # String name
+                self.participant_names[participant] = str(participant)
         
-        # Generate random eliminations (1-2 per round)
-        current_names = [p.display_name for p in participants]
-        available_targets = [name for name in current_names if name not in self.eliminated]
-        
-        eliminated_this_round = []
-        if len(available_targets) > 3 and random.random() < 0.7:  # 70% chance of elimination
-            num_eliminations = min(random.randint(1, 2), len(available_targets) - 2)
-            for _ in range(num_eliminations):
-                if available_targets:
-                    eliminated = random.choice(available_targets)
-                    # Find a valid eliminator (not the same person)
-                    potential_eliminators = [name for name in available_targets if name != eliminated]
-                    if potential_eliminators:
-                        eliminator = random.choice(potential_eliminators)
-                    else:
-                        # If no other targets available, use environmental causes
-                        eliminator = random.choice(["Arena hazards", "Environmental disaster", "Cybertron itself", "The AllSpark"])
-                    
-                    eliminated_this_round.append({
-                        "warrior": eliminated,
-                        "eliminated_by": eliminator,
-                        "method": random.choice(["energon blast", "melee combat", "tactical maneuver", "faction betrayal", "arena trap", "energon explosion"])
-                    })
-                    self.eliminated.add(eliminated)
-                    available_targets.remove(eliminated)
-        
-        # Generate faction changes (occasional)
-        faction_changes = []
-        if random.random() < 0.3:  # 30% chance of faction change
-            if available_targets:
-                changer = random.choice(available_targets)
-                current_faction = self.faction_tracker.get(changer, 'Neutral')
-                available_factions = ['Autobots', 'Decepticons', 'Neutral']
-                if current_faction in available_factions:
-                    available_factions.remove(current_faction)
-                if available_factions:
-                    new_faction = random.choice(available_factions)
-                    self.faction_tracker[changer] = new_faction
-                    faction_changes.append({
-                        "warrior": changer,
-                        "from_faction": current_faction,
-                        "to_faction": new_faction,
-                        "reason": random.choice(["switched allegiances", "was convinced by allies", "saw the truth", "joined for survival"])
-                    })
-        
-        # Generate comprehensive narrative text with all data
-        narrative_parts = []
-        narrative_parts.append(f"🌌 **ROUND {round_num} - CYBERTRON GAMES** 🌌")
-        
-        # Add faction descriptions with potential cooperation language
-        if faction_descriptions:
-            narrative_parts.append("\n**⚔️ FACTION ACTIONS:**")
-            for faction, description in faction_descriptions.items():
-                narrative_parts.append(f"• {description}")
-        
-        # Add faction changes with cooperation indicators
-        if faction_changes:
-            narrative_parts.append("\n**🔄 FACTION CHANGES:**")
-            for change in faction_changes:
-                # Add cooperation language for faction changes
-                cooperation_phrases = ["joined forces with", "united with", "allied with", "cooperated with"]
-                narrative_parts.append(f"• **{change['warrior']}** {change['reason']} and {random.choice(cooperation_phrases)} the **{change['to_faction']}**")
-        
-        # Add eliminations with cooperation detection potential
-        if eliminated_this_round:
-            narrative_parts.append("\n**💀 ELIMINATIONS:**")
-            for elimination in eliminated_this_round:
-                # Use language that can indicate cooperation
-                cooperation_methods = [
-                    "via combined assault",
-                    "through united effort", 
-                    "with team coordination",
-                    "using joint tactics",
-                    "in cooperative strike"
-                ]
-                if len(available_targets) > 2 and random.random() < 0.3:  # 30% chance of cooperation language
-                    method = random.choice(cooperation_methods)
-                else:
-                    method = elimination['method']
-                narrative_parts.append(f"• **{elimination['warrior']}** was eliminated by **{elimination['eliminated_by']}** {method}")
-        
-        # Add survivors summary with potential peace indicators
-        if available_targets:
-            peace_phrases = [
-                f"\n**🔥 SURVIVORS ({len(available_targets)}):** {', '.join(available_targets)}",
-                f"\n**🔥 WARRIORS REMAINING ({len(available_targets)}):** {', '.join(available_targets)}",
-                f"\n**🔥 COMBATANTS SURVIVE ({len(available_targets)}):** {', '.join(available_targets)}"
-            ]
-            narrative_parts.append(random.choice(peace_phrases))
-        
-        # Add round statistics
-        total_participants = len(current_names)
-        eliminated_count = len(eliminated_this_round)
-        survival_rate = (len(available_targets) / total_participants * 100) if total_participants > 0 else 0
-        narrative_parts.append(f"\n**📊 ROUND STATS:** {eliminated_count} eliminated, {len(available_targets)} remaining ({survival_rate:.1f}% survival rate)")
-        
-        return {
-            "faction_descriptions": faction_descriptions,
-            "faction_changes": faction_changes,
-            "eliminated": eliminated_this_round,
-            "survivors": available_targets,
-            "narrative": '\n'.join(narrative_parts)
+        # Faction names and colors
+        self.color_palette = {
+            'purple': (186, 85, 211),
+            'red': (220, 20, 60),
+            'orange': (255, 140, 0),
+            'yellow': (255, 215, 0),
+            'green': (60, 179, 113),
+            'blue': (30, 144, 255)
         }
 
-    def _process_narrative(self, story_text: str, participants: List[discord.Member]) -> Dict[str, Any]:
-        """Parse AI-generated text to extract all structured data"""
-        eliminated = []
-        faction_changes = []
-        faction_descriptions = {}
+        self.faction_groups = {
+            'red': [
+                'Autobots', 'Wreckers', 'Elite Guard', 'Red Alert Division', 'Strike Force Omega',
+                'Solar Knights', 'Chromia Squad', 'Ion Patrol', 'Forge Masters', 'Prime Vanguard',
+                'Ark Sentinels', 'Matrix Guard', 'Alpha Trion Circle', 'Valor Brigade', 'Guardian Unit',
+                'Rescue Corps', 'Flamewatch', 'Steel Sentinels', 'Rocket Rangers', 'Nova Wardens'
+            ],
+            'purple': [
+                'Decepticons', 'Seekers', 'Elite Seekers', 'Nullray Corps', 'Fusion Syndicate',
+                'Obsidian Circle', 'Phase Sixers', 'Scavengers', 'Nightwatch', 'Renegades',
+                'Sky Reavers', 'Shadow Legion', 'Ravage Pack', 'Nova Strike', 'Apex Predators',
+                'Annihilators', 'Voidclaw', 'Darkstar Unit', 'Subjugators', 'Ion Raiders'
+            ],
+            'orange': [
+                'Constructicons', 'Combaticons', 'Battlechargers', 'Duocons', 'Triple Changers',
+                'Vehicons', 'Forge Titans', 'Smelter Brigade', 'Iron Maulers', 'Copper Guard',
+                'Molten Core Unit', 'Hammerfall Team', 'Crucible Squad', 'Alloy Hunters', 'Cinder Legion',
+                'Gearbreakers', 'Rust Stalkers', 'Steelstormers', 'Torch Wardens', 'Foundry Rangers'
+            ],
+            'yellow': [
+                'Technobots', 'Protectobots', 'Aerialbots', 'Stunticons', 'Headmasters',
+                'Targetmasters', 'Powermasters', 'Micromasters', 'Omnibots', 'Circuit Wardens',
+                'Signal Corps', 'Beacon Guard', 'Aurora Unit', 'Lumina Rangers', 'Radiant Squad',
+                'Flash Faction', 'Glow Squad', 'Daylight Unit', 'Sunspot Guard', 'Radiance Team'
+            ],
+            'green': [
+                'Dinobots', 'Monsterbots', 'Beastformers', 'Wilderbots', 'Jungle Squad',
+                'Forest Rangers', 'Emerald Guard', 'Verdant Unit', 'Nature Force', 'Wild Guard',
+                'Thorn Patrol', 'Leaf Brigade', 'Vine Warriors', 'Root Corps', 'Canopy Squad',
+                'Moss Faction', 'Grassland Unit', 'Prairie Guard', 'Meadow Team', 'Greenzone Squad'
+            ],
+            'blue': [
+                'Aerialbots', 'Seekers', 'Jet Corps', 'Sky Guard', 'Atmospheric Unit',
+                'Cloud Squad', 'Stratosphere Force', 'Navy Wing', 'Cobalt Guard', 'Azure Unit',
+                'Ice Brigade', 'Frost Squad', 'Arctic Force', 'Glacier Guard', 'Tundra Team',
+                'Oceanic Unit', 'Aqua Squad', 'Marine Force', 'Deep Guard', 'Bluezone Corps'
+            ]
+        }
+    
+        # Initialize faction data
+        self.faction_names = []
+        for names in self.faction_groups.values():
+            self.faction_names.extend(names)
         
-        # Parse faction descriptions from narrative
-        current_section = None
-        for line in story_text.split('\n'):
-            line = line.strip()
-            if 'AUTOBOTS:' in line.upper() or 'AUTOBOT' in line.upper():
-                current_section = 'autobots'
-                if line and not line.startswith('**'):
-                    faction_descriptions['Autobots'] = line.strip('*•- ')
-            elif 'DECEPTICONS:' in line.upper() or 'DECEPTICON' in line.upper():
-                current_section = 'decepticons'
-                if line and not line.startswith('**'):
-                    faction_descriptions['Decepticons'] = line.strip('*•- ')
-            elif 'NEUTRAL:' in line.upper() or 'NEUTRAL' in line.upper():
-                current_section = 'neutral'
-                if line and not line.startswith('**'):
-                    faction_descriptions['Neutral'] = line.strip('*•- ')
-            elif current_section and line and not line.startswith('**'):
-                # Continue building faction description
-                if current_section == 'autobots' and 'Autobots' in faction_descriptions:
-                    faction_descriptions['Autobots'] += ' ' + line.strip('*•- ')
-                elif current_section == 'decepticons' and 'Decepticons' in faction_descriptions:
-                    faction_descriptions['Decepticons'] += ' ' + line.strip('*•- ')
-                elif current_section == 'neutral' and 'Neutral' in faction_descriptions:
-                    faction_descriptions['Neutral'] += ' ' + line.strip('*•- ')
+        self.faction_color_map = {}
+        for group, names in self.faction_groups.items():
+            col = self.color_palette[group]
+            for n in names:
+                self.faction_color_map[n] = col
         
-        # Parse eliminations with detailed information
-        elimination_lines = [line.strip() for line in story_text.split('\n') if 'eliminated' in line.lower() or 'defeated' in line.lower() or 'fallen' in line.lower()]
-        for line in elimination_lines:
-            if any(keyword in line.lower() for keyword in ['eliminated', 'defeated', 'destroyed', 'fallen']):
-                # Extract warrior name, method, and eliminated_by
-                warrior = ""
-                method = ""
-                eliminated_by = "unknown"
-                
-                # Remove formatting characters
-                clean_line = line.strip('*•- ')
-                
-                # Try to extract warrior name (usually first part)
-                if ' was ' in clean_line:
-                    warrior = clean_line.split(' was ')[0].strip()
-                elif ' eliminated ' in clean_line:
-                    parts = clean_line.split(' eliminated ')
-                    if len(parts) >= 2:
-                        warrior = parts[0].strip()
-                        method = parts[1].strip()
-                
-                # Try to extract method and eliminated_by
-                if ' by ' in clean_line:
-                    parts = clean_line.split(' by ')
-                    if len(parts) >= 2:
-                        eliminated_by = parts[1].split()[0].strip('.,!*')
-                        method = ' '.join(clean_line.split(' ')[-3:]) if len(clean_line.split(' ')) >= 3 else "unknown method"
-                
-                if warrior and warrior not in [e["warrior"] for e in eliminated]:
-                    eliminated.append({
-                        "warrior": warrior,
-                        "method": method or "unknown method",
-                        "eliminated_by": eliminated_by
-                    })
+        # Map configuration
+        self.style_order = [
+            'urban_grid', 'foundry_complex', 'rust_dunes',
+            'mountain_ridge', 'spire_labyrinth', 'sky_causeways'
+        ]
+        self.style_bg_colors = {
+            'urban_grid': (170, 50, 50),
+            'foundry_complex': (170, 90, 20),
+            'rust_dunes': (190, 160, 40),
+            'mountain_ridge': (100, 100, 110),
+            'spire_labyrinth': (80, 40, 120),
+            'sky_causeways': (60, 100, 180)
+        }
+        self.map_size = (1200, 800)
+        self.map_margin = 40
+        self.border_inset = 20
+        self.style_zones = self._compute_style_zones()
+        self.style_patches = self._compute_style_patches()
         
-        # Parse faction changes with detailed information
-        faction_lines = [line.strip() for line in story_text.split('\n') if 'joined' in line.lower() or 'faction' in line.lower() or 'switched' in line.lower()]
-        for line in faction_lines:
-            if any(keyword in line.lower() for keyword in ['joined', 'switched', 'changed']):
-                parts = line.split('joined') if 'joined' in line.lower() else line.split('switched')
-                if len(parts) >= 2:
-                    warrior = parts[0].strip().strip('*•- ')
-                    faction_info = parts[1].strip().strip('*•- ')
-                    
-                    # Extract faction name
-                    faction_words = faction_info.split()
-                    for word in faction_words:
-                        if word.upper() in ['AUTOBOTS', 'DECEPTICONS', 'NEUTRAL']:
-                            faction = word.capitalize()
-                            from_faction = self.faction_tracker.get(warrior, "Neutral")
-                            
-                            faction_changes.append({
-                                "warrior": warrior,
-                                "to_faction": faction,
-                                "from_faction": from_faction,
-                                "reason": "narrative decision"
-                            })
-                            self.faction_tracker[warrior] = faction
+        self._initialize_factions()
+        self._initialize_locations()
+    
+    def get_faction_emoji(self, participant: str, form: str = 'robot', is_elimination: bool = False) -> str:
+        """Get the appropriate emoji for a participant based on faction, form, and context."""
+        faction = self.assignment.get(participant, 'Neutral')
+        
+        # Color mapping for factions
+        color_emojis = {
+            'purple': {'robot': '🟣', 'vehicle': '🟣', 'combiner': '🟣'},
+            'red': {'robot': '🔴', 'vehicle': '🔴', 'combiner': '🔴'},
+            'orange': {'robot': '🟠', 'vehicle': '🟠', 'combiner': '🟠'},
+            'yellow': {'robot': '🟡', 'vehicle': '🟡', 'combiner': '🟡'},
+            'green': {'robot': '🟢', 'vehicle': '🟢', 'combiner': '🟢'},
+            'blue': {'robot': '🔵', 'vehicle': '🔵', 'combiner': '🔵'},
+            'Neutral': {'robot': '⚪', 'vehicle': '⚪', 'combiner': '⚪'}
+        }
+        
+        # Get faction color
+        faction_color = None
+        for color, factions in self.faction_groups.items():
+            if faction in factions:
+                faction_color = color
+                break
+        
+        if not faction_color:
+            faction_color = 'Neutral'
+        
+        # For eliminations, use skull with faction color
+        if is_elimination:
+            if form == 'vehicle':
+                return f"💀{color_emojis[faction_color]['vehicle']}"
+            elif form == 'combiner':
+                return f"💀{color_emojis[faction_color]['combiner']}"
+            else:
+                return f"💀{color_emojis[faction_color]['robot']}"
+        
+        # Return appropriate emoji for form
+        return color_emojis[faction_color].get(form, '⚪')
+    
+    def get_event_emojis(self, side_a: List[str], side_b: List[str], is_elimination: bool = False) -> str:
+        if not side_a:
+            return ""
+        a_is_combiner = any(self.forms.get(p) == 'combiner' for p in side_a)
+        b_is_combiner = any(self.forms.get(p) == 'combiner' for p in side_b)
+        a_emoji = self._form_count_emoji(len(side_a), a_is_combiner)
+        if not side_b:
+            return a_emoji
+        b_emoji = self._form_count_emoji(len(side_b), b_is_combiner)
+        if is_elimination:
+            return f"{a_emoji}💀{b_emoji}"
+        return f"{a_emoji}{b_emoji}"
+
+    def get_participant_name(self, participant: Any) -> str:
+        """Get the display name for a participant, whether it's a Discord user object or string."""
+        return self.participant_names.get(participant, str(participant))
+    
+    def _compute_style_zones(self) -> Dict[str, Tuple[int, int, int, int]]:
+        width, height = self.map_size
+        margin = self.map_margin
+        cx = width // 2
+        cy = height // 2
+        band = int(min(width, height) * 0.18)
+        zones: Dict[str, Tuple[int, int, int, int]] = {}
+        zones['urban_grid'] = (margin, margin, cx - band // 2, height - margin)
+        zones['foundry_complex'] = (cx + band // 2, margin, width - margin, height - margin)
+        zones['mountain_ridge'] = (margin, margin, width - margin, cy - band // 2)
+        zones['rust_dunes'] = (margin, cy + band // 2, width - margin, height - margin)
+        zones['spire_labyrinth'] = (cx - band // 2, cy - band // 2, cx + band // 2, cy + band // 2)
+        zones['sky_causeways'] = (margin, margin, width - margin, height - margin)
+        return zones
+
+    def _compute_style_patches(self, seed: Optional[int] = None) -> Dict[str, List[Tuple[int, int, int, int]]]:
+        w, h = self.map_size
+        cx = w // 2
+        cy = h // 2
+        m = self.map_margin
+        r_max = int(min(w, h) // 2 - m)
+        patches: Dict[str, List[Tuple[int, int, int, int]]] = {}
+        rng = random.Random(seed) if seed is not None else random
+
+        def clamp_rect(x0, y0, x1, y1):
+            return (max(m, x0), max(m, y0), min(w - m, x1), min(h - m, y1))
+
+        # Foundry Complex: one central, decently sized, middish of the map
+        fw = 420
+        fh = 300
+        fx = cx + rng.randint(-30, 30)
+        fy = cy + rng.randint(-20, 20)
+        foundry = clamp_rect(fx - fw // 2, fy - fh // 2, fx + fw // 2, fy + fh // 2)
+        patches['foundry_complex'] = [foundry]
+
+        # Urban Grid: small scattered sections around the foundry
+        u_rects: List[Tuple[int, int, int, int]] = []
+        for i in range(8):
+            ang = i * (2 * math.pi / 8) + rng.random() * 0.25
+            dist = max(200, min(r_max - 120, 240 + rng.randint(-40, 40)))
+            px = int((foundry[0] + foundry[2]) // 2 + dist * math.cos(ang))
+            py = int((foundry[1] + foundry[3]) // 2 + dist * math.sin(ang))
+            uw = rng.randint(90, 130)
+            uh = rng.randint(70, 100)
+            u_rects.append(clamp_rect(px - uw // 2, py - uh // 2, px + uw // 2, py + uh // 2))
+        patches['urban_grid'] = u_rects
+
+        # Mountain Ridge: medium patches halfway from center to edges
+        mr_rects: List[Tuple[int, int, int, int]] = []
+        ring_r = int(r_max * 0.55)
+        for i in range(6):
+            ang = i * (2 * math.pi / 6) + rng.random() * 0.2
+            px = int(cx + ring_r * math.cos(ang))
+            py = int(cy + ring_r * math.sin(ang))
+            mw = rng.randint(240, 300)
+            mh = rng.randint(180, 220)
+            mr_rects.append(clamp_rect(px - mw // 2, py - mh // 2, px + mw // 2, py + mh // 2))
+        patches['mountain_ridge'] = mr_rects
+
+        # Spire Labyrinth: circle each mountain patch with smaller surrounding sections
+        sp_rects: List[Tuple[int, int, int, int]] = []
+        for (x0, y0, x1, y1) in mr_rects:
+            cxm = (x0 + x1) // 2
+            cym = (y0 + y1) // 2
+            radx = (x1 - x0) // 2 + 40
+            rady = (y1 - y0) // 2 + 40
+            for a in range(0, 360, 90):
+                ang = a * math.pi / 180.0
+                px = int(cxm + radx * math.cos(ang))
+                py = int(cym + rady * math.sin(ang))
+                sw = rng.randint(120, 160)
+                sh = rng.randint(80, 120)
+                sp_rects.append(clamp_rect(px - sw // 2, py - sh // 2, px + sw // 2, py + sh // 2))
+        patches['spire_labyrinth'] = sp_rects
+
+        # Sky Causeways: smaller but more, centered inside mountain ring
+        sc_rects: List[Tuple[int, int, int, int]] = []
+        inner_r = int(r_max * 0.32)
+        for i in range(10):
+            ang = i * (2 * math.pi / 10) + rng.random() * 0.25
+            px = int(cx + inner_r * math.cos(ang))
+            py = int(cy + inner_r * math.sin(ang))
+            sw = rng.randint(90, 120)
+            sh = rng.randint(40, 60)
+            sc_rects.append(clamp_rect(px - sw // 2, py - sh // 2, px + sw // 2, py + sh // 2))
+        patches['sky_causeways'] = sc_rects
+
+        # Rust Dunes: treated as base fill; no discrete patches needed
+        patches['rust_dunes'] = []
+        return patches
+
+    def _ring_specs(self) -> Dict[str, Tuple[int, int]]:
+        w, h = self.map_size
+        m = self.map_margin
+        r_max = int(min(w, h) // 2 - m)
+        step = max(60, r_max // 12)
+        specs: Dict[str, Tuple[int, int]] = {}
+        specs['sky_causeways'] = (0, step * 2)
+        specs['mountain_ridge'] = (step * 2, step * 4)
+        specs['spire_labyrinth'] = (step * 4, step * 6)
+        specs['foundry_complex'] = (step * 6, step * 8)
+        specs['urban_grid'] = (step * 8, step * 10)
+        specs['rust_dunes'] = (step * 10, r_max)
+        return specs
+
+    def _form_count_emoji(self, count: int, is_combiner: bool) -> str:
+        if is_combiner:
+            if count >= 5:
+                return '⚜️'
+            return '🔱'
+        if count <= 1:
+            return '🏍️'
+        if count == 2:
+            return '🚙'
+        if count == 3:
+            return '🚛'
+        if count == 4:
+            return '✈️'
+        return '🛸'
+
+    def _draw_ring_boundaries(self, draw: Any):
+        w, h = self.map_size
+        cx = w // 2
+        cy = h // 2
+        specs = self._ring_specs()
+        order = ['sky_causeways', 'mountain_ridge', 'spire_labyrinth', 'foundry_complex', 'urban_grid', 'rust_dunes']
+        for name in order:
+            r0, r1 = specs[name]
+            draw.ellipse([cx - r0, cy - r0, cx + r0, cy + r0], outline=(80, 70, 60, 190), width=5)
+            draw.ellipse([cx - r1, cy - r1, cx + r1, cy + r1], outline=(80, 70, 60, 220), width=6)
+            mid = (r0 + r1) // 2
+            draw.ellipse([cx - mid, cy - mid, cx + mid, cy + mid], outline=(60, 50, 45, 180), width=4)
+
+    def _draw_text_in_ring(self, img: Any, text: str, font: Any, r0: int, r1: int, x: int, y: int):
+        w, h = self.map_size
+        cx = w // 2
+        cy = h // 2
+        text_overlay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        od = ImageDraw.Draw(text_overlay)
+        # shadow then main
+        od.text((x - 3, y - 3), text, fill=(245, 235, 210, 210), font=font)
+        od.text((x, y), text, fill=(90, 70, 60, 255), font=font)
+
+        # mask = intersection(text glyphs, ring band)
+        text_mask = Image.new('L', (w, h), 0)
+        tmd = ImageDraw.Draw(text_mask)
+        tmd.text((x, y), text, fill=255, font=font)
+
+        ring_mask = Image.new('L', (w, h), 0)
+        rmd = ImageDraw.Draw(ring_mask)
+        rmd.ellipse([cx - r1, cy - r1, cx + r1, cy + r1], fill=255)
+        rmd.ellipse([cx - r0, cy - r0, cx + r0, cy + r0], fill=0)
+
+        final_mask = ImageChops.multiply(text_mask, ring_mask) if ImageChops else text_mask
+        img.paste(text_overlay, (0, 0), final_mask)
+
+    def _draw_ring_labels(self, img: Any):
+        w, h = self.map_size
+        cx = w // 2
+        cy = h // 2
+        specs = self._ring_specs()
+        num_map = {
+            'sky_causeways': '1',
+            'spire_labyrinth': '2',
+            'mountain_ridge': '3',
+            'foundry_complex': '4',
+            'urban_grid': '5',
+            'rust_dunes': '6'
+        }
+        font = self._get_label_font(26)
+        for name, text in num_map.items():
+            r0, r1 = specs[name]
+            r = int(r0 + (r1 - r0) * 0.5)
+            a = 0 if name in ('sky_causeways', 'spire_labyrinth') else (-35 if name in ('mountain_ridge', 'urban_grid') else 25)
+            a = a * math.pi / 180
+            x = int(cx + r * math.cos(a)) - 10
+            y = int(cy + r * math.sin(a)) - 10
+            self._draw_text_in_ring(img, text, font, r0, r1, x, y)
+
+    def _draw_number_legend_top(self, draw: Any):
+        w, h = self.map_size
+        m = self.map_margin
+        font = self._get_label_font(20)
+        legend = "1 Sky Causeways   2 Spire Labyrinth   3 Mountain Ridge   4 Foundry Complex   5 Urban Grid   6 Rust Dunes"
+        x0 = m + 8
+        y0 = m - 30
+        draw.rectangle([x0 - 6, y0 - 4, w - m - 8, y0 + 24], outline=(85, 70, 55, 180), width=2, fill=(245, 235, 210, 200))
+        draw.text((x0, y0), legend, fill=(90, 70, 60, 255), font=font)
+
+    def _draw_emoji_legend_bottom(self, draw: Any):
+        w, h = self.map_size
+        m = self.map_margin
+        label_font = self._get_label_font(18)
+        emoji_font = self._get_emoji_font(24)
+        box_h = 64
+        y0 = h - m - box_h - 12
+        draw.rectangle([m + 8, y0 - 8, w - m - 8, y0 + box_h], outline=(85, 70, 55, 200), width=2, fill=(245, 235, 210, 220))
+        x = m + 22
+        try:
+            draw.text((x, y0 + 8), '🤖', font=emoji_font)
+        except Exception:
+            draw.text((x, y0 + 8), '🤖', fill=(0,0,0,255), font=emoji_font)
+        draw.text((x + 32, y0 + 10), "Robot", fill=(90, 70, 60, 255), font=label_font)
+        x += 170
+        for e, label in [('🚙', 'Vehicle'), ('🔱', 'Combiner'), ('💀', 'Eliminated')]:
+            try:
+                draw.text((x, y0 + 8), e, font=emoji_font)
+            except Exception:
+                draw.text((x, y0 + 8), e, fill=(0,0,0,255), font=emoji_font)
+            draw.text((x + 32, y0 + 10), label, fill=(90, 70, 60, 255), font=label_font)
+            x += 170
+
+    def _random_point_in_style(self, style: str) -> Tuple[int, int]:
+        w, h = self.map_size
+        m = self.map_margin
+        bi = self.border_inset
+        cx = w // 2
+        cy = h // 2
+        specs = self._ring_specs()
+        rects = getattr(self, 'style_patches', {}).get(style)
+        if rects:
+            rx0, ry0, rx1, ry1 = random.choice(rects)
+            px = random.randint(rx0 + 12, max(rx0 + 13, rx1 - 12))
+            py = random.randint(ry0 + 12, max(ry0 + 13, ry1 - 12))
+            return (px, py)
+        if style in specs:
+            r0, r1 = specs[style]
+            ang = random.random() * 2 * math.pi
+            r = random.randint(max(r0, 6), max(r0 + 1, r1))
+            x = int(cx + r * math.cos(ang))
+            y = int(cy + r * math.sin(ang))
+            x = max(m + bi, min(x, w - m - bi))
+            y = max(m + bi, min(y, h - m - bi))
+            return (x, y)
+        if style == 'sky_causeways':
+            angles = [0, math.pi/2, math.pi, 3*math.pi/2, math.pi/4, 3*math.pi/4, 5*math.pi/4, 7*math.pi/4]
+            ang = random.choice(angles)
+            r_max = int(min(w, h) // 2 - m)
+            r = random.randint(20, r_max)
+            x = int(cx + r * math.cos(ang))
+            y = int(cy + r * math.sin(ang))
+            x = max(m + bi, min(x, w - m - bi))
+            y = max(m + bi, min(y, h - m - bi))
+            return (x, y)
+        x0, y0, x1, y1 = self.style_zones.get(style, (m, m, w - m, h - m))
+        px = random.randint(x0 + 20 + bi, max(x0 + 21, x1 - 20 - bi))
+        py = random.randint(y0 + 20 + bi, max(y0 + 21, y1 - 20 - bi))
+        return (px, py)
+
+    def _random_point_free(self) -> Tuple[int, int]:
+        w, h = self.map_size
+        m = self.map_margin
+        bi = self.border_inset
+        return (
+            random.randint(m + bi, w - m - bi),
+            random.randint(m + bi, h - m - bi)
+        )
+
+    def _scatter_around(self, center: Tuple[int, int]) -> Tuple[int, int]:
+        w, h = self.map_size
+        m = self.map_margin
+        bi = self.border_inset
+        cx, cy = center
+        r = random.randint(8, 60)
+        ang = random.random() * 2 * math.pi
+        x = int(cx + r * math.cos(ang))
+        y = int(cy + r * math.sin(ang))
+        x = max(m + bi, min(x, w - m - bi))
+        y = max(m + bi, min(y, h - m - bi))
+        return (x, y)
+    
+    def _initialize_factions(self):
+        if not self.all_factions:
+            for participant in self.participants:
+                self.assignment[participant] = 'Neutral'
+            return
+        if self.starting_factions:
+            group_size = 5
+            idx = 0
+            faction_i = 0
+            while idx < len(self.participants):
+                group = self.participants[idx:idx + group_size]
+                # Find a faction with enough capacity for this group
+                name = self._next_available_faction(len(group))
+                for p in group:
+                    self.assignment[p] = name
+                idx += group_size
+            return
+        # Deferred formation: start as Neutral
+        for participant in self.participants:
+            self.assignment[participant] = 'Neutral'
+
+    def _faction_member_count(self, name: str) -> int:
+        return sum(1 for v in self.assignment.values() if v == name)
+
+    def _next_available_faction(self, needed: int) -> str:
+        # Prefer empty factions first, otherwise any with capacity >= needed
+        empties = [n for n in self.faction_names if self._faction_member_count(n) == 0]
+        for n in empties:
+            return n
+        for n in self.faction_names:
+            if 5 - self._faction_member_count(n) >= needed:
+                return n
+        # Fallback: return any with space (will not exceed 600 capacity overall)
+        for n in self.faction_names:
+            if self._faction_member_count(n) < 5:
+                return n
+        return self.faction_names[0]
+    
+    def _initialize_locations(self):
+        factions_map: Dict[str, List[str]] = {}
+        for p in self.participants:
+            f = self.assignment.get(p, 'Neutral')
+            factions_map.setdefault(f, []).append(p)
+
+        non_neutral_factions = [f for f in factions_map.keys() if f != 'Neutral']
+        cluster_styles: Dict[str, str] = {}
+        if len(non_neutral_factions) <= len(self.style_order):
+            for i, f in enumerate(non_neutral_factions):
+                cluster_styles[f] = self.style_order[i]
+        else:
+            for i, f in enumerate(non_neutral_factions):
+                cluster_styles[f] = self.style_order[i % len(self.style_order)]
+
+        cluster_centers: Dict[str, Tuple[int, int]] = {}
+        zone_center_slots: Dict[str, List[Tuple[int, int]]] = {}
+        for style, rect in self.style_zones.items():
+            x0, y0, x1, y1 = rect
+            w = x1 - x0
+            h = y1 - y0
+            cx1 = x0 + w // 4
+            cx2 = x0 + w // 2
+            cx3 = x0 + (3 * w) // 4
+            cy1 = y0 + h // 4
+            cy2 = y0 + h // 2
+            cy3 = y0 + (3 * h) // 4
+            zone_center_slots[style] = [(cx1, cy1), (cx3, cy1), (cx1, cy3), (cx3, cy3), (cx2, cy2)]
+
+        for f in non_neutral_factions:
+            style = cluster_styles[f]
+            slots = zone_center_slots.get(style, [])
+            if slots:
+                center = slots.pop(0)
+                zone_center_slots[style] = slots
+                cluster_centers[f] = center
+            else:
+                rect = self.style_zones.get(style)
+                if rect:
+                    x0, y0, x1, y1 = rect
+                    center = (random.randint(x0 + 40, x1 - 40), random.randint(y0 + 40, y1 - 40))
+                    cluster_centers[f] = center
+
+        for f, members in factions_map.items():
+            if f == 'Neutral':
+                for p in members:
+                    style, location = self.pools.random_location_with_style()
+                    self.locations[p] = {'style': style, 'location': location, 'x': 0, 'y': 0}
+                    px, py = self._random_point_in_style(style)
+                    self.locations[p]['x'] = px
+                    self.locations[p]['y'] = py
+                    self.forms[p] = 'robot'
+            else:
+                style = cluster_styles.get(f, random.choice(self.style_order))
+                center = cluster_centers.get(f)
+                for p in members:
+                    if style in self.style_zones:
+                        px, py = self._random_point_in_style(style)
+                        loc_name = self.pools.random_location_for_style(style)
+                        self.locations[p] = {'style': style, 'location': loc_name, 'x': px, 'y': py}
+                        self.forms[p] = 'robot'
+                    else:
+                        style, location = self.pools.random_location_with_style()
+                        self.locations[p] = {'style': style, 'location': location, 'x': 0, 'y': 0}
+                        if style in self.style_zones:
+                            px, py = self._random_point_in_style(style)
+                            self.locations[p]['x'] = px
+                            self.locations[p]['y'] = py
+                        self.forms[p] = 'robot'
+    
+    def get_faction_color(self, participant: str) -> Tuple[int, int, int]:
+        faction = self.assignment.get(participant, 'Neutral')
+        if faction == 'Neutral':
+            return (255, 255, 255)
+        return self.faction_color_map.get(faction, (255, 255, 255))
+    
+    def render_map(self) -> Optional[BytesIO]:
+        """Render the current game map with participant positions"""
+        if not PIL_AVAILABLE:
+            return None
+        
+        try:
+            img = Image.new('RGBA', self.map_size, (235, 223, 200, 255))
+            draw = ImageDraw.Draw(img)
+
+            terrain = self._render_terrain_base()
+            img.alpha_composite(terrain)
+
+            tint = Image.new('RGBA', self.map_size, (0, 0, 0, 0))
+            td = ImageDraw.Draw(tint)
+            base_col = self.style_bg_colors.get('rust_dunes', (190, 160, 40))
+            td.rectangle([self.map_margin, self.map_margin, self.map_size[0] - self.map_margin, self.map_size[1] - self.map_margin], fill=(base_col[0], base_col[1], base_col[2], 22))
+            order = ['foundry_complex', 'urban_grid', 'mountain_ridge', 'spire_labyrinth', 'sky_causeways']
+            for style in order:
+                rects = getattr(self, 'style_patches', {}).get(style, [])
+                col = self.style_bg_colors.get(style, (120, 120, 120))
+                alpha = 26 if style in ('mountain_ridge', 'spire_labyrinth') else 28
+                for rect in rects:
+                    pts = self._generate_biome_polygon(rect, style)
+                    td.polygon(pts, fill=(col[0], col[1], col[2], alpha))
+            img.alpha_composite(tint)
+
+            self._apply_parchment_overlay(img)
+            draw.rectangle([self.map_margin - 10, self.map_margin - 10, self.map_size[0] - self.map_margin + 10, self.map_size[1] - self.map_margin + 10], outline=(85, 70, 55, 255), width=4)
+            for i in range(6):
+                pad = 12 + i * 6
+                draw.rectangle([self.map_margin - pad, self.map_margin - pad, self.map_size[0] - self.map_margin + pad, self.map_size[1] - self.map_margin + pad], outline=(50, 45, 40, 120), width=2)
+
+            size = 22
+            cnt = len(self.round_markers)
+            if cnt > 60:
+                size = 20
+            if cnt > 90:
+                size = 18
+            stamp_cache: Dict[Tuple[str, int], Image.Image] = {}
+            placed: List[Tuple[int, int]] = []
+            for marker in self.round_markers:
+                px, py = marker.get('x', 0), marker.get('y', 0)
+                emoji = marker.get('emoji', '⚪')
+                tries = 0
+                while tries < 12:
+                    ok = True
+                    for ox, oy in placed:
+                        if abs(px - ox) < 18 and abs(py - oy) < 18:
+                            ok = False
                             break
+                    if ok:
+                        break
+                    px += random.randint(-8, 8)
+                    py += random.randint(-8, 8)
+                    px = max(self.map_margin, min(px, self.map_size[0] - self.map_margin))
+                    py = max(self.map_margin, min(py, self.map_size[1] - self.map_margin))
+                    tries += 1
+                placed.append((px, py))
+                key = (emoji, size)
+                if key not in stamp_cache:
+                    stamp_cache[key] = self._emoji_stamp(emoji, size)
+                stamp = stamp_cache[key]
+                img.paste(stamp, (px - stamp.width // 2, py - stamp.height // 2), stamp)
+
+            for participant in self.participants:
+                if participant in self.elimination_locations and self.elimination_round.get(participant) == self.round_index:
+                    loc = self.elimination_locations[participant]
+                    px, py = loc['x'], loc['y']
+                    px = max(self.map_margin, min(px, self.map_size[0] - self.map_margin))
+                    py = max(self.map_margin, min(py, self.map_size[1] - self.map_margin))
+                    key = ('💀', size)
+                    if key not in stamp_cache:
+                        stamp_cache[key] = self._emoji_stamp('💀', size)
+                    stamp = stamp_cache[key]
+                    img.paste(stamp, (px - stamp.width // 2, py - stamp.height // 2), stamp)
+            
+            buf = BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            logger.error(f"Error rendering map: {e}")
+            return None
+
+    def _draw_robot(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
+        r = 6
+        draw.ellipse([px - r - 2, py - r - 2, px + r + 2, py + r + 2], fill=(col[0], col[1], col[2], 64))
+        draw.ellipse([px - r, py - r, px + r, py + r], fill=(col[0], col[1], col[2], 255), outline=(20, 20, 20, 255), width=2)
+
+    def _draw_vehicle(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
+        w, h = 12, 8
+        x0, y0 = px - w // 2, py - h // 2
+        x1, y1 = px + w // 2, py + h // 2
+        draw.rectangle([x0, y0, x1, y1], fill=(col[0], col[1], col[2], 230), outline=(20, 20, 20, 255), width=2)
+        rw = 2
+        draw.ellipse([x0, y1 - rw, x0 + rw + 1, y1 + rw + 1], fill=(20, 20, 20, 220))
+        draw.ellipse([x1 - rw - 1, y1 - rw, x1, y1 + rw + 1], fill=(20, 20, 20, 220))
+
+    def _draw_combiner(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
+        s = 6
+        points = [(px, py - s), (px + s, py), (px, py + s), (px - s, py)]
+        draw.polygon(points, fill=(col[0], col[1], col[2], 230), outline=(20, 20, 20, 255))
+        draw.line([(px - s // 2, py), (px + s // 2, py)], fill=(20, 20, 20, 255), width=2)
+        draw.line([(px, py - s // 2), (px, py + s // 2)], fill=(20, 20, 20, 255), width=2)
+
+    def _draw_skull(self, draw: Any, px: int, py: int, col: Tuple[int, int, int]):
+        r = 6
+        draw.ellipse([px - r - 2, py - r - 2, px + r + 2, py + r + 2], fill=(col[0], col[1], col[2], 70))
+        head = [px - r, py - r, px + r, py + r]
+        draw.ellipse(head, outline=(col[0], col[1], col[2], 240), width=2, fill=(255, 255, 255, 200))
+        eye_r = 2
+        draw.ellipse([px - 3 - eye_r, py - 2 - eye_r, px - 3 + eye_r, py - 2 + eye_r], fill=(20, 20, 20, 240))
+        draw.ellipse([px + 3 - eye_r, py - 2 - eye_r, px + 3 + eye_r, py - 2 + eye_r], fill=(20, 20, 20, 240))
+        draw.rectangle([px - 4, py + 2, px + 4, py + 5], fill=(255, 255, 255, 210), outline=(col[0], col[1], col[2], 240))
+        for dx in (-3, -1, 1, 3):
+            draw.line([(px + dx, py + 2), (px + dx, py + 5)], fill=(20, 20, 20, 255), width=1)
+
+    def _draw_biome_texture(self, draw: Any, rect: Tuple[int, int, int, int], style: str):
+        x0, y0, x1, y1 = rect
+        if style == 'urban_grid':
+            step = 24
+            for gx in range(x0 + 6, x1, step):
+                draw.line([(gx, y0 + 4), (gx, y1 - 4)], fill=(200, 200, 210, 40), width=1)
+            for gy in range(y0 + 6, y1, step):
+                draw.line([(x0 + 4, gy), (x1 - 4, gy)], fill=(200, 200, 210, 40), width=1)
+            for gx in range(x0 + 12, x1, step * 2):
+                draw.line([(gx, y0 + 4), (gx, y1 - 4)], fill=(240, 240, 250, 50), width=2)
+        elif style == 'foundry_complex':
+            for i in range(y0, y1, 10):
+                draw.line([(x0, i), (x1, i + 20)], fill=(80, 50, 40, 60), width=1)
+            for cx in range(x0 + 20, x1, 60):
+                for cy in range(y0 + 20, y1, 60):
+                    draw.ellipse([cx - 8, cy - 6, cx + 8, cy + 6], fill=(220, 130, 60, 90))
+        elif style == 'rust_dunes':
+            for dy in range(y0 + 10, y1, 18):
+                points = []
+                for dx in range(x0 + 10, x1 - 10, 12):
+                    px = dx
+                    py = dy + ((dx // 12) % 3 - 1) * 2
+                    points.append((px, py))
+                draw.line(points, fill=(200, 160, 120, 70), width=2)
+        elif style == 'mountain_ridge':
+            for k in range(5):
+                ox = x0 + 20 + k * 20
+                oy = y0 + 20 + k * 15
+                draw.arc([ox, oy, x1 - 20 - k * 20, y1 - 20 - k * 15], start=0, end=180, fill=(180, 210, 210, 90), width=2)
+        elif style == 'spire_labyrinth':
+            for sx in range(x0 + 20, x1 - 10, 22):
+                h = (sx % 40) + 40
+                draw.rectangle([sx, y1 - h, sx + 6, y1 - 8], fill=(160, 140, 190, 120))
+        elif style == 'sky_causeways':
+            for gy in range(y0 + 25, y1 - 25, 40):
+                draw.line([(x0 + 10, gy), (x1 - 10, gy)], fill=(190, 220, 250, 80), width=3)
+            for gx in range(x0 + 30, x1 - 30, 60):
+                draw.line([(gx, y0 + 10), (gx + 40, y1 - 10)], fill=(170, 200, 240, 60), width=2)
+
+    def _draw_biome_region(self, draw: Any, rect: Tuple[int, int, int, int], style: str):
+        x0, y0, x1, y1 = rect
+        base = self.style_bg_colors.get(style, (120, 120, 120))
+
+        if style == 'sky_causeways':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['sky_causeways']
+            # radial spokes within the inner circle
+            for a in range(0, 360, 30):
+                ang = a * math.pi / 180
+                x0 = int(cx + r0 * math.cos(ang))
+                y0 = int(cy + r0 * math.sin(ang))
+                x1 = int(cx + r1 * math.cos(ang))
+                y1 = int(cy + r1 * math.sin(ang))
+                draw.line([(x0, y0), (x1, y1)], fill=(80, 140, 200, 40), width=4)
+            # circular tracks
+            step = max(8, (r1 - r0) // 5)
+            for r in range(r0 + step // 2, r1, step):
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(190, 220, 250, 35), width=2)
+            return
+
+        if style == 'spire_labyrinth':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['spire_labyrinth']
+            step = max(10, (r1 - r0) // 5)
+            for r in range(r0, r1, step):
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(90, 70, 120, 50), width=2)
+            for a in range(0, 360, 45):
+                ang = a * math.pi / 180
+                x0 = int(cx + r0 * math.cos(ang))
+                y0 = int(cy + r0 * math.sin(ang))
+                x1 = int(cx + r1 * math.cos(ang))
+                y1 = int(cy + r1 * math.sin(ang))
+                draw.line([(x0, y0), (x1, y1)], fill=(160, 140, 190, 40), width=2)
+            return
+
+        if style == 'mountain_ridge':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['mountain_ridge']
+            inc = max(8, (r1 - r0) // 6)
+            for k in range(5):
+                r = r0 + k * inc
+                draw.arc([cx - r, cy - r, cx + r, cy + r], start=200, end=340, fill=(180, 210, 210, 45), width=2)
+                draw.arc([cx - r, cy - r, cx + r, cy + r], start=20, end=160, fill=(180, 210, 210, 45), width=2)
+            return
+
+        if style == 'foundry_complex':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['foundry_complex']
+            for r in range(r0 + 12, r1, 26):
+                for a in range(0, 360, 36):
+                    ang = a * math.pi / 180
+                    x = int(cx + r * math.cos(ang))
+                    y = int(cy + r * math.sin(ang))
+                    draw.ellipse([x - 6, y - 4, x + 6, y + 4], fill=(220, 130, 60, 40))
+            for a in range(0, 360, 22):
+                ang = a * math.pi / 180
+                x0 = int(cx + (r0 + 6) * math.cos(ang))
+                y0 = int(cy + (r0 + 6) * math.sin(ang))
+                x1 = int(cx + (r1 - 6) * math.cos(ang))
+                y1 = int(cy + (r1 - 6) * math.sin(ang))
+                draw.line([(x0, y0), (x1, y1)], fill=(80, 50, 40, 35), width=1)
+            return
+
+        if style == 'urban_grid':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['urban_grid']
+            step = 36
+            for r in range(r0 + 12, r1 - 12, step):
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(200, 200, 210, 20), width=1)
+            for a in range(0, 360, 45):
+                ang = a * math.pi / 180
+                x0 = int(cx + r0 * math.cos(ang))
+                y0 = int(cy + r0 * math.sin(ang))
+                x1 = int(cx + r1 * math.cos(ang))
+                y1 = int(cy + r1 * math.sin(ang))
+                draw.line([(x0, y0), (x1, y1)], fill=(240, 240, 250, 25), width=1)
+            return
+
+        if style == 'rust_dunes':
+            w, h = self.map_size
+            cx = w // 2
+            cy = h // 2
+            r0, r1 = self._ring_specs()['rust_dunes']
+            for r in range(r0 + 16, r1, 26):
+                points = []
+                for a in range(0, 360, 18):
+                    ang = a * math.pi / 180
+                    ra = r + ((a // 12) % 3 - 1) * 2
+                    x = int(cx + ra * math.cos(ang))
+                    y = int(cy + ra * math.sin(ang))
+                    points.append((x, y))
+                draw.line(points, fill=(200, 160, 120, 35), width=2)
+            return
+
+        self._draw_biome_texture(draw, rect, style)
+
+    def _generate_biome_polygon(self, rect: Tuple[int, int, int, int], style: str) -> List[Tuple[int, int]]:
+        x0, y0, x1, y1 = rect
+        amp_map = {
+            'urban_grid': 8,
+            'foundry_complex': 14,
+            'rust_dunes': 16,
+            'mountain_ridge': 20,
+            'spire_labyrinth': 12,
+            'sky_causeways': 16,
+        }
+        amp = amp_map.get(style, 12)
+        over = amp // 2
+        points: List[Tuple[int, int]] = []
+        w = x1 - x0
+        h = y1 - y0
+        cols = 10
+        rows = 10
+        for t in range(cols + 1):
+            x = x0 + int(t * w / cols)
+            y = y0 + random.randint(-over, over)
+            y = max(self.map_margin, min(y, self.map_size[1] - self.map_margin))
+            points.append((x, y))
+        for t in range(rows + 1):
+            y = y0 + int(t * h / rows)
+            x = x1 + random.randint(-over, over)
+            x = max(self.map_margin, min(x, self.map_size[0] - self.map_margin))
+            points.append((x, y))
+        for t in range(cols + 1):
+            x = x1 - int(t * w / cols)
+            y = y1 + random.randint(-over, over)
+            y = max(self.map_margin, min(y, self.map_size[1] - self.map_margin))
+            points.append((x, y))
+        for t in range(rows + 1):
+            y = y1 - int(t * h / rows)
+            x = x0 + random.randint(-over, over)
+            x = max(self.map_margin, min(x, self.map_size[0] - self.map_margin))
+            points.append((x, y))
+        return points
+
+    def _jitter_polygon(self, points: List[Tuple[int, int]], mag: int) -> List[Tuple[int, int]]:
+        jp: List[Tuple[int, int]] = []
+        for x, y in points:
+            jx = max(self.map_margin, min(x + random.randint(-mag, mag), self.map_size[0] - self.map_margin))
+            jy = max(self.map_margin, min(y + random.randint(-mag, mag), self.map_size[1] - self.map_margin))
+            jp.append((jx, jy))
+        return jp
+
+    def _apply_parchment_overlay(self, img: Any):
+        w, h = img.size
+        d = ImageDraw.Draw(img)
+        for i in range(8):
+            pad = 8 + i * 6
+            alpha = 80 - i * 9
+            d.rectangle([pad, pad, w - pad, h - pad], outline=(70, 55, 40, max(alpha, 10)), width=2)
+
+    def _hash_noise(self, ix: int, iy: int, seed: int) -> float:
+        n = (ix * 374761393 + iy * 668265263 + seed * 144005 + 0x9e3779b9) & 0xffffffff
+        n ^= (n >> 13)
+        n = (n * 1274126177) & 0xffffffff
+        return (n & 0xffffffff) / 4294967295.0
+
+    def _noise_bilinear(self, x: float, y: float, scale: float, seed: int) -> float:
+        gx = int(x / scale)
+        gy = int(y / scale)
+        fx = x / scale - gx
+        fy = y / scale - gy
+        def s(t: float) -> float:
+            return t * t * (3.0 - 2.0 * t)
+        sx = s(fx)
+        sy = s(fy)
+        v00 = self._hash_noise(gx, gy, seed)
+        v10 = self._hash_noise(gx + 1, gy, seed)
+        v01 = self._hash_noise(gx, gy + 1, seed)
+        v11 = self._hash_noise(gx + 1, gy + 1, seed)
+        i1 = v00 + (v10 - v00) * sx
+        i2 = v01 + (v11 - v01) * sx
+        return i1 + (i2 - i1) * sy
+
+    def _generate_heightmap(self) -> Image.Image:
+        w, h = self.map_size
+        hm = Image.new('L', (w, h))
+        px = hm.load()
+        seed = random.randint(1, 10_000_000)
+        octaves = [(160.0, 0.55), (80.0, 0.30), (38.0, 0.10), (18.0, 0.05)]
+        ampsum = sum(a for _, a in octaves)
+        for y in range(h):
+            for x in range(w):
+                v = 0.0
+                for sc, amp in octaves:
+                    v += amp * self._noise_bilinear(x, y, sc, seed)
+                v /= ampsum
+                px[x, y] = int(max(0.0, min(1.0, v)) * 255)
+        return hm
+
+    def _colorize_heightmap(self, hm: Image.Image) -> Image.Image:
+        w, h = hm.size
+        src = hm.load()
+        out = Image.new('RGBA', (w, h))
+        dst = out.load()
+        for y in range(h):
+            for x in range(w):
+                t = src[x, y] / 255.0
+                if t < 0.35:
+                    col = (222, 206, 180)
+                elif t < 0.55:
+                    col = (184, 196, 160)
+                elif t < 0.75:
+                    col = (160, 150, 140)
+                else:
+                    col = (235, 235, 235)
+                dst[x, y] = (col[0], col[1], col[2], 255)
+        return out
+
+    def _compute_shading(self, hm: Image.Image) -> Image.Image:
+        w, h = hm.size
+        src = hm.load()
+        shade = Image.new('L', (w, h))
+        spx = shade.load()
+        lx, ly, lz = -0.6, -0.6, 0.5
+        for y in range(h):
+            for x in range(w):
+                x0 = max(0, x - 1)
+                x1 = min(w - 1, x + 1)
+                y0 = max(0, y - 1)
+                y1 = min(h - 1, y + 1)
+                dzdx = (src[x1, y] - src[x0, y]) / 255.0
+                dzdy = (src[x, y1] - src[x, y0]) / 255.0
+                nx, ny, nz = -dzdx, -dzdy, 1.0
+                invlen = 1.0 / max(1e-6, (nx * nx + ny * ny + nz * nz) ** 0.5)
+                nx *= invlen
+                ny *= invlen
+                nz *= invlen
+                dot = nx * lx + ny * ly + nz * lz
+                val = int(max(0.0, min(1.0, 0.5 + 0.5 * dot)) * 255)
+                spx[x, y] = val
+        return shade
+
+    def _render_terrain_base(self) -> Image.Image:
+        hm = self._generate_heightmap()
+        color = self._colorize_heightmap(hm)
+        shade = self._compute_shading(hm)
+        sh_rgb = Image.merge('RGBA', (shade, shade, shade, Image.new('L', color.size, 120)))
+        return ImageChops.multiply(color, sh_rgb)
+
+    def _get_emoji_font(self, size: int):
+        if not ImageFont:
+            return None
+        try:
+            return ImageFont.truetype("C:\\Windows\\Fonts\\seguiemj.ttf", size)
+        except Exception:
+            pass
+        try:
+            return ImageFont.truetype("Segoe UI Emoji", size)
+        except Exception:
+            pass
+        try:
+            return ImageFont.truetype("segoe ui emoji", size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _get_label_font(self, size: int):
+        if not ImageFont:
+            return None
+        try:
+            return ImageFont.truetype("C:\\Windows\\Fonts\\segoeui.ttf", size)
+        except Exception:
+            pass
+        try:
+            return ImageFont.truetype("Segoe UI", size)
+        except Exception:
+            pass
+        try:
+            return ImageFont.truetype("Arial", size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _emoji_stamp(self, emoji: str, size: int) -> Image.Image:
+        font = self._get_emoji_font(size)
+        w = size * 2
+        h = size * 2
+        img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        try:
+            bbox = d.textbbox((0, 0), emoji, font=font)
+            tw = max(8, bbox[2] - bbox[0])
+            th = max(8, bbox[3] - bbox[1])
+        except Exception:
+            tw, th = d.textsize(emoji, font=font)
+        x = (w - tw) // 2
+        y = (h - th) // 2
+        try:
+            d.text((x, y), emoji, font=font)
+        except Exception:
+            d.text((x, y), emoji, fill=(0, 0, 0, 255), font=font)
+        try:
+            bb = img.getbbox()
+            if bb:
+                img = img.crop(bb)
+        except Exception:
+            pass
+        return img
+
+
+    def _draw_compass_rose(self, draw: Any, x: int, y: int, r: int):
+        draw.ellipse([x, y, x + r, y + r], outline=(90, 70, 60, 255), width=3)
+        draw.ellipse([x + 10, y + 10, x + r - 10, y + r - 10], outline=(120, 90, 70, 255), width=2)
+        cx = x + r // 2
+        cy = y + r // 2
+        for a in range(0, 360, 22):
+            dx = int(r // 2 * 0.9 * (ImageFont and 1))
+            draw.line([(cx, cy), (cx + int(0.9 * (r // 2) * (1 if a % 44 == 0 else 0.8)), cy)], fill=(120, 90, 70, 255), width=1)
+        draw.text((cx - 5, y - 18), "N", fill=(90, 70, 60, 255), font=ImageFont.load_default())
+
+    def _draw_cartouche(self, draw: Any, x: int, y: int, title: str):
+        w = 560
+        h = 70
+        draw.rectangle([x, y, x + w, y + h], fill=(245, 235, 210, 220), outline=(90, 70, 60, 255), width=2)
+        font = getattr(self, '_get_label_font', None)
+        if callable(font):
+            ft = self._get_label_font(32)
+        else:
+            try:
+                ft = ImageFont.truetype("C:\\Windows\\Fonts\\segoeui.ttf", 32)
+            except Exception:
+                ft = ImageFont.load_default()
+        draw.text((x + 16, y + 18), title, fill=(90, 70, 60, 255), font=ft)
+
+    def _draw_grid_labels(self, draw: Any):
+        font = ImageFont.load_default()
+        cols = 12
+        rows = 8
+        x_step = (self.map_size[0] - 2 * self.map_margin) // cols
+        y_step = (self.map_size[1] - 2 * self.map_margin) // rows
+        for c in range(cols):
+            label = chr(ord('A') + c)
+            x = self.map_margin + c * x_step + 4
+            draw.text((x, self.map_margin - 24), label, fill=(100, 80, 70, 255), font=font)
+            draw.text((x, self.map_size[1] - self.map_margin + 8), label, fill=(100, 80, 70, 255), font=font)
+        for r in range(rows):
+            label = str(r + 1)
+            y = self.map_margin + r * y_step + 2
+            draw.text((self.map_margin - 24, y), label, fill=(100, 80, 70, 255), font=font)
+            draw.text((self.map_size[0] - self.map_margin + 6, y), label, fill=(100, 80, 70, 255), font=font)
+    
+    def process_round(self) -> Dict[str, Any]:
+        """Process a single round of the game"""
+        self.round_index += 1
+        try:
+            self.style_patches = self._compute_style_patches(seed=self.round_index)
+        except Exception:
+            self.style_patches = self._compute_style_patches()
+        for p in self.alive:
+            self.forms[p] = 'robot'
+        self.round_markers = []
         
-        # Update eliminated set
-        for elimination in eliminated:
-            self.eliminated.add(elimination["warrior"])
+        if len(self.alive) <= 1:
+            return {
+                'round_index': self.round_index,
+                'actions': [],
+                'eliminations': [],
+                'remaining': self.alive.copy(),
+                'game_over': True
+            }
+        
+        # Build per-round scheduling pool
+        unassigned = list(self.alive)
+        random.shuffle(unassigned)
+        round_actions = []
+        round_eliminations = []
+        round_mode = random.choice(['actions_only', 'elims_only', 'mixed'])
+        
+        while unassigned:
+            # Start a new event with the next participant
+            leader = unassigned[0]
+            leader_faction = self.assignment.get(leader, 'Neutral')
+            
+            # Determine sizes up-front to avoid leaving a single leftover participant
+            k = len(unassigned)
+            
+            # For factions: use ALL remaining users for the event
+            if leader_faction != 'Neutral':
+                # Faction events: use all remaining users
+                if k >= 2:
+                    # Split all remaining users between sides
+                    if k == 2:
+                        desired_a = 1
+                        desired_b = 1
+                    else:
+                        # Random split of all users, but ensure both sides have at least 1
+                        desired_a = random.randint(1, k - 1)
+                        desired_b = k - desired_a
+                else:
+                    desired_a = 1
+                    desired_b = 0
+            else:
+                # Neutral users: biased probability toward 1vANY, less likely for larger groups
+                # Create weighted probability distribution
+                if k >= 2:
+                    # Higher chance of 1vANY for neutrals
+                    weights = []
+                    for size in range(1, min(6, k)):  # 1 to 5 or max available
+                        if size == 1:
+                            weights.append(3)  # 3x more likely for 1vANY
+                        elif size == 2:
+                            weights.append(2)  # 2x for 2vANY
+                        else:
+                            weights.append(1)  # Normal weight for larger groups
+                    
+                    desired_a = random.choices(range(1, min(6, k)), weights=weights)[0]
+                    remaining_after_a = k - desired_a
+                    if remaining_after_a >= 1:
+                        desired_b = random.randint(1, min(5, remaining_after_a))
+                    else:
+                        desired_b = 0
+                else:
+                    desired_a = 1
+                    desired_b = 0
+            
+            leftover = k - desired_a - desired_b
+            if leftover == 1:
+                # Prefer increasing B if possible; otherwise increase A
+                max_b = min(5, k - desired_a)
+                if desired_b < max_b:
+                    desired_b += 1
+                else:
+                    max_a = min(5, k - 1)
+                    if desired_a < max_a:
+                        desired_a += 1
+            
+            # Construct Side A: completely random selection
+            side_a = [leader]
+            available_pool = unassigned[1:]  # All available participants except leader
+            random.shuffle(available_pool)
+            side_a.extend(available_pool[:(desired_a - 1)])
+            
+            # Now select Side B
+            remaining_pool = [p for p in unassigned if p not in side_a]
+            if not remaining_pool:
+                if len(side_a) > 1:
+                    moved = side_a.pop()
+                    remaining_pool = [moved]
+                else:
+                    loc_style = self.locations.get(leader, {}).get('style', random.choice(self.style_order))
+                    loc_name = self.pools.random_location_for_style(loc_style)
+                    solo_template = "{A1} scouts at {Location}."
+                    text = _fill_template_with_location(solo_template, loc_style, side_a, [], self.pools, loc_name)
+                    cluster_center = self._random_point_in_style(loc_style)
+                    for participant in side_a:
+                        self.locations[participant] = {
+                            'style': loc_style,
+                            'location': loc_name,
+                            'x': 0,
+                            'y': 0
+                        }
+                        px, py = self._scatter_around(cluster_center)
+                        self.locations[participant]['x'] = px
+                        self.locations[participant]['y'] = py
+                        if participant in self.alive:
+                            self.forms[participant] = 'vehicle'
+                    solo_emoji = self.get_faction_emoji(side_a[0], 'robot', False)
+                    self.round_markers.append({'x': cluster_center[0], 'y': cluster_center[1], 'style': loc_style, 'is_elimination': False, 'emoji': solo_emoji, 'side_a': side_a, 'side_b': []})
+                    action_emojis = self.get_event_emojis(side_a, [], is_elimination=False)
+                    emoji_text = f"{action_emojis} {text}"
+                    round_actions.append(emoji_text)
+                    for participant in side_a:
+                        self.action_log.setdefault(participant, []).append(emoji_text)
+                        if participant in unassigned:
+                            unassigned.remove(participant)
+                    if len(self.alive) == 0:
+                        break
+                    continue
+
+            desired_b = min(desired_b, len(remaining_pool))
+            # Side B: completely random selection from remaining pool
+            random.shuffle(remaining_pool)
+            side_b = remaining_pool[:desired_b]
+            
+            # Decide event type
+            if round_mode == 'actions_only':
+                is_elim = False
+            elif round_mode == 'elims_only':
+                is_elim = True
+            else:
+                is_elim = random.choice([True, False])
+            style = f"{len(side_a)}v{len(side_b)}"
+            
+            # Get template
+            if is_elim:
+                pool = self.pools.elims_by_style
+                templates = pool.get(style, [])
+                if not templates:
+                    templates = self.pools.actions_by_style.get(style, ["{A1} eliminates {B1} at {Location}."])
+            else:
+                pool = self.pools.actions_by_style
+                templates = pool.get(style, [])
+                if not templates:
+                    templates = ["{A1} and {B1} exchange signals at {Location}."]
+            
+            template = random.choice(templates) if templates else "{A1} and {B1} interact at {Location}."
+            
+            # Choose location style based on where participants currently are
+            style_counts: Dict[str, int] = {}
+            for participant in side_a + side_b:
+                loc = self.locations.get(participant)
+                if loc and isinstance(loc, dict):
+                    s = loc.get('style')
+                    if s:
+                        style_counts[s] = style_counts.get(s, 0) + 1
+            if style_counts:
+                loc_style = max(style_counts.items(), key=lambda kv: kv[1])[0]
+            else:
+                loc_style = random.choice(self.style_order)
+            loc_name = self.pools.random_location_for_style(loc_style)
+            text = _fill_template_with_location(template, loc_style, side_a, side_b, self.pools, loc_name)
+            
+            # Update clustered locations for participants in this event
+            cluster_center = self._random_point_in_style(loc_style)
+            for participant in side_a + side_b:
+                self.locations[participant] = {
+                    'style': loc_style,
+                    'location': loc_name,
+                    'x': 0,
+                    'y': 0
+                }
+                px, py = self._scatter_around(cluster_center)
+                self.locations[participant]['x'] = px
+                self.locations[participant]['y'] = py
+            if len(side_a) in (1, 2, 3):
+                a_form = 'vehicle'
+            else:
+                a_form = 'combiner' if ('{CombinerA}' in template and not ('{VehicleA}' in template)) else 'vehicle'
+            if len(side_b) in (1, 2, 3):
+                b_form = 'vehicle'
+            else:
+                b_form = 'combiner' if ('{CombinerB}' in template and not ('{VehicleB}' in template)) else 'vehicle'
+            for participant in side_a:
+                if participant in self.alive:
+                    self.forms[participant] = a_form
+            for participant in side_b:
+                if participant in self.alive:
+                    self.forms[participant] = b_form
+            event_emoji = self._form_count_emoji(len(side_a), a_form == 'combiner')
+            self.round_markers.append({'x': cluster_center[0], 'y': cluster_center[1], 'style': loc_style, 'is_elimination': is_elim, 'emoji': event_emoji, 'side_a': side_a, 'side_b': side_b})
+
+            # Mid-game faction formation rules
+            if self.all_factions and not self.starting_factions:
+                if not is_elim:
+                    if len(side_a) >= 3:
+                        neutrals = [p for p in side_a if self.assignment.get(p, 'Neutral') == 'Neutral']
+                        if neutrals:
+                            name = self._next_available_faction(len(neutrals))
+                            for p in neutrals:
+                                self.assignment[p] = name
+                    if len(side_b) >= 3:
+                        neutrals = [p for p in side_b if self.assignment.get(p, 'Neutral') == 'Neutral']
+                        if neutrals:
+                            name = self._next_available_faction(len(neutrals))
+                            for p in neutrals:
+                                self.assignment[p] = name
+                else:
+                    if len(side_a) >= 3:
+                        neutrals = [p for p in side_a if self.assignment.get(p, 'Neutral') == 'Neutral']
+                        if neutrals:
+                            name = self._next_available_faction(len(neutrals))
+                            for p in neutrals:
+                                self.assignment[p] = name
+            
+            if is_elim:
+                # Add emoji prefix for elimination messages
+                elim_emojis = self.get_event_emojis(side_a, side_b, is_elimination=True)
+                emoji_text = f"{elim_emojis} {text}"
+                
+                round_eliminations.append(emoji_text)
+                for participant in side_a:
+                    self.action_log.setdefault(participant, []).append(emoji_text)
+                for participant in side_b:
+                    self.action_log.setdefault(participant, []).append(emoji_text)
+                for victim in side_b:
+                    for killer in side_a:
+                        self.kill_log.setdefault(killer, []).append({
+                            'victim': victim,
+                            'with': [p for p in side_a if p != killer],
+                            'text': emoji_text
+                        })
+                for participant in side_b:
+                    if participant in self.alive:
+                        self.alive.remove(participant)
+                        self.elimination_locations[participant] = self.locations[participant].copy()
+                        self.elimination_round[participant] = self.round_index
+            else:
+                # Add emoji prefix for action messages
+                action_emojis = self.get_event_emojis(side_a, side_b, is_elimination=False)
+                emoji_text = f"{action_emojis} {text}"
+                
+                round_actions.append(emoji_text)
+                for participant in side_a:
+                    self.action_log.setdefault(participant, []).append(emoji_text)
+                for participant in side_b:
+                    self.action_log.setdefault(participant, []).append(emoji_text)
+            
+            # Mark all participants in this event as assigned this round
+            for participant in side_a + side_b:
+                if participant in unassigned:
+                    unassigned.remove(participant)
+            
+            # If alive count drops to 0 mid-round, stop constructing events
+            if len(self.alive) == 0:
+                break
         
         return {
-            "eliminated": eliminated,
-            "faction_changes": faction_changes,
-            "faction_descriptions": faction_descriptions
+            'round_index': self.round_index,
+            'actions': round_actions,
+            'eliminations': round_eliminations,
+            'remaining': self.alive.copy(),
+            'game_over': len(self.alive) <= 1
         }
-        
-    def _generate_fallback_cybertron_round(self, round_num: int, participants: List[discord.Member]) -> str:
-        """Generate a Transformers-themed fallback round when AI generation fails."""
-        eliminations = []
-        story_text = f"🌌 **CYBERTRON GAMES - ROUND {round_num}** 🌌\n\n"
-        
-        if len(participants) > 1:
-            num_to_eliminate = random.randint(1, min(2, len(participants) - 1))
-            random_eliminated = random.sample(participants, num_to_eliminate)
-            
-            # Enhanced Transformers-themed elimination methods
-            elimination_methods = [
-                "was overloaded with a devastating dark energon blast",
-                "was caught in a catastrophic plasma conduit explosion", 
-                "had their spark core disrupted by a cunning enemy's ion cannon",
-                "was crushed by falling debris from a collapsing energon refinery",
-                "fell into a pit of molten cybermatter during fierce combat",
-                "was short-circuited by an electromagnetic pulse weapon",
-                "had their transformation cog damaged beyond repair",
-                "was overwhelmed by a swarm of mechanical scraplets",
-                "was frozen solid by a cryo-cannon blast",
-                "had their energon supply drained by a parasitic techno-virus",
-                "was vaporized by a concentrated photon beam",
-                "fell victim to a booby-trapped energon cache",
-                "was crushed in the gears of a massive mechanical trap",
-                "had their neural circuits scrambled by a logic bomb",
-                "was consumed by unstable synthetic energon"
-            ]
-            
-            # Get current survivors from game state
-            survivors = set(self.game_state.get('survivors', []))
-            
-            for eliminated_warrior in random_eliminated:
-                killer = random.choice([p for p in participants if p != eliminated_warrior])
-                method = random.choice(elimination_methods)
-                
-                story_text += f"⚡ **{eliminated_warrior.display_name}** {method} and was eliminated from the Cybertron Games by **{killer.display_name}**.\n\n"
-                
-                # Update game state directly
-                warrior_name = eliminated_warrior.display_name
-                if warrior_name in survivors:
-                    survivors.discard(warrior_name)
-                    if 'eliminations' in self.game_state and warrior_name not in self.game_state['eliminations']:
-                        self.game_state['eliminations'].append(warrior_name)
-                
-                eliminations.append(eliminated_warrior)
-            
-            # Update game state survivors
-            if 'survivors' in self.game_state:
-                self.game_state['survivors'] = list(survivors)
-            
-            remaining_warriors = [p for p in participants if p not in eliminations]
-            
-            # Add faction changes randomly for some survivors (10% chance)
-            if self.game_state.get('assignments') and len(remaining_warriors) > 0:
-                # Get allowed factions from game state
-                allowed_factions = []
-                for faction_data in self.game_state.get('assignments', {}).values():
-                    if isinstance(faction_data, dict) and 'faction' in faction_data:
-                        faction = faction_data['faction']
-                        if faction not in allowed_factions:
-                            allowed_factions.append(faction)
-                
-                if allowed_factions:
-                    for warrior in remaining_warriors:
-                        # 10% chance of faction change
-                        if random.random() < 0.1:
-                            warrior_name = warrior.display_name
-                            current_faction = self.faction_tracker.get(warrior_name)
-                            available_factions = [f for f in allowed_factions if f != current_faction]
-                            
-                            if available_factions:
-                                new_faction = random.choice(available_factions)
-                                self.faction_tracker[warrior_name] = new_faction
-                                story_text += f"⚙️ **{warrior_name}** has defected to the **{new_faction}** faction!\n\n"
-            
-            story_text += f"🤖 **Remaining Cybertronian Warriors:** {', '.join([p.display_name for p in remaining_warriors])}\n"
-            story_text += f"💀 **Sparks Extinguished This Round:** {len(eliminations)}"
 
-        else:
-            story_text += f"👑 **VICTORY ACHIEVED!** 👑\n\n"
-            story_text += f"Only one warrior's spark still burns bright: **{participants[0].display_name}**. "
-            story_text += f"They stand triumphant as the ultimate champion of the Cybertron Games, their energon reserves intact and their will unbroken!"
-        
-        logger.info(f"✅ Fallback Cybertron Round {round_num} generated successfully")
-        return story_text
 
-    async def initialize_game(
-        self,
-        ctx: commands.Context,
-        include_bots: bool = False,
-        warriors: int = 0,
-        factions: int = 5,
-        specific_participants: str = None,
-        cybertronian_only: bool = False
-    ):
-        """Handle the /cybertron_games command logic"""
-        game_key = str(ctx.channel.id)
-        
-        if game_key in self.active_games:
-            embed = discord.Embed(
-                title="⚡ A GAME IS ALREADY IN PROGRESS ⚡",
-                description="Please wait for the current Cybertron Games to finish.",
-                color=0xff0000
-            )
-            await ctx.send(embed=embed)
-            return
-        
-        guild_members = ctx.guild.members
-        participants = []
-        
-        if specific_participants:
-            user_ids = []
-            for part in specific_participants.split():
-                try:
-                    user_id = int(part.replace('<@!', '').replace('<@', '').replace('>', ''))
-                    user_ids.append(user_id)
-                except ValueError:
-                    pass
-            
-            participants = [m for m in guild_members if m.id in user_ids]
-            
-        else:
-            participants = [m for m in guild_members if (include_bots or not m.bot)]
-        
-        if cybertronian_only:
-            participants = [m for m in participants if self.has_cybertronian_role(m)]
-            if len(participants) == 0:
-                embed = discord.Embed(
-                    title="⚡ NO CYBERTRONIAN WARRIORS FOUND ⚡",
-                    description="No members with Cybertronian roles (Autobot, Decepticon, Maverick, or Cybertronian_Citizen) were found!",
-                    color=0xff0000
-                )
-                await ctx.send(embed=embed)
-                return
-            
-        if 2 <= warriors <= 50 and warriors <= len(participants):
-            participants = random.sample(participants, warriors)
-        elif warriors > len(participants):
-            await ctx.send(f"Not enough warriors available. Only found {len(participants)}.")
-            return
-        
-        if len(participants) < 2:
-            embed = discord.Embed(
-                title="⚡ INSUFFICIENT WARRIORS ⚡",
-                description="Need at least 2 cybertronian warriors to start the games!",
-                color=0xff0000
-            )
-            await ctx.send(embed=embed)
-            return
-
-        assignments = self.assign_factions(participants, factions)
-        
-        self.game_state = {
-            'participants': participants,
-            'assignments': assignments,
-            'survivors': [p.display_name for p in participants],
-            'eliminations': [],
-            'current_round': 0,
-            'round_history': [],
-            'start_time': datetime.now()
-        }
-        self.active_games[game_key] = self.game_state
-        
-        # Store original participants for validation
-        self.original_participants[game_key] = [p.display_name for p in participants]
-        
-        # Save initial state to JSON file
-        self._save_game_state_to_file(game_key, self.game_state)
-        
-        embed = discord.Embed(
-            title="⚡ THE CYBERTRON GAMES HAVE BEEN INITIATED ⚡",
-            description="*The ancient Arena of Cybertron stirs to life, its energon-powered systems humming with anticipation. Warriors from across the galaxy prepare for the ultimate test of survival...*\n\n🔥 **Click START GAMES to begin the first round of combat!** 🔥",
-            color=0x00aaff
-        )
-        
-        factions_text = "\n".join(
-            f"⚔️ **{faction_name}** - {len(faction_participants)} warriors" 
-            for faction_name, faction_participants in self._get_factions(participants).items()
-        )
-        embed.add_field(name="🤖 CYBERTRONIAN FACTIONS", value=factions_text, inline=False)
-        embed.add_field(name="⚡ Total Warriors", value=f"**{len(participants)}** brave souls", inline=True)
-        embed.add_field(name="🌌 Arena Status", value="**ENERGIZED & READY**", inline=True)
-        embed.set_footer(text="May the AllSpark guide the worthy to victory...")
-        
-        view = CybertronGamesView(self, game_key, game_state="setup")
-        self.active_views[game_key] = view
-        
-        view.message = await ctx.send(embed=embed, view=view)
-
-    async def _advance_cybertron_round(self, game_key: str, interaction: discord.Interaction = None, channel: discord.TextChannel = None):
-        """Advance to the next round of the Cybertron Games"""
-        try:
-            target_channel = interaction.channel if interaction else channel
-            
-            game_data = self.active_games[game_key]
-            game_data['current_round'] += 1
-
-            current_participants = [p for p in game_data['participants'] if p.display_name in game_data['survivors']]
-            
-            # Check for various ending conditions
-            should_end, ending_reason = self._check_ending_conditions(game_data, current_participants)
-            
-            if should_end or len(current_participants) <= 1:
-                await self._end_cybertron_games(game_key, interaction, channel, ending_reason)
-                return
-
-            previous_survivors_count = len(game_data['survivors'])
-            previous_eliminations_count = len(game_data.get('eliminations', []))
-
-            round_data = self._generate_cybertron_round(
-                game_data['current_round'], 
-                current_participants, 
-                previous_round=game_data['round_history'][-1] if game_data['round_history'] else None
-            )
-
-            game_data['round_history'].append(round_data)
-
-            if "eliminated" in round_data and round_data["eliminated"]:
-                logger.info(f"Processing eliminations: {len(round_data['eliminated'])} eliminations found")
-
-                if 'eliminations' not in game_data:
-                    game_data['eliminations'] = []
-                
-                for elimination in round_data["eliminated"]:
-                    if isinstance(elimination, dict):
-                        warrior = elimination.get('warrior', 'Unknown')
-                        if warrior and warrior not in game_data['eliminations']:
-                            game_data['eliminations'].append(warrior)
-                            if warrior in game_data['survivors']:
-                                game_data['survivors'].remove(warrior)
-                                logger.info(f"Removed {warrior} from survivors list")
-
-            total_eliminations = len(game_data.get('eliminations', []))
-
-            # Calculate remaining warriors AFTER processing eliminations
-            remaining_warriors = [p for p in game_data['participants'] if p.display_name in game_data['survivors']]
-
-            new_eliminations_count = previous_survivors_count - len(remaining_warriors)
-            
-            # Track eliminations that happened specifically in this round
-            current_round_eliminations = []
-            if "eliminated" in round_data and round_data["eliminated"]:
-                for elimination in round_data["eliminated"]:
-                    if isinstance(elimination, dict):
-                        warrior = elimination.get('warrior', 'Unknown')
-                        if warrior:
-                            current_round_eliminations.append(warrior)
-
-            view = self.active_views.get(game_key)
-
-            # Build recap text after processing eliminations for accurate counts
-            recap_text = f"**Round {game_data['current_round']}** has begun! "
-            if new_eliminations_count > 0:
-                recap_text += f"**{new_eliminations_count}** warrior{'s' if new_eliminations_count != 1 else ''} fell this round. "
-            recap_text += f"**{len(remaining_warriors)}** remain standing from **{len(game_data['participants'])}** original combatants."
-            
-            if "faction_descriptions" in round_data and round_data["faction_descriptions"]:
-                active_factions = len(round_data["faction_descriptions"])
-                recap_text += f" **{active_factions}** faction{'s' if active_factions != 1 else ''} took action."
-            
-            # Initialize text variables for different sections
-            faction_desc_text = ""
-            faction_change_text = ""
-            elimination_text = ""
-            narrative_text = ""
-            survivor_text = ""
-            faction_total_text = ""
-            elimination_summary = ""
-            
-            # Build faction descriptions text
-            if "faction_descriptions" in round_data and round_data["faction_descriptions"]:
-                if isinstance(round_data["faction_descriptions"], dict):
-                    for faction, description in round_data["faction_descriptions"].items():
-                        if isinstance(description, str):
-                            faction_desc_text += f"• **{faction}**: {description}\n"
-                        else:
-                            logger.warning(f"Invalid faction description for {faction}: {description}")
-                            faction_desc_text += f"• **{faction}**: The {faction} faction acted this round.\n"
-                else:
-                    logger.warning(f"Faction descriptions is not a dictionary: {round_data['faction_descriptions']}")
-            
-            # Build faction changes text
-            if "faction_changes" in round_data and round_data["faction_changes"]:
-                if isinstance(round_data["faction_changes"], list):
-                    for change in round_data["faction_changes"]:
-                        if isinstance(change, dict) and all(key in change for key in ['warrior', 'from_faction', 'to_faction', 'reason']):
-                            faction_change_text += f"• **{change['warrior']}** left {change['from_faction']} for {change['to_faction']} ({change['reason']})\n"
-                        else:
-                            logger.warning(f"Invalid faction change entry: {change}")
-                            if isinstance(change, dict) and 'warrior' in change:
-                                faction_change_text += f"• **{change['warrior']}** changed factions\n"
-                else:
-                    logger.warning(f"Faction changes is not a list: {round_data['faction_changes']}")
-            
-            # Build eliminations text (eliminations already processed above)
-            if "eliminated" in round_data and round_data["eliminated"]:
-                logger.info(f"Building elimination text: {len(round_data['eliminated'])} eliminations found")
-                
-                for elimination in round_data["eliminated"]:
-                    logger.info(f"Elimination data: {elimination}")
-                    
-                    # Ensure elimination is a dictionary and not raw JSON text
-                    if isinstance(elimination, dict):
-                        warrior = elimination.get('warrior', 'Unknown')
-                        eliminated_by = elimination.get('eliminated_by', 'unknown')
-                        method = elimination.get('method', 'unknown method')
-                        
-                        # Ensure we have valid data and format it properly
-                        if warrior and method:
-                            # Handle self-elimination or unknown eliminator cases
-                            if eliminated_by == warrior or eliminated_by.lower() in ['unknown', 'self', 'themselves']:
-                                elimination_text += f"• **{warrior}** eliminated themselves via {method}\n"
-                            elif eliminated_by and eliminated_by != 'unknown':
-                                elimination_text += f"• **{warrior}** eliminated by **{eliminated_by}** via {method}\n"
-                            else:
-                                elimination_text += f"• **{warrior}** eliminated via {method}\n"
-                        else:
-                            # Fallback for incomplete data
-                            elimination_text += f"• **{warrior}** fell in combat\n"
-                    else:
-                        # Handle case where elimination data is corrupted (raw text/JSON)
-                        logger.warning(f"Corrupted elimination data (not dict): {elimination}")
-                        if isinstance(elimination, str):
-                            # If it's a string, try to clean it up
-                            clean_text = elimination.replace('"', '').replace('{', '').replace('}', '').strip()
-                            elimination_text += f"• **{clean_text}** was eliminated\n"
-                        else:
-                            elimination_text += f"• A warrior fell in combat\n"
-            
-            # Recalculate remaining_warriors after processing eliminations
-            remaining_warriors = [p for p in game_data['participants'] if p.display_name in game_data['survivors']]
-            
-            # Build narrative text
-            if "narrative" in round_data and round_data["narrative"]:
-                narrative_text = round_data["narrative"]
-                
-                # Ensure narrative is a string and doesn't contain raw JSON
-                if isinstance(narrative_text, str):
-                    # Check if it looks like JSON (starts with { or [)
-                    if narrative_text.strip().startswith(('{', '[')):
-                        logger.warning(f"Narrative contains raw JSON: {narrative_text[:200]}...")
-                        # Try to extract a simple description
-                        narrative_text = "The battle continues with various warriors taking action."
-                else:
-                    logger.warning(f"Narrative is not a string: {narrative_text}")
-                    narrative_text = "The battle continues with various warriors taking action."
-            
-            # Build survivors text
-            if game_data['survivors']:
-                # Group survivors by faction
-                survivor_factions = {}
-                
-                for survivor_name in game_data['survivors']:
-                    if isinstance(survivor_name, str):
-                        survivor_participant = next((p for p in remaining_warriors if p.display_name == survivor_name), None)
-                        if survivor_participant:
-                            faction = self.faction_tracker.get(survivor_name, 'Neutral')
-                            if faction not in survivor_factions:
-                                survivor_factions[faction] = []
-                            survivor_factions[faction].append(survivor_name)
-                    else:
-                        logger.warning(f"Invalid survivor entry: {survivor_name}")
-                
-                for faction, members in survivor_factions.items():
-                    survivor_text += f"**{faction}**: {', '.join(members)}\n"
-            
-            # Build end of round faction totals text
-            faction_totals = {}
-            for participant in remaining_warriors:
-                faction = self.faction_tracker.get(participant.display_name, 'Neutral')
-                if faction not in faction_totals:
-                    faction_totals[faction] = []
-                faction_totals[faction].append(participant.display_name)
-            
-            for faction, members in faction_totals.items():
-                faction_total_text += f"**{faction}** ({len(members)}): {', '.join(members)}\n"
-            
-            # Build elimination summary text (only show current round eliminations)
-            if new_eliminations_count > 0 and current_round_eliminations:
-                elimination_summary = ", ".join([f"**{name}**" for name in current_round_eliminations])
-            
-            # Send round results as individual text messages WITH buttons
-            view = self.active_views.get(game_key)
-            if view:
-                view.game_state = "active"  # Update state to show Next Round button
-                view._setup_buttons()  # Refresh buttons for active state
-                
-                # Send each section as individual messages
-                await target_channel.send(f"⚡ **ROUND {game_data['current_round']} - CYBERTRON GAMES** ⚡")
-                
-                # Round recap
-                await target_channel.send(f"📋 **ROUND RECAP**: {recap_text}")
-                
-                # Faction actions
-                if faction_desc_text:
-                    await target_channel.send(f"🏛️ **FACTION ACTIONS**\n{faction_desc_text}")
-                
-                # Faction changes
-                if faction_change_text:
-                    await target_channel.send(f"🔄 **FACTION CHANGES**\n{faction_change_text}")
-                
-                # Eliminations
-                if elimination_text:
-                    await target_channel.send(f"💀 **FALLEN WARRIORS**\n{elimination_text}")
-                
-                # Narrative
-                if narrative_text:
-                    await target_channel.send(f"📖 **ROUND NARRATIVE**\n{narrative_text}")
-                
-                # Survivors
-                if survivor_text:
-                    await target_channel.send(f"🔥 **REMAINING WARRIORS**\n{survivor_text}")
-                
-                # End of round factions
-                if faction_total_text:
-                    await target_channel.send(f"⚔️ **END OF ROUND FACTIONS**\n{faction_total_text}")
-                
-                # Elimination summary
-                if new_eliminations_count > 0:
-                    await target_channel.send(f"💀 **SPARKS EXTINGUISHED THIS ROUND ({new_eliminations_count})**\n{elimination_summary}")
-                
-                # Final stats
-                await target_channel.send(f"⚰️ **TOTAL FALLEN**: {total_eliminations} warriors have fallen")
-                await target_channel.send(f"🔥 **STILL BURNING**: {len(remaining_warriors)} sparks remain")
-                
-                # Send the buttons
-                await target_channel.send("*The AllSpark watches... who will prove worthy?*", view=view)
-            else:
-                # Fallback if no view available
-                await target_channel.send(f"⚡ **ROUND {game_data['current_round']} - CYBERTRON GAMES** ⚡")
-                await target_channel.send(f"📋 **ROUND RECAP**: {recap_text}")
-                if faction_desc_text:
-                    await target_channel.send(f"🏛️ **FACTION ACTIONS**\n{faction_desc_text}")
-                if faction_change_text:
-                    await target_channel.send(f"🔄 **FACTION CHANGES**\n{faction_change_text}")
-                if elimination_text:
-                    await target_channel.send(f"💀 **FALLEN WARRIORS**\n{elimination_text}")
-                if narrative_text:
-                    await target_channel.send(f"📖 **ROUND NARRATIVE**\n{narrative_text}")
-                if survivor_text:
-                    await target_channel.send(f"🔥 **REMAINING WARRIORS**\n{survivor_text}")
-                if faction_total_text:
-                    await target_channel.send(f"⚔️ **END OF ROUND FACTIONS**\n{faction_total_text}")
-                if new_eliminations_count > 0:
-                    await target_channel.send(f"💀 **SPARKS EXTINGUISHED THIS ROUND ({new_eliminations_count})**\n{elimination_summary}")
-                await target_channel.send(f"⚰️ **TOTAL FALLEN**: {total_eliminations} warriors have fallen")
-                await target_channel.send(f"🔥 **STILL BURNING**: {len(remaining_warriors)} sparks remain")
-                await target_channel.send("*The AllSpark watches... who will prove worthy?*")
-            
-            if len(game_data['survivors']) <= 1:
-                await self._end_cybertron_games(game_key, interaction, channel)
-            else:
-                # Save updated game state to JSON file
-                self._save_game_state_to_file(game_key, game_data)
-
-        except Exception as e:
-            logger.error(f"Error advancing Cybertron round: {e}")
-            # Don't try to respond to interaction since it may already be acknowledged
-            try:
-                await target_channel.send(f"❌ Failed to advance round: {str(e)}")
-            except:
-                pass
-
-    def _get_factions(self, participants: List[Union[discord.Member, str]]) -> Dict[str, List[Union[discord.Member, str]]]:
-        """Helper to get a dictionary of participants grouped by faction"""
-        factions = {}
-        for p in participants:
-            # Handle both discord.Member objects and string names
-            if hasattr(p, 'display_name'):
-                participant_name = p.display_name
-                participant_obj = p
-            else:
-                participant_name = str(p)
-                participant_obj = p
-            
-            faction = self.faction_tracker.get(participant_name, "Neutral")
-            if faction not in factions:
-                factions[faction] = []
-            factions[faction].append(participant_obj)
-        return factions
-
-    def _analyze_cooperation_patterns(self, game_data: Dict[str, Any], survivors: List[str]) -> Dict[str, Any]:
-        """Analyze cooperation patterns among survivors to determine if they should win together"""
-        
-        cooperation_data = {
-            'shared_eliminations': 0,
-            'assists_to_each_other': 0,
-            'conflicts_between_survivors': 0,
-            'peaceful_rounds': 0,
-            'faction_cooperation': False,
-            'recommend_alliance': False
-        }
-        
-        if len(game_data['round_history']) < 2:
-            return cooperation_data
-        
-        # Analyze last 5 rounds for cooperation patterns
-        recent_rounds = game_data['round_history'][-5:] if len(game_data['round_history']) >= 5 else game_data['round_history']
-        
-        for round_data in recent_rounds:
-            if not isinstance(round_data, dict):
-                continue
-                
-            eliminations = round_data.get('eliminated', [])
-            narrative = round_data.get('narrative', '').lower()
-            
-            # Count eliminations by survivors and detect cooperation
-            survivor_eliminations = 0
-            for elimination in eliminations:
-                if isinstance(elimination, dict):
-                    eliminated_by = elimination.get('eliminated_by', 'unknown')
-                    
-                    # Check if eliminated by a survivor
-                    if eliminated_by in survivors:
-                        survivor_eliminations += 1
-                        
-                        # Check if narrative suggests cooperation
-                        if any(cooperation_word in narrative for cooperation_word in ['together', 'combined', 'united', 'alliance', 'team', 'cooperated', 'joined forces']):
-                            cooperation_data['shared_eliminations'] += 1
-                        # Check if narrative suggests this was a shared effort
-                        elif any(shared_word in narrative for shared_word in ['both', 'together', 'combined attack', 'joint effort']):
-                            cooperation_data['shared_eliminations'] += 1
-            
-            # Count conflicts between survivors in narrative
-            survivor_names_in_narrative = [s for s in survivors if s.lower() in narrative]
-            if len(survivor_names_in_narrative) > 1:
-                # Check if narrative suggests conflict between survivors
-                if any(conflict_word in narrative for conflict_word in ['fought', 'battled', 'attacked', 'defeated', 'eliminated', 'clashed', 'duel']):
-                    # Check if they fought each other
-                    if any(s1.lower() in narrative and s2.lower() in narrative for s1 in survivors for s2 in survivors if s1 != s2):
-                        cooperation_data['conflicts_between_survivors'] += 1
-                else:
-                    cooperation_data['peaceful_rounds'] += 1
-            elif len(survivor_names_in_narrative) == 0 and survivor_eliminations == 0:
-                # No survivors mentioned and no eliminations by survivors = peaceful round
-                cooperation_data['peaceful_rounds'] += 1
-        
-        # Check faction cooperation
-        survivor_factions = {}
-        for survivor in survivors:
-            faction = self.faction_tracker.get(survivor, 'Neutral')
-            if faction not in survivor_factions:
-                survivor_factions[faction] = []
-            survivor_factions[faction].append(survivor)
-        
-        # If all survivors are in the same faction, they should win together
-        if len(survivor_factions) == 1:
-            cooperation_data['faction_cooperation'] = True
-            cooperation_data['recommend_alliance'] = True
-        
-        # Recommend alliance if cooperation patterns are strong
-        total_interactions = cooperation_data['shared_eliminations'] + cooperation_data['conflicts_between_survivors']
-        if total_interactions > 0:
-            cooperation_ratio = cooperation_data['shared_eliminations'] / total_interactions
-            if cooperation_ratio >= 0.6 and cooperation_data['peaceful_rounds'] >= 2:
-                cooperation_data['recommend_alliance'] = True
-        elif cooperation_data['peaceful_rounds'] >= 4 and len(survivors) <= 3:
-            # High peaceful rounds with few survivors suggests cooperation
-            cooperation_data['recommend_alliance'] = True
-        
-        return cooperation_data
-
-    def _check_ending_conditions(self, game_data: Dict[str, Any], current_participants: List[discord.Member]) -> Tuple[bool, str]:
-        """Check for various ending conditions that could result in multiple winners"""
-        
-        # Get survivor names for analysis
-        survivor_names = []
-        for p in current_participants:
-            if hasattr(p, 'display_name'):
-                survivor_names.append(p.display_name)
-            else:
-                survivor_names.append(str(p))
-        
-        # Analyze cooperation patterns first
-        cooperation_analysis = self._analyze_cooperation_patterns(game_data, survivor_names)
-        
-        # Check for alliance victory based on cooperation patterns
-        if len(current_participants) > 1:
-            factions = self._get_factions(current_participants)
-            
-            # If only one faction has survivors, they all win together
-            if len(factions) == 1:
-                faction_name = list(factions.keys())[0]
-                return True, f"alliance_victory_{faction_name}"
-            
-            # Check for cross-faction alliance based on cooperation
-            if cooperation_analysis['recommend_alliance'] and len(current_participants) <= 4:
-                # Look for cooperation patterns across factions
-                if (cooperation_analysis['shared_eliminations'] >= 1 and cooperation_analysis['conflicts_between_survivors'] == 0) or cooperation_analysis['peaceful_rounds'] >= 3:
-                    return True, "peaceful_resolution"
-        
-        # Check for mutual destruction scenario (last round had special events)
-        if game_data['current_round'] >= 2 and len(current_participants) <= 3:
-            last_round = game_data['round_history'][-1] if game_data['round_history'] else None
-            if last_round and isinstance(last_round, dict):
-                # Check for mutual elimination events or special endings
-                eliminations = last_round.get('eliminated', [])
-                if len(eliminations) >= len(current_participants):
-                    return True, "mutual_destruction"
-                
-                # Check for narrative indicating special ending
-                narrative = last_round.get('narrative', '')
-                if any(keyword in narrative.lower() for keyword in ['truce', 'alliance', 'unity', 'peace', 'surrender']):
-                    return True, "peaceful_resolution"
-        
-        # Check for maximum rounds reached (forced ending)
-        if game_data['current_round'] >= 25:  # Hard limit to prevent infinite games
-            return True, "maximum_rounds_reached"
-        
-        # Check for stalemate (no eliminations in last 3 rounds)
-        if game_data['current_round'] >= 4:
-            recent_eliminations = 0
-            for i in range(1, 4):  # Check last 3 rounds
-                if i <= len(game_data['round_history']):
-                    round_data = game_data['round_history'][-i]
-                    if isinstance(round_data, dict):
-                        eliminations = round_data.get('eliminated', [])
-                        recent_eliminations += len(eliminations)
-            
-            if recent_eliminations == 0 and len(current_participants) > 1:
-                return True, "stalemate"
-        
-        return False, ""
-
-    def _get_ending_message(self, ending_reason: str, survivors: List[str], factions: Dict[str, List[str]]) -> str:
-        """Get appropriate ending message based on the ending condition"""
-        
-        if ending_reason.startswith("alliance_victory_"):
-            faction_name = ending_reason.replace("alliance_victory_", "")
-            return f"🏆 **THE {faction_name.upper()} ALLIANCE EMERGES VICTORIOUS!** 🏆\n" \
-                   f"All surviving members of the {faction_name} faction have proven their unity and strength!"
-        
-        elif ending_reason == "mutual_destruction":
-            return "💥 **MUTUAL DESTRUCTION ACHIEVED** 💥\n" \
-                   "The final battle resulted in mutual annihilation. All remaining warriors perished together!"
-        
-        elif ending_reason == "peaceful_resolution":
-            return "🕊️ **PEACE THROUGH UNITY** 🕊️\n" \
-                   "The warriors have chosen unity over conflict. A peaceful resolution has been reached!"
-        
-        elif ending_reason == "maximum_rounds_reached":
-            return "⏰ **MAXIMUM ROUNDS REACHED** ⏰\n" \
-                   f"After {len(survivors)} epic rounds, the games conclude with multiple survivors!"
-        
-        elif ending_reason == "stalemate":
-            return "⚖️ **STALEMATE DECLARED** ⚖️\n" \
-                   "No warriors have fallen in recent rounds. The AllSpark declares a stalemate!"
-        
-        else:
-            # Default multi-winner message
-            return "🏆 **MULTIPLE CHAMPIONS PROVEN WORTHY** 🏆"
-
-    def _generate_multi_champion_summary(self, game_data: Dict[str, Any], survivors: List[str]) -> str:
-        """Generate a summary for multiple champions"""
-        
-        if not self.use_ai or not self.model or not hasattr(self, 'client') or not self.client:
-            return self._generate_fallback_multi_champion_summary(game_data, survivors)
-        
-        try:
-            # Analyze cooperation patterns for better narrative
-            cooperation_analysis = self._analyze_cooperation_patterns(game_data, survivors)
-            
-            # Build context for multiple champions
-            factions_context = ""
-            survivor_factions = {}
-            
-            for survivor in survivors:
-                faction = self.faction_tracker.get(survivor, 'Neutral')
-                if faction not in survivor_factions:
-                    survivor_factions[faction] = []
-                survivor_factions[faction].append(survivor)
-            
-            for faction, members in survivor_factions.items():
-                factions_context += f"- {faction}: {', '.join(members)}\n"
-            
-            # Build round-by-round context for all survivors
-            journey_context = ""
-            for i, round_data in enumerate(game_data['round_history'], 1):
-                if isinstance(round_data, dict):
-                    narrative = round_data.get('narrative', '')
-                    eliminations = round_data.get('eliminated', [])
-                    faction_changes = round_data.get('faction_changes', [])
-                    
-                    # Check if any survivors were mentioned in this round
-                    survivor_mentions = []
-                    for survivor in survivors:
-                        if survivor in narrative:
-                            survivor_mentions.append(survivor)
-                    
-                    if survivor_mentions or any(e.get('eliminated_by', '') in survivors for e in eliminations if isinstance(e, dict)):
-                        journey_context += f"Round {i}: "
-                        if survivor_mentions:
-                            journey_context += f"{', '.join(survivor_mentions)} took action. "
-                        
-                        # Track eliminations caused by survivors
-                        survivor_kills = [e for e in eliminations if isinstance(e, dict) and e.get('eliminated_by', '') in survivors]
-                        if survivor_kills:
-                            journey_context += f"Eliminations: {len(survivor_kills)}. "
-                        
-                        # Track faction changes involving survivors
-                        survivor_faction_changes = [fc for fc in faction_changes if isinstance(fc, dict) and fc.get('warrior', '') in survivors]
-                        if survivor_faction_changes:
-                            journey_context += f"Faction changes: {len(survivor_faction_changes)}. "
-                        
-                        journey_context += "\n"
-            
-            # Determine the type of alliance
-            alliance_type = "natural faction unity"
-            if len(survivor_factions) > 1 and cooperation_analysis['recommend_alliance']:
-                alliance_type = "cross-faction cooperation"
-            elif cooperation_analysis['shared_eliminations'] > 0:
-                alliance_type = "battle-forged alliance"
-            elif cooperation_analysis['peaceful_rounds'] >= 3:
-                alliance_type = "peaceful understanding"
-            
-            prompt = f"""Create an epic narrative summary of the Cybertron Games where multiple warriors survived and proved worthy through {alliance_type}.
-
-Game Details:
-- Total Rounds: {game_data['current_round']}
-- Multiple Champions: {len(survivors)} warriors
-- Champions by Faction:
-{factions_context}
-- Total Eliminations: {len(game_data.get('eliminations', []))}
-- Cooperation Score: {cooperation_analysis['shared_eliminations']} shared eliminations, {cooperation_analysis['peaceful_rounds']} peaceful rounds
-
-Champions' Journey:
-{journey_context}
-
-Write a compelling narrative that celebrates how these warriors earned victory together through {alliance_type}. 
-Highlight their unique bond, whether through shared faction loyalty, cross-faction cooperation, or battle-forged alliance.
-Make it epic, detailed, and Transformers-themed with energon, sparks, factions, and cybertronian lore.
-Focus on why the AllSpark chose to honor multiple champions instead of demanding a single victor."""
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a Transformers lore master creating epic narratives about Cybertronian battles and victories."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=400,
-                temperature=0.8
-            )
-            
-            return response.choices[0].message.content
-            
-        except Exception as e:
-            logger.error(f"Failed to generate multi-champion summary: {e}")
-            return self._generate_fallback_multi_champion_summary(game_data, survivors)
-
-    def _generate_fallback_multi_champion_summary(self, game_data: Dict[str, Any], survivors: List[str]) -> str:
-        """Fallback summary for multiple champions when AI is unavailable"""
-        
-        # Analyze cooperation patterns
-        cooperation_analysis = self._analyze_cooperation_patterns(game_data, survivors)
-        
-        # Group survivors by faction
-        survivor_factions = {}
-        for survivor in survivors:
-            faction = self.faction_tracker.get(survivor, 'Neutral')
-            if faction not in survivor_factions:
-                survivor_factions[faction] = []
-            survivor_factions[faction].append(survivor)
-        
-        # Determine alliance type
-        alliance_type = "natural faction unity"
-        if len(survivor_factions) > 1 and cooperation_analysis['recommend_alliance']:
-            alliance_type = "cross-faction cooperation"
-        elif cooperation_analysis['shared_eliminations'] >= 2:
-            alliance_type = "battle-forged alliance"
-        elif cooperation_analysis['peaceful_rounds'] >= 3:
-            alliance_type = "peaceful understanding"
-        
-        summary = f"🏆 **MULTIPLE CHAMPIONS CROWNED** 🏆\n"
-        summary += f"In this epic {game_data['current_round']}-round battle, {len(survivors)} warriors proved their worth through {alliance_type}!\n\n"
-        
-        # Alliance description based on type
-        if alliance_type == "cross-faction cooperation":
-            summary += "These warriors transcended faction boundaries to achieve victory together.\n"
-        elif alliance_type == "battle-forged alliance":
-            summary += f"Forged through {cooperation_analysis['shared_eliminations']} shared battles, these warriors proved stronger together.\n"
-        elif alliance_type == "peaceful understanding":
-            summary += f"After {cooperation_analysis['peaceful_rounds']} rounds of peaceful coexistence, these warriors chose harmony over conflict.\n"
-        else:
-            summary += "United by faction loyalty, these warriors stood together against all challengers.\n"
-        
-        # Faction breakdown
-        summary += "\n**Champions by Faction:**\n"
-        for faction, members in survivor_factions.items():
-            summary += f"• **{faction}**: {', '.join(members)}\n"
-        
-        # Statistics
-        summary += f"\n**Battle Statistics:**\n"
-        summary += f"• Total Eliminations: {len(game_data.get('eliminations', []))}\n"
-        summary += f"• Shared Eliminations: {cooperation_analysis['shared_eliminations']}\n"
-        summary += f"• Peaceful Rounds: {cooperation_analysis['peaceful_rounds']}\n"
-        summary += f"• Survival Rate: {len(survivors)}/{len(game_data.get('participants', []))}\n"
-        
-        # Victory message
-        summary += f"\nTogether, these champions demonstrated that {alliance_type} can be as powerful as individual strength."
-        summary += "\n\n*The AllSpark shines brightly upon all who proved worthy in the Arena of Cybertron!*"
-        
-        return summary
-
-    async def _end_cybertron_games(self, game_key: str, interaction: discord.Interaction = None, channel: discord.TextChannel = None, ending_reason: str = ""):
-        """End the Cybertron Games session"""
-        # Use channel from interaction if available, otherwise use provided channel
-        target_channel = interaction.channel if interaction else channel
-        
-        game_data = self.active_games.pop(game_key, None)
-        
-        if not game_data:
-            return
-
-        survivors = game_data['survivors']
-        eliminations = game_data['eliminations']
-        assignments = game_data['assignments']
-        
-        # Group survivors by faction
-        surviving_factions = {}
-        for warrior in survivors:
-            faction_data = assignments.get(warrior, "Unknown")
-            if isinstance(faction_data, dict) and 'faction' in faction_data:
-                faction = faction_data['faction']
-            elif isinstance(faction_data, str):
-                faction = faction_data
-            else:
-                faction = "Unknown"
-            if faction not in surviving_factions:
-                surviving_factions[faction] = []
-            surviving_factions[faction].append(warrior)
-        
-        # Send final results as text messages instead of embeds
-        await target_channel.send("🏆 **THE CYBERTRON GAMES HAVE CONCLUDED** 🏆")
-        
-        if len(survivors) == 1:
-            champion = survivors[0]
-            champion_faction_data = assignments.get(champion, "Unknown")
-            if isinstance(champion_faction_data, dict) and 'faction' in champion_faction_data:
-                champion_faction = champion_faction_data['faction']
-            elif isinstance(champion_faction_data, str):
-                champion_faction = champion_faction_data
-            else:
-                champion_faction = "Unknown"
-            
-            await target_channel.send(f"🏆 **THE ALLSPARK HAS CHOSEN ITS CHAMPION!** 🏆")
-            await target_channel.send(f"**{champion}** of the **{champion_faction}** emerges victorious from the Arena of Cybertron!")
-            await target_channel.send("*The ancient energon crystals pulse with approval as the last warrior standing claims the Matrix of Leadership. All other sparks have returned to the AllSpark, their sacrifice honored in the halls of Cybertron.*")
-            await target_channel.send("⚡ **TILL ALL ARE ONE!** ⚡")
-            
-        elif len(survivors) > 1:
-            # Multiple survivors - use event-based ending message
-            ending_message = self._get_ending_message(ending_reason, survivors, surviving_factions)
-            await target_channel.send(ending_message)
-            
-            # List all champions
-            await target_channel.send(f"🏆 **THE ALLSPARK HAS CHOSEN {len(survivors)} CHAMPIONS!** 🏆")
-            
-            # Show champions by faction
-            for faction, warriors in surviving_factions.items():
-                if len(warriors) == 1:
-                    await target_channel.send(f"**{warriors[0]}** of the **{faction}**")
-                else:
-                    await target_channel.send(f"**{faction} Alliance**: {', '.join(warriors)}")
-            
-            await target_channel.send("*The ancient energon crystals pulse with approval as these warriors share the glory of victory. Their unity and strength have proven that sometimes, multiple sparks can burn brightest together.*")
-            await target_channel.send("⚡ **TILL ALL ARE ONE!** ⚡")
-            
-        else:
-            await target_channel.send("💀 **THE ARENA CLAIMS ALL SPARKS** 💀")
-            await target_channel.send("*The Arena of Cybertron falls silent... No warrior proved worthy of the AllSpark's blessing. All sparks have been extinguished, their energon absorbed into the ancient battleground.*")
-            await target_channel.send("🌌 **The Matrix of Leadership remains unclaimed...** 🌌")
-        
-        # Game statistics
-        await target_channel.send(f"\n📊 **GAME STATISTICS**")
-        await target_channel.send(f"⚡ Total Rounds of Combat: **{game_data['current_round']}** epic battles")
-        await target_channel.send(f"💀 Warriors Fallen: **{len(eliminations)}** sparks extinguished")
-        await target_channel.send(f"🏆 Final Champions: **{len(survivors)}** victorious")
-        
-        # Detailed elimination information
-        if eliminations:
-            await target_channel.send(f"\n💀 **THE FALLEN**")
-            
-            # Show first 10 eliminations
-            for i, warrior in enumerate(eliminations[:10]):
-                warrior_faction_data = assignments.get(warrior, 'Unknown')
-                if isinstance(warrior_faction_data, dict) and 'faction' in warrior_faction_data:
-                    warrior_faction = warrior_faction_data['faction']
-                else:
-                    warrior_faction = warrior_faction_data if isinstance(warrior_faction_data, str) else 'Unknown'
-                await target_channel.send(f"• **{warrior}** ({warrior_faction})")
-            
-            if len(eliminations) > 10:
-                await target_channel.send(f"*...and {len(eliminations) - 10} more warriors*")
-        
-        # Surviving factions information
-        if surviving_factions:
-            await target_channel.send(f"\n🛡️ **SURVIVING FACTIONS**")
-            for faction, warriors in surviving_factions.items():
-                await target_channel.send(f"• **{faction}**: {', '.join(warriors)}")
-        
-        # Generate AI champion summary if available
-        if self.use_ai and len(survivors) == 1:
-            try:
-                champion = survivors[0]
-                champion_summary = await self._generate_champion_summary(game_data, champion)
-                if champion_summary:
-                    await target_channel.send(f"\n🤖 **CHAMPION'S JOURNEY**")
-                    await target_channel.send(champion_summary)
-            except Exception as e:
-                logger.error(f"Failed to generate champion summary: {e}")
-        
-        # Generate multi-champion summary for multiple survivors
-        elif self.use_ai and len(survivors) > 1:
-            try:
-                multi_champion_summary = self._generate_multi_champion_summary(game_data, survivors)
-                if multi_champion_summary:
-                    await target_channel.send(f"\n🤖 **CHAMPIONS' JOURNEY**")
-                    await target_channel.send(multi_champion_summary)
-            except Exception as e:
-                logger.error(f"Failed to generate multi-champion summary: {e}")
-        
-        view = self.active_views.get(game_key)
-        if view:
-            view._setup_buttons(end_game=True)
-            await target_channel.send("\n*The champion's name shall be etched in energon for all eternity...*")
-            
-        if game_key in self.active_views:
-            del self.active_views[game_key]
-        
-        # Clean up JSON file
-        self._delete_game_state_file(game_key)
-            
-class CybertronGamesView(View):
-    def __init__(self, bot_cog: Any, game_key: str, game_state: str = "setup"):
-        super().__init__(timeout=None)
-        self.bot_cog = bot_cog
-        self.game_key = game_key
-        self.game_state = game_state
+class GameSetupView(ui.View):
+    def __init__(self, game_session: GameSession, ctx: commands.Context):
+        super().__init__(timeout=300)
+        self.game_session = game_session
+        self.ctx = ctx
         self.message = None
-        self._setup_buttons()
 
-    def _setup_buttons(self, end_game=False):
-        self.clear_items()
-        if not end_game:
-            start_button = Button(label="Start Games", style=discord.ButtonStyle.green, custom_id="start_cybertron_games")
-            next_round_button = Button(label="Next Round", style=discord.ButtonStyle.blurple, custom_id="next_cybertron_round")
-            
-            if self.game_state == "setup":
-                start_button.callback = self.start_callback
-                self.add_item(start_button)
+    @ui.button(label="Start Game", style=ButtonStyle.green, emoji="⚔️")
+    async def start_game(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            await interaction.response.send_message("Only the game creator can start the game!", ephemeral=True)
+            return
+
+        self.game_session.started = True
+        await interaction.response.send_message("🎮 **Cybertron Games Started!** 🎮", ephemeral=False)
+
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            await self.message.edit(view=self)
+
+        control_view = RoundControlView(self.game_session, self.ctx)
+        await control_view.send_round()
+
+    @ui.button(label="Cancel Game", style=ButtonStyle.red, emoji="❌")
+    async def cancel_game(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            await interaction.response.send_message("Only the game creator can cancel the game!", ephemeral=True)
+            return
+
+        await interaction.response.send_message("❌ **Game Cancelled** ❌", ephemeral=False)
+
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            await self.message.edit(view=self)
+        self.stop()
+
+class RoundControlView(ui.View):
+    def __init__(self, game_session: GameSession, ctx: commands.Context):
+        super().__init__(timeout=600)
+        self.game_session = game_session
+        self.ctx = ctx
+        self.message = None
+
+    @ui.button(label="Next Round", style=ButtonStyle.primary, emoji="➡️")
+    async def next_round(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            await interaction.response.send_message("Only the game creator can advance rounds!", ephemeral=True)
+            return
+        await interaction.response.defer()
+        if len(self.game_session.alive) <= 1:
+            await self._end_game()
+            return
+        await self.send_round()
+        if self.message:
+            await self.message.edit(view=self)
+
+    @ui.button(label="End Games", style=ButtonStyle.red, emoji="🛑")
+    async def end_games(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            await interaction.response.send_message("Only the game creator can end the game!", ephemeral=True)
+            return
+        await interaction.response.defer()
+        await self._end_game()
+
+    async def _end_game(self):
+        if len(self.game_session.alive) == 1:
+            winner = self.game_session.alive[0]
+            winner_name = self.game_session.get_participant_name(winner)
+            faction = self.game_session.assignment.get(winner, 'Neutral')
+            buf = await self._generate_champion_image(winner)
+            if buf:
+                await self.ctx.send(f"🏆 **CHAMPION DETERMINED!** 🏆\n**{winner_name}** from **{faction}** wins the Cybertron Games!", file=File(buf, filename="champion_journey.png"))
             else:
-                next_round_button.callback = self.next_round_callback
-                self.add_item(next_round_button)
-            
-            end_button = Button(label="End Games", style=discord.ButtonStyle.red, custom_id="end_cybertron_games")
-            end_button.callback = self.end_callback
-            self.add_item(end_button)
+                await self.ctx.send(f"🏆 **CHAMPION DETERMINED!** 🏆\n**{winner_name}** from **{faction}** wins the Cybertron Games!")
+            kills_by_user: Dict[str, int] = {}
+            for u in self.game_session.participants:
+                c = len(self.game_session.kill_log.get(u, []))
+                if c > 0:
+                    kills_by_user[u] = c
+            kills_by_faction: Dict[str, int] = {}
+            for u, c in kills_by_user.items():
+                f = self.game_session.assignment.get(u, 'Neutral')
+                kills_by_faction[f] = kills_by_faction.get(f, 0) + c
+            faction_rank = sorted(kills_by_faction.items(), key=lambda kv: (-kv[1], kv[0]))
+            user_rank = sorted(kills_by_user.items(), key=lambda kv: (-kv[1], kv[0]))
+            def medal(i: int) -> str:
+                return '🥇' if i == 0 else '🥈' if i == 1 else '🥉' if i == 2 else ''
+            if faction_rank:
+                lines = []
+                for i, (name, count) in enumerate(faction_rank):
+                    m = medal(i)
+                    prefix = f"{m} " if m else ""
+                    lines.append(f"{prefix}{name}: {count}")
+                await _send_long_message(self.ctx.channel, "**🏛️ Faction Total Eliminations**\n" + "\n".join(lines))
+            else:
+                await _send_long_message(self.ctx.channel, "**🏛️ Faction Total Eliminations**\nNone")
+            if user_rank:
+                lines = []
+                for i, (user_obj, count) in enumerate(user_rank):
+                    m = medal(i)
+                    prefix = f"{m} " if m else ""
+                    user_name = self.game_session.get_participant_name(user_obj)
+                    lines.append(f"{prefix}{user_name}: {count}")
+                await _send_long_message(self.ctx.channel, "**⚔️ User Total Eliminations**\n" + "\n".join(lines))
+            else:
+                await _send_long_message(self.ctx.channel, "**⚔️ User Total Eliminations**\nNone")
         else:
-            self.stop()
+            await self.ctx.send("⚡ **Game ended by host**")
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            await self.message.edit(view=self)
+        self.stop()
+
+    async def send_round(self):
+        result = self.game_session.process_round()
+        header = f"**⚡ ROUND {result['round_index']} RESULTS ⚡**\n*Participants remaining: {len(result['remaining'])}*"
+        await self.ctx.send(header)
+        if result['actions']:
+            actions_text = "**📋 ACTIONS:**\n" + "\n".join(f"• {a}" for a in result['actions'])
+            await _send_long_message(self.ctx.channel, actions_text)
+        if result['eliminations']:
+            elim_text = "**💀 ELIMINATIONS:**\n" + "\n".join(f"• {e}" for e in result['eliminations'])
+            await _send_long_message(self.ctx.channel, elim_text)
+        if result['remaining']:
+            remaining_text = "**⚔️ REMAINING WARRIORS:**\n"
+            faction_groups: Dict[str, List[str]] = {}
+            for p in result['remaining']:
+                f = self.game_session.assignment.get(p, 'Neutral')
+                participant_name = self.game_session.get_participant_name(p)
+                faction_groups.setdefault(f, []).append(participant_name)
+            for f, members in faction_groups.items():
+                remaining_text += f"**{f}:** {', '.join(members)}\n"
+            await _send_long_message(self.ctx.channel, remaining_text)
+        buf = self.game_session.render_map()
+        if buf:
+            self.message = await self.ctx.send(file=File(buf, filename=f"cybertron_round_{result['round_index']}.png"), view=self)
+        else:
+            self.message = await self.ctx.send("Use the controls below to continue.", view=self)
+        if result['game_over']:
+            await self._end_game()
+
+if __name__ == "__main__":
+    pools = DataPools()
+    pools.reload()
+    participants = [f"Warrior-{i+1}" for i in range(50)]
+    color_circles = {"🟣","🔴","🟠","🟡","🟢","🔵","⚪"}
+    need_vehicles = {"🏍️","🚙","🚛"}
+    need_combiners = {"🔱","⚜️"}
+    found = False
+    last_buf = None
+    for attempt in range(40):
+        random.seed()
+        session = GameSession(participants, pools, all_factions=False, starting_factions=False)
+        result = session.process_round()
+        emojis = {m.get('emoji') for m in session.round_markers}
+        has_solo = any(e in color_circles for e in emojis)
+        has_elim = any(m.get('is_elimination') for m in session.round_markers)
+        if need_vehicles.issubset(emojis) and need_combiners.issubset(emojis) and has_solo and has_elim:
+            buf = session.render_map()
+            if buf:
+                with open("sample_map_demo.png", "wb") as f:
+                    f.write(buf.getvalue())
+                found = True
+            break
+        last_buf = session.render_map()
+    if not found and last_buf:
+        with open("sample_map_demo.png", "wb") as f:
+            f.write(last_buf.getvalue())
+
+    async def _generate_champion_image(self, winner: str) -> Optional[BytesIO]:
+        if not PIL_AVAILABLE:
+            return None
+        try:
+            kills = self.game_session.kill_log.get(winner, [])
+            acts = self.game_session.action_log.get(winner, [])
+            base_w = 900
+            lines_k = max(1, len(kills))
+            lines_a = max(1, len(acts))
+            base_h = 500 + (lines_k * 28) + (lines_a * 22)
+            img = Image.new('RGBA', (base_w, base_h), (235, 223, 200, 255))
+            d = ImageDraw.Draw(img)
+            self.game_session._apply_parchment_overlay(img)
+            title = "Champion's Journey"
+            try:
+                font = ImageFont.load_default()
+            except Exception:
+                font = None
+            d.rectangle([20, 20, base_w - 20, 120], outline=(85, 70, 55, 255), width=3, fill=(245, 235, 210, 230))
+            d.text((40, 50), title, fill=(90, 70, 60, 255), font=font)
+            avatar = None
+            member = None
+            winner_name = self.game_session.get_participant_name(winner)
             
-    async def start_callback(self, interaction: discord.Interaction):
-        # Defer the interaction to avoid acknowledgment conflicts
-        await interaction.response.defer()
-        self.game_state = "active"
-        self._setup_buttons()
-        # Send status message and advance round
-        await interaction.channel.send("The games have begun! Processing Round 1...")
-        await self.bot_cog._advance_cybertron_round(self.game_key, None, interaction.channel)
+            # Find the Discord member object for the winner
+            if hasattr(self.ctx, 'guild') and self.ctx.guild:
+                # First try to find by the original user object if it's a Discord user
+                if hasattr(winner, 'id'):
+                    member = self.ctx.guild.get_member(winner.id)
+                else:
+                    # Fallback: search by display name
+                    for m in self.ctx.guild.members:
+                        if m.display_name == winner_name:
+                            member = m
+                            break
+            if member:
+                try:
+                    b = await member.display_avatar.read()
+                    avatar = Image.open(BytesIO(b)).convert('RGBA')
+                except Exception:
+                    avatar = None
+            if avatar is None:
+                avatar = Image.new('RGBA', (300, 300), (200, 200, 200, 255))
+            av_size = 260
+            avatar = avatar.resize((av_size, av_size))
+            mask = Image.new('L', (av_size, av_size), 0)
+            mdraw = ImageDraw.Draw(mask)
+            mdraw.ellipse([0, 0, av_size, av_size], fill=255)
+            img.paste(avatar, (40, 140), mask)
+            cx = 40 + av_size // 2
+            cy = 140
+            crown_w = 180
+            crown_h = 80
+            cx0 = cx - crown_w // 2
+            cy0 = cy - crown_h - 10
+            pts = [
+                (cx0, cy0 + crown_h),
+                (cx0 + crown_w // 4, cy0 + crown_h // 2),
+                (cx0 + crown_w // 2, cy0 + crown_h),
+                (cx0 + 3 * crown_w // 4, cy0 + crown_h // 2),
+                (cx0 + crown_w, cy0 + crown_h),
+                (cx0 + crown_w, cy0),
+                (cx0, cy0)
+            ]
+            d.polygon(pts, fill=(255, 215, 0, 220), outline=(150, 120, 20, 255))
+            d.rectangle([330, 140, base_w - 40, 180], outline=(85, 70, 55, 255), width=2, fill=(245, 235, 210, 200))
+            d.text((340, 150), f"Champion: {winner_name}", fill=(90, 70, 60, 255), font=font)
+            d.text((340, 170), f"Eliminations: {len(kills)}", fill=(90, 70, 60, 255), font=font)
+            y = 210
+            d.text((330, y), "Eliminations", fill=(90, 70, 60, 255), font=font)
+            y += 24
+            for k in kills:
+                victims = k.get('victim')
+                allies = k.get('with', [])
+                victim_name = self.game_session.get_participant_name(victims) if victims else "Unknown"
+                ally_names = [self.game_session.get_participant_name(ally) for ally in allies]
+                if ally_names:
+                    line = f"Eliminated {victim_name} with {', '.join(ally_names)}"
+                else:
+                    line = f"Eliminated {victim_name} solo"
+                d.text((330, y), line, fill=(60, 50, 45, 255), font=font)
+                y += 24
+            y += 12
+            d.text((330, y), "Actions", fill=(90, 70, 60, 255), font=font)
+            y += 24
+            for a in acts:
+                d.text((330, y), a, fill=(60, 50, 45, 255), font=font)
+                y += 22
+            buf = BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            logger.error(f"Champion image error: {e}")
+            return None
 
-    async def next_round_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        await self.bot_cog._advance_cybertron_round(self.game_key, None, interaction.channel)
-
-    async def end_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        await self.bot_cog._end_cybertron_games(self.game_key, interaction, interaction.channel)
 
 class CybertronGames(commands.Cog):
+    """Enhanced Cybertron Games with interactive maps and faction-based gameplay."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.generator = CybertronGamesGenerator(GROQ_API_KEY)
-        
-    async def cog_load(self) -> None:
-        pass  # Commands are automatically registered via decorators
+        self.pools = DataPools()
+        try:
+            self.pools.reload()
+            logger.info("✅ Cybertron data pools loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load Cybertron data pools: {e}")
 
-    async def cog_unload(self) -> None:
-        pass  
-    
-    @commands.hybrid_command(name='cybertron_games', description="Initiate the ultimate Transformers deathmatch - The Cybertron Games")
+    @commands.hybrid_group(name="cybertronian")
+    async def cybertron(self, ctx: commands.Context):
+        """Base group for Cybertron Games commands."""
+        pass
+
+    @cybertron.command(name="games")
     @app_commands.describe(
-        include_bots="Include cybertronian AI units in the games",
-        warriors="Number of warriors to select (2-50, default: all)",
-        factions="Number of factions (2-5, default: 5)",
-        specific_participants="Specific Discord users to include (space-separated names or mentions)",
-        cybertronian_only="Only include Cybertronian citizens (Autobot, Decepticon, Maverick, or Cybertronian_Citizen roles)"
+        warriors="Total number of participants (10-100)",
+        all_factions="Toggle all factions system (true/false)",
+        starting_factions="Toggle starting factions assignment (true/false)",
+        users="Mention users to include in the games (separate with spaces)",
+        bots="Toggle random bot inclusion (true/false)",
+        roles="Mention roles to randomly select users from those roles"
     )
-    async def cybertron_games(
-        self,
-        ctx: commands.Context,
-        include_bots: bool = False,
-        warriors: int = 0,
-        factions: int = 5,
-        specific_participants: str = None,
-        cybertronian_only: bool = False
-    ):
-        # Acknowledge the command immediately
-        await ctx.defer()
-        await self.generator.initialize_game(ctx, include_bots, warriors, factions, specific_participants, cybertronian_only)
+    async def games(self, ctx: commands.Context, warriors: int, all_factions: bool = False, starting_factions: bool = False, users: str = "", bots: bool = False, roles: str = ""):
+        """Start a new Cybertron Games session with interactive map and faction-based gameplay."""
+        
+        # Validate parameters
+        if warriors < 10 or warriors > 100:
+            return await ctx.send("❌ Warriors must be between 10 and 100.")
+        
+        # toggles are booleans; enforce consistency: starting_factions only works when all_factions is True
+        starting_factions = starting_factions and all_factions
+        
+        # Parse participants - collect Discord user objects
+        participants = []
+        
+        # Add mentioned users
+        if ctx.message and ctx.message.mentions:
+            participants.extend([user for user in ctx.message.mentions])
+        
+        # Add users from the users parameter (split by spaces) - these are display names
+        if users:
+            user_names = [name.strip() for name in users.split() if name.strip()]
+            participants.extend(user_names)
+        
+        # Handle role mentions - randomly select users from mentioned roles
+        if ctx.message and ctx.message.role_mentions:
+            role_users = []
+            for role in ctx.message.role_mentions:
+                # Get members with this role who aren't already participants
+                role_members = [member for member in role.members if member not in participants]
+                role_users.extend(role_members)
+            
+            # Remove duplicates and shuffle
+            role_users = list(set(role_users))
+            random.shuffle(role_users)
+            
+            # Add role users to participants (respect warrior limit)
+            needed = warriors - len(participants)
+            if needed > 0:
+                participants.extend(role_users[:needed])
+        
+        # Handle role names from parameter - find roles by name and select users
+        elif roles:
+            role_names = [name.strip() for name in roles.split() if name.strip()]
+            role_users = []
+            
+            for role_name in role_names:
+                # Find role by name in the guild
+                found_role = None
+                for guild_role in ctx.guild.roles:
+                    if guild_role.name.lower() == role_name.lower():
+                        found_role = guild_role
+                        break
+                
+                if found_role:
+                    # Get members with this role who aren't already participants
+                    role_members = [member for member in found_role.members if member not in participants]
+                    role_users.extend(role_members)
+            
+            # Remove duplicates and shuffle
+            role_users = list(set(role_users))
+            random.shuffle(role_users)
+            
+            # Add role users to participants (respect warrior limit)
+            needed = warriors - len(participants)
+            if needed > 0:
+                participants.extend(role_users[:needed])
+        
+        # Fill remaining slots with server members if needed
+        if len(participants) < warriors:
+            remaining = warriors - len(participants)
+            # Get random members from the server who aren't already participants
+            server_members = [member for member in ctx.guild.members if member not in participants]
+            if server_members:
+                import random
+                additional_members = random.sample(server_members, min(remaining, len(server_members)))
+                participants.extend(additional_members)
+        
+        # Include bots if requested
+        if bots and len(participants) < warriors:
+            remaining = warriors - len(participants)
+            # Get bot members from the server who aren't already participants
+            bot_members = [member for member in ctx.guild.members if member.bot and member not in participants]
+            if bot_members:
+                additional_bots = random.sample(bot_members, min(remaining, len(bot_members)))
+                participants.extend(additional_bots)
+        
+        # If still not enough, generate generic names for the remainder
+        if len(participants) < warriors:
+            remaining = warriors - len(participants)
+            generated_names = [f"Warrior-{i+1}" for i in range(remaining)]
+            participants.extend(generated_names)
+        
+        # Trim to exact warrior count
+        participants = participants[:warriors]
+        
+        # Create game session
+        game_session = GameSession(participants, self.pools, all_factions=all_factions, starting_factions=starting_factions)
+        
+        # Create setup embed
+        embed = Embed(
+            title="⚡ CYBERTRON GAMES SETUP ⚡",
+            description="A round-based survival battle on Cybertron. Factions cluster and cooperate to eliminate outsiders first. Each round schedules all alive warriors into events that either narrate actions or eliminate the entire opposing side. Locations are drawn from Cybertron’s biomes; vehicles and combiners appear based on team sizes. The map updates each round: dots show alive warriors, skulls mark eliminated. Use the buttons to progress rounds or end the game.",
+            color=0xffd700,
+            timestamp=datetime.now()
+        )
+        
+        embed.add_field(name="🎮 Game Info", value=f"**Warriors:** {warriors}\n**All Factions:** {'ON' if all_factions else 'OFF'}\n**Starting Factions:** {'ON' if starting_factions else 'OFF'}\n**Include Bots:** {'ON' if bots else 'OFF'}\n**Role Selection:** {'ON' if roles else 'OFF'}", inline=False)
+        
+        # Faction breakdown
+        faction_counts = {}
+        for participant in participants:
+            faction = game_session.assignment.get(participant, 'Neutral')
+            faction_counts[faction] = faction_counts.get(faction, 0) + 1
+        faction_text = "\n".join([f"**{faction}:** {count} warriors" for faction, count in faction_counts.items()])
+        embed.add_field(name="🏛️ Factions", value=faction_text if faction_text else f"**Neutral:** {warriors} warriors", inline=False)
+        
+        # Get display names for participants
+        participant_names = []
+        for p in participants:
+            if hasattr(p, 'display_name'):
+                participant_names.append(p.display_name)
+            else:
+                participant_names.append(str(p))
+        
+        embed.add_field(name="⚔️ Participants", value=f"{', '.join(participant_names[:20])}{'...' if len(participant_names) > 20 else ''}", inline=False)
+
+        buf = game_session.render_map()
+        file = None
+        if buf:
+            file = File(buf, filename="cybertron_setup.png")
+            embed.set_image(url="attachment://cybertron_setup.png")
+        
+        embed.set_footer(text="Click Start Game to begin the battle for Cybertron!")
+        
+        # Create view with buttons
+        view = GameSetupView(game_session, ctx)
+        
+        # Send embed with buttons
+        if file:
+            message = await ctx.send(embed=embed, view=view, file=file)
+        else:
+            message = await ctx.send(embed=embed, view=view)
+        view.message = message
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(CybertronGames(bot))
-    logger.info("✅ Cybertron Games cog loaded successfully")
+    logger.info("✅ Enhanced Cybertron Games cog loaded successfully")

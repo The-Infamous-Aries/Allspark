@@ -797,53 +797,57 @@ class WalktruChoiceView(discord.ui.View):
                 'color': 0x00ff00 if success else 0xff0000
             })
             
-            # Create ending embed
-            ending_embed = discord.Embed(
-                title=ending_data.get('title', 'Adventure Complete'),
-                description=ending_data.get('description', 'Your journey has come to an end.'),
-                color=ending_data.get('color', 0x00ff00 if success else 0xff0000)
-            )
-            
-            # Add summary of choices made
-            if user_state['choices_made']:
-                choices_summary = "\n".join([
-                    f"Stage {i+1}: {choice['choice']} ({'✅ Success' if choice.get('success', True) else '❌ Failure'})"
-                    for i, choice in enumerate(user_state['choices_made'])
-                ])
-                ending_embed.add_field(
-                    name="📜 Your Journey",
-                    value=choices_summary,
-                    inline=False
-                )
-            
-            # Add final mechanic value
-            mechanic_display = get_mechanic_display(
-                self.adventure_type, 
-                user_state['mechanic_value'], 
-                adventure
-            )
-            ending_embed.add_field(
-                name=f"Final {adventure['mechanic'].title()}",
-                value=mechanic_display,
-                inline=False
-            )
+            # Build plain text ending messages to avoid embed limits
+            title_text = ending_data.get('title', 'Adventure Complete')
+            desc_text = ending_data.get('description', 'Your journey has come to an end.')
+            header_text = f"🏁 {title_text}\n{desc_text}"
             
             # Clean up the user's walktru state
             story_map_manager = interaction.client.story_map_manager
             await story_map_manager.clear_user_adventure_state(self.user_id, self.adventure_type)
             
-            await interaction.response.edit_message(embed=ending_embed, view=None)
+            # Edit original message to plain text; fallback to follow-up if needed
+            try:
+                await interaction.edit_original_response(content=header_text, embed=None, view=None)
+            except Exception:
+                await interaction.followup.send(header_text)
+            
+            # Add summary of choices made as plain text (chunked if long)
+            if user_state['choices_made']:
+                choices_summary = "\n".join([
+                    f"Stage {i+1}: {choice['choice']} ({'✅ Success' if choice.get('success', True) else '❌ Failure'})"
+                    for i, choice in enumerate(user_state['choices_made'])
+                ])
+                journey_text = f"📜 Your Journey\n{choices_summary}"
+                
+                # Send in chunks to respect Discord's 2000 character limit
+                for i in range(0, len(journey_text), 1900):
+                    await interaction.followup.send(journey_text[i:i+1900])
+            
+            # Add final mechanic value as plain text (chunked if long)
+            mechanic_display = get_mechanic_display(
+                self.adventure_type, 
+                user_state['mechanic_value'], 
+                adventure
+            )
+            final_mechanic_text = f"🏁 Final {adventure['mechanic'].title()}\n{mechanic_display}"
+            for i in range(0, len(final_mechanic_text), 1900):
+                await interaction.followup.send(final_mechanic_text[i:i+1900])
             
         except Exception as e:
             print(f"Error handling ending: {e}")
-            await interaction.response.edit_message(
-                embed=discord.Embed(
-                    title="Adventure Complete",
-                    description="Your adventure has ended.",
-                    color=0x00ff00
-                ),
-                view=None
-            )
+            # Fallback to a simple text message if editing fails
+            try:
+                await interaction.edit_original_response(
+                    content="Adventure Complete\nYour adventure has ended.",
+                    embed=None,
+                    view=None
+                )
+            except Exception:
+                try:
+                    await interaction.followup.send("Adventure Complete\nYour adventure has ended.")
+                except:
+                    pass
 
     async def on_timeout(self):
         """Called when the view times out after 10 minutes"""

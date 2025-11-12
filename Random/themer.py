@@ -314,15 +314,28 @@ class DataManager:
     async def is_user_in_any_combiner(self, user_id: str) -> Tuple[bool, Optional[str]]:
         """Check if a user is already part of any combiner team."""
         try:
-            # Get user data and check for combiner team info
+            # Get user data and check for combiner team info using new structure
             user_data = await self.user_data_manager.get_user_data(str(user_id))
             pets_data = user_data.get("pets", {})
             combiner_teams = pets_data.get("combiner_teams", {})
-            
-            # Check if user is in any team
-            for team_id, team_info in combiner_teams.items():
-                if team_info and isinstance(team_info, dict):
-                    return True, team_id
+
+            # The new structure stores 'current_team' and a 'teams' list
+            current_team = combiner_teams.get("current_team")
+            if current_team:
+                return True, current_team
+
+            teams = combiner_teams.get("teams", [])
+            if teams:
+                # If teams exist but no current is set, consider user in a team
+                # Return the most recent team if available via history
+                history = combiner_teams.get("history", [])
+                for h in reversed(history):
+                    tid = h.get("team_id")
+                    if tid in teams:
+                        return True, tid
+                # Fallback to first team id
+                return True, teams[0]
+
             return False, None
         except Exception as e:
             logger.error(f"Error checking combiner team for user {user_id}: {e}")
@@ -1169,7 +1182,7 @@ class ThemeSystem(commands.Cog):
                 
                 # Update user data with new team assignment
                 await self.data_manager.user_data_manager.add_user_to_pet_combiner_team(
-                    user_id, message_id, username, role, team_data
+                    user_id, username, message_id, role, team_data
                 )
                 
                 # Send confirmation
@@ -1181,7 +1194,7 @@ class ThemeSystem(commands.Cog):
                 if user_entries:
                     team_data["🦾"] = [entry for entry in team_data["🦾"] if entry.get("user_id") != user_id]
                     await self.data_manager.user_data_manager.remove_user_from_pet_combiner_team(
-                        user_id, username
+                        user_id, username, message_id
                     )
                         
         elif emoji == "🦿":  # Legs reaction
@@ -1203,7 +1216,7 @@ class ThemeSystem(commands.Cog):
                 
                 # Update user data with new team assignment
                 await self.data_manager.user_data_manager.add_user_to_pet_combiner_team(
-                    user_id, message_id, username, role, team_data
+                    user_id, username, message_id, role, team_data
                 )
                 
                 # Send confirmation
@@ -1215,7 +1228,7 @@ class ThemeSystem(commands.Cog):
                 if user_entries:
                     team_data["🦿"] = [entry for entry in team_data["🦿"] if entry.get("user_id") != user_id]
                     await self.data_manager.user_data_manager.remove_user_from_pet_combiner_team(
-                        user_id, username
+                        user_id, username, message_id
                     )
         else:
             # Invalid emoji - only 🦾 and 🦿 are allowed
