@@ -10,7 +10,16 @@ from typing import Optional, Dict, Any, List
 from functools import lru_cache
 import time
 import aiofiles
-from config import ADMIN_USER_ID
+from config import (
+    ADMIN_USER_ID,
+    CYBERTRON_ALLIANCE_ID,
+    PRIME_BANK_ALLIANCE_ID,
+    NORTHERN_CONCORD_ALLIANCE_ID,
+    UNION_OF_NATIONS_ALLIANCE_ID,
+    TRIUMVIRATE_ALLIANCE_ID,
+    RECLAIMED_FLAME_ALLIANCE_ID,
+    TCO_ALLIANCE_ID,
+)
 
 # Import UserDataManager for unified data storage
 from Systems.user_data_manager import user_data_manager
@@ -460,6 +469,76 @@ class AdminSystem(commands.Cog):
             else:
                 await ctx.send("❌ Command temporarily disabled due to excessive errors.")
 
+    @commands.hybrid_command(name='alliance_clear', description='[ADMIN ONLY] Clear Bloc data except current alliances and treaties_9445.json')
+    async def alliance_clear(self, ctx):
+        """Delete files in Systems/Data/Bloc except active alliance files and treaties_9445.json."""
+        if ctx.author.id != ADMIN_USER_ID:
+            await ctx.send("❌ This command is restricted to the bot administrator.", ephemeral=True)
+            return
+
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            bloc_dir = os.path.join(base_dir, "Systems", "Data", "Bloc")
+
+            keep_ids = {
+                str(CYBERTRON_ALLIANCE_ID),
+                str(PRIME_BANK_ALLIANCE_ID),
+                str(NORTHERN_CONCORD_ALLIANCE_ID),
+                str(UNION_OF_NATIONS_ALLIANCE_ID),
+                str(TRIUMVIRATE_ALLIANCE_ID),
+                str(RECLAIMED_FLAME_ALLIANCE_ID),
+                str(TCO_ALLIANCE_ID),
+            }
+
+            keep_files = {f"alliance_{aid}.json" for aid in keep_ids}
+            keep_files.add("treaties_9445.json")
+
+            deleted = []
+            kept = []
+
+            if not os.path.isdir(bloc_dir):
+                await ctx.send(f"❌ Bloc directory not found: `{bloc_dir}`")
+                return
+
+            for name in os.listdir(bloc_dir):
+                full_path = os.path.join(bloc_dir, name)
+                if os.path.isfile(full_path):
+                    if name in keep_files:
+                        kept.append(name)
+                    else:
+                        try:
+                            os.remove(full_path)
+                            deleted.append(name)
+                        except Exception as e:
+                            deleted.append(f"{name} (error: {e})")
+                else:
+                    kept.append(name)
+
+            self.logger.add_log(ctx.author.id, str(ctx.author), "alliance_clear", f"Deleted {len(deleted)} files in Bloc directory")
+
+            embed = discord.Embed(
+                title="🧹 Alliance Bloc Cleanup",
+                description=f"Kept alliance files linked to current bloc alliances and `treaties_9445.json`.\nDirectory: `{bloc_dir}`",
+                color=discord.Color.green(),
+                timestamp=discord.utils.utcnow()
+            )
+
+            if kept:
+                kept_display = ", ".join(sorted(k for k in kept if k in keep_files))
+                embed.add_field(name="✅ Kept", value=kept_display or "(none)", inline=False)
+
+            if deleted:
+                deleted_display = ", ".join(sorted(deleted))
+                if len(deleted_display) > 900:
+                    deleted_display = deleted_display[:897] + "..."
+                embed.add_field(name="🗑️ Deleted", value=deleted_display or "(none)", inline=False)
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error during alliance_clear: {str(e)}")
+
+        
     @lru_cache(maxsize=128)
     def _get_cached_system_stats(self) -> Dict[str, Any]:
         """Cache system stats to reduce CPU usage"""

@@ -169,6 +169,12 @@ class UserDataManager:
         self._file_modification_times = {}
         self._compression_enabled = True
         self._thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="UDM")
+        # Track last-saved content hashes to skip redundant writes
+        self._file_hashes: Dict[str, str] = {}
+        # Thresholds for save behaviors
+        self._save_compress_threshold_bytes: int = 100 * 1024  # write .json.gz when payload is large
+        self._save_verify_threshold_bytes: int = 5 * 1024 * 1024  # verify by reading back when very large
+        self._compact_json: bool = True  # write compact JSON to reduce size and time
         
         # Preload critical game data files
         self._critical_files = {'pet_equipment', 'monsters', 'bosses', 'titans', 'pets_level', 'energon_game', 'cybercoin_market_data', 'roasts', 'trivia_transformers_culture', 'trivia_transformers_characters', 'trivia_transformers_factions', 'trivia_transformers_movies', 'trivia_transformers_shows'}
@@ -190,7 +196,12 @@ class UserDataManager:
             'trivia_transformers_characters': base_systems_dir / "Data/Trivia/transformers_characters.json",
             'trivia_transformers_factions': base_systems_dir / "Data/Trivia/transformers_factions.json",
             'trivia_transformers_movies': base_systems_dir / "Data/Trivia/transformers_movies.json",
-            'trivia_transformers_shows': base_systems_dir / "Data/Trivia/transformers_shows.json"
+            'trivia_transformers_shows': base_systems_dir / "Data/Trivia/transformers_shows.json",
+
+            # Zodiac data files
+            'astrology': base_systems_dir / "Data/Zodiac/astrology.json",
+            'chinese_astrology': base_systems_dir / "Data/Zodiac/chinese_astrology.json",
+            'primal_astrology': base_systems_dir / "Data/Zodiac/primal_astrology.json"
         }
 
         self._file_paths = {
@@ -210,7 +221,6 @@ class UserDataManager:
             'alliance_14177': self.json_path / "Bloc" / "alliance_14177.json",
             'alliance_14147': self.json_path / "Bloc" / "alliance_14147.json",
             'alliance_14230': self.json_path / "Bloc" / "alliance_14230.json",
-            'alliance_14234': self.json_path / "Bloc" / "alliance_14234.json",
             
             # Global saves
             'energon_game': self.global_saves_path / "energon_game.json",
@@ -241,7 +251,12 @@ class UserDataManager:
             'trivia_transformers_characters': base_systems_dir / "Data/Trivia/transformers_characters.json",
             'trivia_transformers_factions': base_systems_dir / "Data/Trivia/transformers_factions.json",
             'trivia_transformers_movies': base_systems_dir / "Data/Trivia/transformers_movies.json",
-            'trivia_transformers_shows': base_systems_dir / "Data/Trivia/transformers_shows.json"
+            'trivia_transformers_shows': base_systems_dir / "Data/Trivia/transformers_shows.json",
+
+            # Zodiac data files
+            'astrology': base_systems_dir / "Data/Zodiac/astrology.json",
+            'chinese_astrology': base_systems_dir / "Data/Zodiac/chinese_astrology.json",
+            'primal_astrology': base_systems_dir / "Data/Zodiac/primal_astrology.json"
         }
            
         self._cache = {}
@@ -270,8 +285,7 @@ class UserDataManager:
             'alliance_14036': 3600,  # 1 hour expiration for alliance 14036 (TCO) cache
             'alliance_14177': 3600,  # 1 hour expiration for alliance 14177 (Northern Concord) cache
             'alliance_14147': 3600,  # 1 hour expiration for alliance 14147 (Eternal Phoenix) cache
-            'alliance_14230': 3600,  # 1 hour expiration for alliance 14230 (Reclaimed Flame) cache
-            'alliance_14234': 3600  # 1 hour expiration for alliance 14234 (Eternal Accords) cache
+            'alliance_14230': 3600  # 1 hour expiration for alliance 14230 (Reclaimed Flame) cache
         }
         self._file_locks = {}
         self._global_lock = asyncio.Lock()
@@ -293,6 +307,10 @@ class UserDataManager:
         # Auto-clear tracking for alliance files
         self._alliance_auto_clear_tasks = {}  # Track scheduled clear tasks
         self._alliance_clear_delay = 3600  # 1 hour in seconds
+
+        # Auto-delete tracking for temporary war-party files (home/away)
+        self._war_party_auto_delete_tasks: Dict[str, asyncio.Task] = {}
+        self._war_party_delete_delay: int = 1800  # 30 minutes in seconds
         
         self._ensure_directories()
         
@@ -314,7 +332,8 @@ class UserDataManager:
             self.json_path,
             base_systems_dir / "Data/Talk",
             base_systems_dir / "Data/Walk Tru",
-            base_systems_dir / "Data/Trivia"
+            base_systems_dir / "Data/Trivia",
+            base_systems_dir / "Data/Zodiac"
         ]
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
@@ -418,9 +437,62 @@ class UserDataManager:
             logging.info("Cancelled all alliance auto-clear tasks")
         except Exception as e:
             logging.error(f"Error cancelling all alliance auto-clear tasks: {e}")
-        
-        timestamp = self._cache_timestamps[key]
-        return (datetime.now() - timestamp).total_seconds() < self._cache_ttl
+    
+    async def _schedule_war_party_auto_delete(self, war_key: str, delay_seconds: Optional[int] = None):
+        """Schedule automatic deletion of war-party data file after a delay (default 30 minutes)."""
+        try:
+            delay = int(delay_seconds) if delay_seconds is not None else self._war_party_delete_delay
+            # Cancel any existing scheduled task for this war_key
+            if war_key in self._war_party_auto_delete_tasks:
+                try:
+                    self._war_party_auto_delete_tasks[war_key].cancel()
+                except Exception:
+                    pass
+                del self._war_party_auto_delete_tasks[war_key]
+
+            async def auto_delete_task():
+                try:
+                    await asyncio.sleep(delay)
+                    await self._delete_war_party_data(war_key)
+                except asyncio.CancelledError:
+                    logging.info(f"War-party auto-delete task cancelled for {war_key}")
+                except Exception as e:
+                    logging.error(f"Error in war-party auto-delete task for {war_key}: {e}")
+
+            task = asyncio.create_task(auto_delete_task())
+            self._war_party_auto_delete_tasks[war_key] = task
+            logging.info(f"Scheduled war-party auto-delete for {war_key} in {delay} seconds")
+        except Exception as e:
+            logging.error(f"Error scheduling war-party auto-delete for {war_key}: {e}")
+
+    async def _delete_war_party_data(self, war_key: str):
+        """Delete war-party file and evict any related cache entries."""
+        try:
+            if war_key not in self._file_paths:
+                # Resolve dynamic path if needed
+                file_path = self.json_path / "Bloc" / f"{war_key}.json"
+                self._file_paths[war_key] = file_path
+            else:
+                file_path = self._file_paths[war_key]
+
+            # Remove file if it exists
+            try:
+                if file_path.exists():
+                    file_path.unlink(missing_ok=True)
+                    logging.info(f"Deleted war-party data file for {war_key}: {file_path}")
+            except Exception as e:
+                logging.error(f"Failed to delete war-party file for {war_key}: {e}")
+
+            # Evict cache entries
+            cache_key = self._get_cache_key(file_path)
+            self._cache.pop(cache_key, None)
+            self._cache_timestamps.pop(cache_key, None)
+
+            # Remove scheduled task tracking
+            if war_key in self._war_party_auto_delete_tasks:
+                del self._war_party_auto_delete_tasks[war_key]
+        except Exception as e:
+            logging.error(f"Error clearing war-party data for {war_key}: {e}")
     
     def _evict_lru_cache(self):
         """Optimized LRU cache eviction with memory pressure handling"""
@@ -457,9 +529,15 @@ class UserDataManager:
             self._metrics['cache_hits'] += 1
             return self._cache[cache_key]
         
-        # Wait for any ongoing loading of the same file
+        # Wait for any ongoing loading of the same file with timeout
         if cache_key in self._loading_in_progress:
+            timeout_start = time.time()
+            timeout_duration = 30.0  # 30 second timeout
             while cache_key in self._loading_in_progress:
+                if time.time() - timeout_start > timeout_duration:
+                    logging.warning(f"Timeout waiting for loading of {cache_key}, proceeding with fresh load")
+                    self._loading_in_progress.discard(cache_key)  # Remove stale loading flag
+                    break
                 await asyncio.sleep(0.001)
             # Double-check after waiting
             if cache_key in self._cache and self._should_cache(cache_key):
@@ -519,32 +597,59 @@ class UserDataManager:
                     self._metrics['errors'] += 1
                     logging.error(f"Data integrity validation failed for {file_path}")
                     return False
-                
-                pass
+                # Serialize once using fastest available encoder, compact and sorted for stable hashing
+                serialized_bytes: bytes
+                try:
+                    import orjson  # type: ignore
+                    opts = orjson.OPT_SORT_KEYS
+                    serialized_bytes = orjson.dumps(data, option=opts)
+                except Exception:
+                    try:
+                        import rapidjson  # type: ignore
+                        serialized_str = rapidjson.dumps(
+                            data,
+                            sort_keys=True,
+                            ensure_ascii=False,
+                            indent=None if self._compact_json else 2,
+                        )
+                    except Exception:
+                        serialized_str = json.dumps(
+                            data,
+                            sort_keys=True,
+                            ensure_ascii=False,
+                            separators=(",", ":") if self._compact_json else None,
+                            indent=None if self._compact_json else 2,
+                        )
+                    serialized_bytes = serialized_str.encode('utf-8')
+
+                # Change detection via stable hash to skip redundant writes
+                file_key = str(file_path)
+                new_hash = hashlib.sha256(serialized_bytes).hexdigest()
+                last_hash = self._file_hashes.get(file_key)
+                if last_hash == new_hash and file_path.exists():
+                    # No changes; update cache timestamp and return quickly
+                    cache_key = self._get_cache_key(file_path)
+                    self._cache_timestamps[cache_key] = datetime.now()
+                    self._metrics['writes'] += 0  # explicit noop
+                    return True
                 
                 # Ensure parent directory exists
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 
                 # Use atomic write with temporary file
                 temp_path = file_path.with_suffix('.tmp')
-                
-                try:
-                    # Try rapidjson first for better performance
-                    import rapidjson
-                    with open(temp_path, 'w', encoding='utf-8') as f:
-                        rapidjson.dump(data, f, indent=2, ensure_ascii=False)
-                except (ImportError, Exception):
-                    # Fallback to standard json
-                    with open(temp_path, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, indent=2, ensure_ascii=False)
+                # Write serialized bytes to temp file
+                with open(temp_path, 'wb') as f:
+                    f.write(serialized_bytes)
                 
                 # Verify the written data by reading it back
                 try:
-                    with open(temp_path, 'r', encoding='utf-8') as f:
-                        verification_data = json.load(f)
-                    # Basic verification that data was written correctly
-                    if not verification_data and data:
-                        raise ValueError("Written data verification failed")
+                    if temp_path.stat().st_size >= self._save_verify_threshold_bytes:
+                        with open(temp_path, 'rb') as f:
+                            verify_bytes = f.read()
+                        verify_hash = hashlib.sha256(verify_bytes).hexdigest()
+                        if verify_hash != new_hash:
+                            raise ValueError("Written data verification hash mismatch")
                 except Exception as e:
                     temp_path.unlink(missing_ok=True)
                     raise ValueError(f"Data verification failed: {e}")
@@ -552,10 +657,20 @@ class UserDataManager:
                 # Atomic replace
                 temp_path.replace(file_path)
                 
+                # Optional: write compressed version for large files to speed future loads
+                try:
+                    if self._compression_enabled and len(serialized_bytes) >= self._save_compress_threshold_bytes:
+                        compressed_path = file_path.with_suffix('.json.gz')
+                        with gzip.open(compressed_path, 'wb') as gz:
+                            gz.write(serialized_bytes)
+                except Exception as e:
+                    logging.warning(f"Compression save failed for {file_path}: {e}")
+
                 # Update cache
                 cache_key = self._get_cache_key(file_path)
                 self._cache[cache_key] = data
                 self._cache_timestamps[cache_key] = datetime.now()
+                self._file_hashes[file_key] = new_hash
                 
                 self._metrics['writes'] += 1
                 self._network_manager.record_success()
@@ -676,9 +791,6 @@ class UserDataManager:
     
     async def save_json_data(self, key: str, data: Any) -> bool:
         """Save JSON data by key - uses _save_json_optimized internally"""
-        print("=" * 50)
-        print(f"DEBUG: save_json_data called with key={key}")
-        print("=" * 50)
         try:
             if not isinstance(key, str) or key.strip() == "":
                 raise ValueError("Invalid key provided to save_json_data")
@@ -698,7 +810,7 @@ class UserDataManager:
                 # Schedule auto-clear for alliance files if save was successful
                 alliance_list = [
                     'alliance_9445', 'alliance_14036', 'alliance_14110', 
-                    'alliance_14147', 'alliance_14177', 'alliance_14230', 'alliance_14234'
+                    'alliance_14147', 'alliance_14177', 'alliance_14230'
                 ]
                 
                 if result and key in alliance_list:
@@ -706,6 +818,45 @@ class UserDataManager:
                     await self._schedule_alliance_auto_clear(key)
                 
                 return result
+            # Handle dynamic war party keys (home/away groupings)
+            elif key.startswith('war_party_'):
+                # Map to Bloc/war_party_<identifier>.json
+                if key not in self._file_paths:
+                    file_path = self.json_path / "Bloc" / f"{key}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added war party key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                result = await self._save_json_optimized(file_path, data)
+                # Schedule auto-delete for war-party (home/away) files if save was successful
+                if result:
+                    await self._schedule_war_party_auto_delete(key)
+                return result
+            # Handle unified wars-between-parties keys
+            elif key.startswith('war_parties_'):
+                # Persist combined Home-vs-Away wars into Bloc/war_parties_<home>_vs_<away>.json
+                if key not in self._file_paths:
+                    file_path = self.json_path / "Bloc" / f"{key}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added war parties key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                result = await self._save_json_optimized(file_path, data)
+                # Schedule auto-delete in 15 minutes for unified parties files
+                if result:
+                    try:
+                        await self._schedule_war_party_auto_delete(key, delay_seconds=900)
+                    except Exception as e:
+                        logging.warning(f"Failed to schedule auto-delete for '{key}': {e}")
+                return result
+            # Handle dynamic treaties keys
+            elif key.startswith('treaties_'):
+                # Dynamically map treaties to Bloc/treaties_<id>.json
+                if key not in self._file_paths:
+                    treaties_id = key.replace('treaties_', '')
+                    file_path = self.json_path / "Bloc" / f"treaties_{treaties_id}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added treaties key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                return await self._save_json_optimized(file_path, data)
             else:
                 # For non-alliance keys, use the original logic
                 if key not in self._file_paths:
@@ -740,6 +891,32 @@ class UserDataManager:
                 file_path = self._file_paths[key]
                 # Use lazy cache for relatively static data
                 return await self._load_json_optimized(file_path, default_data={}, lazy=True)
+            # Handle dynamic treaties keys
+            elif key.startswith('treaties_'):
+                if key not in self._file_paths:
+                    treaties_id = key.replace('treaties_', '')
+                    file_path = self.json_path / "Bloc" / f"treaties_{treaties_id}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added treaties key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                return await self._load_json_optimized(file_path, default_data={}, lazy=True)
+            # Handle dynamic war party keys (home/away)
+            elif key.startswith('war_party_'):
+                if key not in self._file_paths:
+                    file_path = self.json_path / "Bloc" / f"{key}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added war party key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                # Provide a sensible default structure
+                return await self._load_json_optimized(file_path, default_data={'nations': []}, lazy=True)
+            # Handle unified wars-between-parties keys
+            elif key.startswith('war_parties_'):
+                if key not in self._file_paths:
+                    file_path = self.json_path / "Bloc" / f"{key}.json"
+                    self._file_paths[key] = file_path
+                    logging.info(f"Dynamically added war parties key '{key}' with path: {file_path}")
+                file_path = self._file_paths[key]
+                return await self._load_json_optimized(file_path, default_data={'wars': []}, lazy=True)
             else:
                 # For non-alliance keys, use the original logic
                 if key not in self._file_paths:
@@ -1420,11 +1597,19 @@ class UserDataManager:
             }
 
     def record_cybercoin_purchase(self, user_id: str, amount_invested: float, coins_received: float, price_per_coin: float) -> None:
-        """Record a CyberCoin purchase transaction."""
+        """Record a CyberCoin purchase transaction (sync wrapper)."""
         try:
-            # This is a synchronous wrapper for the async method
             import asyncio
-            asyncio.create_task(self._record_cybercoin_purchase_async(user_id, amount_invested, coins_received, price_per_coin))
+            try:
+                loop = asyncio.get_running_loop()
+                # If we're already in an event loop, schedule fire-and-forget
+                if loop.is_running():
+                    asyncio.create_task(self._record_cybercoin_purchase_async(user_id, amount_invested, coins_received, price_per_coin))
+                else:
+                    asyncio.run(self._record_cybercoin_purchase_async(user_id, amount_invested, coins_received, price_per_coin))
+            except RuntimeError:
+                # No running loop; safe to run directly
+                asyncio.run(self._record_cybercoin_purchase_async(user_id, amount_invested, coins_received, price_per_coin))
         except Exception as e:
             logging.error(f"Error recording cybercoin purchase for {user_id}: {e}")
 
@@ -1468,12 +1653,20 @@ class UserDataManager:
             logging.error(f"Error in _record_cybercoin_purchase_async for {user_id}: {e}")
 
     def record_cybercoin_sale(self, user_id: str, coins_sold: float, sale_amount: float, price_per_coin: float) -> dict:
-        """Record a CyberCoin sale transaction."""
+        """Record a CyberCoin sale transaction (sync wrapper)."""
         try:
-            # This is a synchronous wrapper for the async method
             import asyncio
-            result = asyncio.run(self._record_cybercoin_sale_async(user_id, coins_sold, sale_amount, price_per_coin))
-            return result
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    # In a running loop, schedule async task and return acknowledgment
+                    asyncio.create_task(self._record_cybercoin_sale_async(user_id, coins_sold, sale_amount, price_per_coin))
+                    return {"success": True, "scheduled": True}
+                else:
+                    return asyncio.run(self._record_cybercoin_sale_async(user_id, coins_sold, sale_amount, price_per_coin))
+            except RuntimeError:
+                # No running loop; safe to run and get result
+                return asyncio.run(self._record_cybercoin_sale_async(user_id, coins_sold, sale_amount, price_per_coin))
         except Exception as e:
             logging.error(f"Error recording cybercoin sale for {user_id}: {e}")
             return {"success": False, "error": str(e)}
@@ -1701,7 +1894,12 @@ class UserDataManager:
             "jokes_talk": await self.get_jokes_talk_data(),
             "grump_talk": await self.get_grump_talk_data(),
             "blessings_talk": await self.get_blessings_talk_data(),
-            "user_lore": await self.get_user_lore_data()
+            "user_lore": await self.get_user_lore_data(),
+
+            # Zodiac data
+            "astrology": await self.get_western_astrology(),
+            "chinese_astrology": await self.get_chinese_astrology(),
+            "primal_astrology": await self.get_primal_astrology()
         }
     
     async def get_energon_data(self, player_id: str, username: str = None) -> Dict[str, Any]:
@@ -2377,13 +2575,105 @@ class UserDataManager:
     
     # JSON Data Access Methods
     async def get_json_data(self, file_key: str, default_data: Any = None) -> Any:
-        """Get JSON data from specified file with caching"""
-        if file_key not in self._file_paths:
-            logging.error(f"Unknown file key: {file_key}")
+        """Get JSON data by logical key.
+
+        Delegates to load_json_data which supports dynamic keys like 'alliance_<id>',
+        'war_party_<side>', 'war_parties_<pair>', and 'treaties_<id>'.
+        Returns default_data when an empty dict would be returned and default_data is provided.
+        """
+        try:
+            result = await self.load_json_data(file_key)
+            if result == {} and default_data is not None:
+                return default_data
+            return result
+        except Exception as e:
+            logging.error(f"get_json_data error for key '{file_key}': {e}")
             return default_data if default_data is not None else {}
-        
-        file_path = self._file_paths[file_key]
-        return await self._load_json_optimized(file_path, default_data, lazy=True)
+
+    # Zodiac Data Methods (Optimized)
+    async def get_western_astrology(self) -> List[Dict[str, Any]]:
+        """Load Western astrology data (astrology.json) with caching."""
+        data = await self._load_json_optimized(self._file_paths['astrology'], [], lazy=True)
+        return data if isinstance(data, list) else []
+
+    async def get_chinese_astrology(self) -> List[Dict[str, Any]]:
+        """Load Chinese astrology data (chinese_astrology.json) with caching."""
+        data = await self._load_json_optimized(self._file_paths['chinese_astrology'], [], lazy=True)
+        return data if isinstance(data, list) else []
+
+    async def get_primal_astrology(self) -> List[Dict[str, Any]]:
+        """Load Primal astrology data (primal_astrology.json) with caching."""
+        data = await self._load_json_optimized(self._file_paths['primal_astrology'], [], lazy=True)
+        return data if isinstance(data, list) else []
+
+    # Zodiac Lookup Helpers
+    @staticmethod
+    def _normalize_chinese_for_primal(name: str) -> str:
+        """Normalize Chinese zodiac name for primal combos (Goat→Sheep)."""
+        return 'Sheep' if str(name).strip().lower() == 'goat' else str(name).strip()
+
+    @staticmethod
+    def _denormalize_primal_to_chinese(name: str) -> str:
+        """Map primal Sheep back to Chinese Goat when needed."""
+        return 'Goat' if str(name).strip().lower() == 'sheep' else str(name).strip()
+
+    def format_primal_combination(self, western_name: str, chinese_name: str) -> str:
+        """Format a Primal astrology combination string consistently (normalizes Goat→Sheep)."""
+        return f"{str(western_name).strip()} / {self._normalize_chinese_for_primal(chinese_name)}"
+
+    async def find_western_sign_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Find Western zodiac entry by name (case-insensitive)."""
+        signs = await self.get_western_astrology()
+        target = str(name).strip().lower()
+        for entry in signs:
+            if isinstance(entry, dict) and str(entry.get('name', '')).strip().lower() == target:
+                return entry
+        return None
+
+    async def find_chinese_sign_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Find Chinese zodiac entry by name; accepts Sheep or Goat (case-insensitive)."""
+        signs = await self.get_chinese_astrology()
+        target = str(name).strip().lower()
+        # Accept both 'goat' and 'sheep' by mapping sheep->goat internally
+        if target == 'sheep':
+            target = 'goat'
+        for entry in signs:
+            if isinstance(entry, dict) and str(entry.get('Name', '')).strip().lower() == target:
+                return entry
+        return None
+
+    async def find_chinese_sign_by_year(self, year: int) -> Optional[Dict[str, Any]]:
+        """Find Chinese zodiac entry by Gregorian year using listed years or 12-year cycle anchored at 2020=Rat."""
+        signs = await self.get_chinese_astrology()
+        # First pass: exact year listed
+        for entry in signs:
+            years = entry.get('Years')
+            if isinstance(years, list) and year in years:
+                return entry
+        # Fallback: compute via cycle anchored at 2020 Rat
+        order = ['Rat','Ox','Tiger','Rabbit','Dragon','Snake','Horse','Goat','Monkey','Rooster','Dog','Pig']
+        try:
+            idx = (int(year) - 2020) % 12
+            target_name = order[idx]
+        except Exception:
+            return None
+        for entry in signs:
+            if str(entry.get('Name','')).strip().lower() == target_name.lower():
+                return entry
+        return None
+
+    async def find_primal_by_combination(self, western_name: str, chinese_name: str) -> Optional[Dict[str, Any]]:
+        """Find Primal astrology entry by Sign Combination (e.g., 'Pisces / Sheep')."""
+        primal = await self.get_primal_astrology()
+        combo = f"{str(western_name).strip()} / {self._normalize_chinese_for_primal(chinese_name)}"
+        for entry in primal:
+            if isinstance(entry, dict) and str(entry.get('Sign Combination','')).strip() == combo:
+                return entry
+        # Try case-insensitive match as fallback
+        for entry in primal:
+            if isinstance(entry, dict) and str(entry.get('Sign Combination','')).strip().lower() == combo.lower():
+                return entry
+        return None
     
 
 
@@ -2414,7 +2704,12 @@ class UserDataManager:
             'jokes_talk': ['transformers_politics_war_jokes'],
             'grump_talk': ['greeting_templates', 'threatening_messages', 'nuclear_messages', 'ultra_nuclear_messages', 'witness_messages', 'threat_messages'],
             'blessings_talk': ['💪 Courage and Strength', '📖 Wisdom and Guidance', '🌈 Hope and Unity', '🛡️ Protection and Longevity', '🏛️ Legacy and Destiny', '💊 Healing and Renewal', '🚀 Exploration and Discovery', '⚖️ Honor and Justice', '🔥 Passion and Innovation', '🌌 Mystery and Fate', '⚡ Misfortune and Warnings', '💀 Bad Fortune and Curses'],
-            'user_lore': ['title', 'description', 'author_id', 'timestamp']
+            'user_lore': ['title', 'description', 'author_id', 'timestamp'],
+
+            # Zodiac datasets (list-based) — detailed validation handled below
+            'astrology': [],
+            'chinese_astrology': [],
+            'primal_astrology': []
         }
         
         results = {}
@@ -2436,7 +2731,12 @@ class UserDataManager:
                     'jokes_talk': 'get_jokes_talk_data',
                     'grump_talk': 'get_grump_talk_data',
                     'blessings_talk': 'get_blessings_talk_data',
-                    'user_lore': 'get_user_lore_data'
+                    'user_lore': 'get_user_lore_data',
+
+                    # Zodiac datasets
+                    'astrology': 'get_western_astrology',
+                    'chinese_astrology': 'get_chinese_astrology',
+                    'primal_astrology': 'get_primal_astrology'
                 }
                 
                 method_name = method_mapping.get(file_type, f'get_{file_type}')
@@ -2445,9 +2745,23 @@ class UserDataManager:
                 # Validate top-level structure
                 if isinstance(data, dict):
                     results[file_type] = all(key in data for key in required_keys)
-                elif isinstance(data, list) and file_type == 'recruit':
-                    # Special handling for recruit which is a list
-                    results[file_type] = len(data) > 0
+                elif isinstance(data, list):
+                    if file_type == 'recruit':
+                        # recruit is a list of dicts with subject/body
+                        results[file_type] = all(isinstance(item, dict) and all(k in item for k in required_keys) for item in data)
+                    elif file_type == 'astrology':
+                        # Western astrology entries must have minimal fields
+                        required = ['name', 'emoji', 'date_range']
+                        results[file_type] = all(isinstance(item, dict) and all(k in item for k in required) for item in data)
+                    elif file_type == 'chinese_astrology':
+                        # Chinese astrology entries require Name and Years list
+                        results[file_type] = all(isinstance(item, dict) and 'Name' in item and isinstance(item.get('Years'), list) for item in data)
+                    elif file_type == 'primal_astrology':
+                        # Primal astrology entries require Name and Sign Combination
+                        results[file_type] = all(isinstance(item, dict) and 'Name' in item and 'Sign Combination' in item for item in data)
+                    else:
+                        # Generic list should be non-empty
+                        results[file_type] = len(data) > 0
                 else:
                     results[file_type] = False
             except Exception:
